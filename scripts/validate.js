@@ -6,11 +6,10 @@
 
 const fs = require('fs');
 const path = require('path');
-const yaml = require('js-yaml');
 
 const ROOT = path.join(__dirname, '..');
 const BIRDS_DIR = path.join(ROOT, 'birds');
-const PLACES_FILE = path.join(ROOT, 'places.yaml');
+const PLACES_FILE = path.join(ROOT, 'places.json');
 
 let errors = 0;
 let warnings = 0;
@@ -29,25 +28,25 @@ function ok(msg) {
   console.log(`  OK:    ${msg}`);
 }
 
-// ─── Load places.yaml ────────────────────────────────────────────────────────
+// ─── Load places.json ────────────────────────────────────────────────────────
 
-console.log('\n=== Loading places.yaml ===');
+console.log('\n=== Loading places.json ===');
 if (!fs.existsSync(PLACES_FILE)) {
-  console.error('FATAL: places.yaml not found');
+  console.error('FATAL: places.json not found');
   process.exit(1);
 }
 
 let placesData;
 try {
-  placesData = yaml.load(fs.readFileSync(PLACES_FILE, 'utf8'));
+  placesData = JSON.parse(fs.readFileSync(PLACES_FILE, 'utf8'));
 } catch (e) {
-  console.error(`FATAL: Cannot parse places.yaml: ${e.message}`);
+  console.error(`FATAL: Cannot parse places.json: ${e.message}`);
   process.exit(1);
 }
 
 const places = placesData.places;
 if (!places || typeof places !== 'object') {
-  console.error('FATAL: places.yaml must have a top-level "places" key');
+  console.error('FATAL: places.json must have a top-level "places" key');
   process.exit(1);
 }
 

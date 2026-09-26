@@ -9,8 +9,5 @@
     "fetch-images": "node scripts/fetch-images.js",
     "dev": "npx serve . -l 8080",
     "all": "npm run validate && npm run build"
-  },
-  "dependencies": {
-    "js-yaml": "^4.3.2"
   }
 }

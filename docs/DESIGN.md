@@ -5,7 +5,7 @@
 Un único catálogo de datos alimenta dos productos:
 
 - **Aplicación web móvil** estática, publicada en GitHub Pages.
-- **Guías imprimibles en PDF** A4, una por lugar, para plastificar.
+- **Guía imprimible A4** por lugar, para plastificar, generada por el propio navegador (sin PDF pregenerado).
 
 ## 2. Arquitectura de datos
 
@@ -17,7 +17,7 @@ birds/
     metadata.json
     principal.jpg           # imagen principal (obligatoria)
     [otras imágenes].jpg
-places.yaml                 # tres lugares con lista ordenada de 20 especies cada uno
+places.json                 # tres lugares con lista ordenada de 20 especies cada uno
 ```
 
 ### 2.2 `metadata.json` — esquema
@@ -48,34 +48,29 @@ places.yaml                 # tres lugares con lista ordenada de 20 especies cad
 
 Campos obligatorios: `scientific_name`, `name_es`, `name_fr`, `poster_image`, `images` (≥1), y para cada imagen: `file`, `author`, `source_url`, `license`, `license_url`.
 
-### 2.3 `places.yaml` — esquema
+### 2.3 `places.json` — esquema
 
-```yaml
-places:
-  alicante:
-    name_es: Alicante
-    name_fr: Alicante
-    species:               # lista ordenada, referencia a carpeta en birds/
-      - Passer domesticus
-      - Turdus merula
-      # … hasta 20
-  ourense:
-    name_es: Ourense
-    name_fr: Ourense
-    species:
-      - …
-  bruselas:
-    name_es: Bruselas
-    name_fr: Bruxelles
-    species:
-      - …
+```json
+{
+  "places": {
+    "alicante": {
+      "name_es": "Alicante",
+      "name_fr": "Alicante",
+      "species": ["Passer domesticus", "Turdus merula", "… hasta 20"]
+    },
+    "ourense": { "name_es": "Ourense", "name_fr": "Ourense", "species": ["…"] },
+    "bruselas": { "name_es": "Bruselas", "name_fr": "Bruxelles", "species": ["…"] }
+  }
+}
 ```
+
+`species` es una lista ordenada que referencia carpetas en `birds/`.
 
 ### 2.4 Identidad de especie
 
 - Cada carpeta es identificada de forma estable por su nombre científico (genus + epithet).
 - Las especies compartidas entre lugares reutilizan exactamente la misma carpeta.
-- No existe ningún catálogo editable adicional fuera de `birds/` y `places.yaml`.
+- No existe ningún catálogo editable adicional fuera de `birds/` y `places.json`.
 
 ## 3. Selección de aves por lugar
 
@@ -94,7 +89,7 @@ No existen rankings estadísticos comparables para los tres lugares con la granu
 3. **Documentación:** cada especie incluye en `metadata.json` una lista de referencias usadas para verificar presencia local y nombres.
 4. **Estacionalidad:** documentada en el campo `references` y anotada en el plan de implementación; no se añade a la ficha visible de la web.
 
-### Listas de especies (ver `places.yaml` para el orden definitivo)
+### Listas de especies (ver `places.json` para el orden definitivo)
 
 **Alicante** (calles, parques, costa, La Ereta, Serra Grossa):
 Gorrión común, Mirlo común, Paloma bravía/urbana, Tórtola turca, Gaviota patiamarilla, Gaviota de Audouin (costa), Estornino negro, Vencejo común, Golondrina común, Avión común, Verdecillo, Jilguero, Carbonero común, Herrerillo común, Curruca capirotada, Petirrojo, Cernícalo vulgar, Lechuza común, Colirrojo tizón, Gorrión molinero.
@@ -136,7 +131,7 @@ Mirlo común, Gorrión común, Paloma bravía/urbana, Herrerillo común, Carbone
 - HTML + CSS + JavaScript vanilla, sin frameworks ni bundlers.
 - Completamente estática, funciona en GitHub Pages sin backend.
 - Un único punto de entrada: `index.html` con lógica en `src/app.js`.
-- Los datos se cargan desde `catalog.json` generado en tiempo de compilación a partir de `birds/` y `places.yaml`.
+- Los datos se cargan desde `catalog.json` generado en tiempo de compilación a partir de `birds/` y `places.json`.
 
 ### 5.2 Estructura de archivos web
 
@@ -158,7 +153,7 @@ catalog.json          # generado, no editar a mano
 **Menú lateral/modal:**
 - Selector de lugar (Alicante / Ourense / Bruselas).
 - Instrucciones de gestos.
-- Enlace a PDFs.
+- Botón "Imprimir esta guía".
 - Créditos.
 
 **URLs por lugar:**
@@ -229,7 +224,7 @@ Implementadas con `location.pathname` (sin hash) usando el prefijo de repo GitHu
 ### 7.1 Script de validación (`scripts/validate.js`)
 
 Comprobaciones:
-- Exactamente 20 especies distintas por lugar en `places.yaml`.
+- Exactamente 20 especies distintas por lugar en `places.json`.
 - Cada especie referenciada tiene su carpeta en `birds/`.
 - Cada carpeta tiene `metadata.json` con todos los campos obligatorios.
 - El nombre científico en `metadata.json` coincide con el nombre de la carpeta.

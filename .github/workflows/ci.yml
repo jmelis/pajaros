@@ -24,8 +24,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
-      - run: npm ci
       - run: node scripts/validate.js
 
   build-web:
@@ -37,8 +35,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
-      - run: npm ci
       - run: node scripts/build-catalog.js
       - uses: actions/upload-artifact@v4
         with:
@@ -58,8 +54,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
-      - run: npm ci
       - run: node scripts/build-catalog.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

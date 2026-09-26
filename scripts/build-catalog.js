@@ -1,20 +1,19 @@
 #!/usr/bin/env node
 /**
- * build-catalog.js — Generate catalog.json from birds/ and places.yaml
+ * build-catalog.js — Generate catalog.json from birds/ and places.json
  * Output: catalog.json in project root
  */
 
 const fs = require('fs');
 const path = require('path');
-const yaml = require('js-yaml');
 
 const ROOT = path.join(__dirname, '..');
 const BIRDS_DIR = path.join(ROOT, 'birds');
-const PLACES_FILE = path.join(ROOT, 'places.yaml');
+const PLACES_FILE = path.join(ROOT, 'places.json');
 const OUTPUT_FILE = path.join(ROOT, 'catalog.json');
 
-// Load places.yaml
-const placesData = yaml.load(fs.readFileSync(PLACES_FILE, 'utf8'));
+// Load places.json
+const placesData = JSON.parse(fs.readFileSync(PLACES_FILE, 'utf8'));
 const places = placesData.places;
 
 // Collect all unique species
