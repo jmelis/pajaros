@@ -46,6 +46,10 @@ const btnNext       = document.getElementById('btn-next');
 const btnMorePhotos = document.getElementById('btn-more-photos');
 const photosCount   = document.getElementById('photos-count');
 
+const btnPlaySong = document.getElementById('btn-play-song');
+const songIcon    = document.getElementById('song-icon');
+const birdAudio   = document.getElementById('bird-audio');
+
 const menuBtn     = document.getElementById('menu-btn');
 const menuPanel   = document.getElementById('menu-panel');
 const menuClose   = document.getElementById('menu-close');
@@ -53,6 +57,21 @@ const menuOverlay = document.getElementById('menu-overlay');
 const placeBtns   = document.querySelectorAll('.place-btn');
 const btnPrint    = document.getElementById('btn-print');
 const printSheet  = document.getElementById('print-sheet');
+
+const stageEl              = document.getElementById('stage');
+const btnPosterMode        = document.getElementById('btn-poster-mode');
+const posterView           = document.getElementById('poster-view');
+const posterPlaceName      = document.getElementById('poster-place-name');
+const posterGridWrap       = document.getElementById('poster-grid-wrap');
+const posterGrid           = document.getElementById('poster-grid');
+const btnPosterBack        = document.getElementById('btn-poster-back');
+const btnPosterShuffle     = document.getElementById('btn-poster-shuffle');
+const btnPosterToggleNames = document.getElementById('btn-poster-toggle-names');
+const posterToggleIcon     = document.getElementById('poster-toggle-icon');
+const posterToggleLabel    = document.getElementById('poster-toggle-label');
+const btnPosterPrev        = document.getElementById('btn-poster-prev');
+const btnPosterNext        = document.getElementById('btn-poster-next');
+const posterPageIndicator  = document.getElementById('poster-page-indicator');
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
@@ -131,6 +150,18 @@ function render() {
   placeBtns.forEach(btn => {
     btn.classList.toggle('active', btn.dataset.place === currentPlace);
   });
+
+  // Bird song: stop whatever was playing for the previous bird, load the new one
+  birdAudio.pause();
+  birdAudio.currentTime = 0;
+  setSongPlayingUI(false);
+  if (sp.audio) {
+    birdAudio.src = imageUrl(sp, sp.audio.file);
+    btnPlaySong.hidden = false;
+  } else {
+    birdAudio.removeAttribute('src');
+    btnPlaySong.hidden = true;
+  }
 
   // Preload neighbors
   schedulePreload(sp);
@@ -346,6 +377,15 @@ imgContainer.addEventListener('pointercancel', () => { pointerActive = false; })
 document.addEventListener('keydown', e => {
   if (menuPanel && !menuPanel.hasAttribute('hidden')) return; // menu open
 
+  if (posterMode) {
+    switch (e.key) {
+      case 'ArrowRight': e.preventDefault(); goPosterNextPage(); break;
+      case 'ArrowLeft':  e.preventDefault(); goPosterPrevPage(); break;
+      case 'Escape':     e.preventDefault(); exitPosterMode(); break;
+    }
+    return;
+  }
+
   switch (e.key) {
     case 'ArrowRight': e.preventDefault(); goNextBird(); break;
     case 'ArrowLeft':  e.preventDefault(); goPrevBird(); break;
@@ -359,6 +399,26 @@ document.addEventListener('keydown', e => {
 btnNext.addEventListener('click', goNextBird);
 btnPrev.addEventListener('click', goPrevBird);
 btnMorePhotos.addEventListener('click', goNextImage);
+
+// ─── Bird song playback ───────────────────────────────────────────────────────
+
+function setSongPlayingUI(playing) {
+  btnPlaySong.classList.toggle('playing', playing);
+  btnPlaySong.setAttribute('aria-label', playing ? 'Pausar canto' : 'Reproducir canto');
+  songIcon.innerHTML = playing ? '&#10074;&#10074;' : '&#9658;';
+}
+
+btnPlaySong.addEventListener('click', () => {
+  if (birdAudio.paused) {
+    birdAudio.play().catch(() => {}); // ignore AbortError from a rapid pause/bird change
+  } else {
+    birdAudio.pause();
+  }
+});
+
+birdAudio.addEventListener('play', () => setSongPlayingUI(true));
+birdAudio.addEventListener('pause', () => setSongPlayingUI(false));
+birdAudio.addEventListener('ended', () => setSongPlayingUI(false));
 
 // ─── Menu ─────────────────────────────────────────────────────────────────────
 
@@ -475,6 +535,151 @@ function escHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+// ─── Poster mode (fullscreen bin-packed collage, random order, paginated) ──────
+// Reuses gridSpanClass/rotationDeg/escHtml/imageUrl from the print sheet above.
+// A names on/off toggle turns it into a quiz: with names off, tapping a bird
+// reveals (or re-hides) just that bird's name.
+
+let posterMode = false;
+let posterShowNames = true;
+let posterOrder = [];
+let posterPage = 0;
+
+function shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function posterPageCount() {
+  return Math.max(1, Math.ceil(posterOrder.length / BIRDS_PER_PAGE));
+}
+
+function renderPosterPage() {
+  const start = posterPage * BIRDS_PER_PAGE;
+  const keys = posterOrder.slice(start, start + BIRDS_PER_PAGE);
+
+  posterGrid.innerHTML = keys.map(key => {
+    const sp = catalog.species[key];
+    const hasCutout = Boolean(sp.poster_cutout);
+    const imgSrc = hasCutout ? imageUrl(sp, sp.poster_cutout) : imageUrl(sp, sp.poster_image);
+    const imgClass = hasCutout ? 'poster-bird-img poster-bird-img-cutout' : 'poster-bird-img';
+    const imgStyle = hasCutout ? `transform: rotate(${rotationDeg(sp)}deg);` : '';
+    return `
+      <div class="poster-bird-cell ${gridSpanClass(sp)}">
+        <div class="poster-bird-img-wrap">
+          <img src="${imgSrc}" alt="${escHtml(sp.name_es)}" class="${imgClass}" style="${imgStyle}">
+        </div>
+        <p class="poster-bird-label">
+          <span class="poster-name-es">${escHtml(sp.name_es)}</span>
+          <span class="poster-name-fr">${escHtml(sp.name_fr)}</span>
+        </p>
+      </div>
+    `;
+  }).join('');
+
+  const pageCount = posterPageCount();
+  posterPageIndicator.textContent = `${posterPage + 1} / ${pageCount}`;
+  btnPosterPrev.disabled = pageCount <= 1;
+  btnPosterNext.disabled = pageCount <= 1;
+}
+
+function shufflePoster() {
+  posterOrder = shuffleArray(getSpeciesList());
+  posterPage = 0;
+  renderPosterPage();
+}
+
+function goPosterNextPage() {
+  posterPage = (posterPage + 1) % posterPageCount();
+  renderPosterPage();
+}
+
+function goPosterPrevPage() {
+  posterPage = (posterPage - 1 + posterPageCount()) % posterPageCount();
+  renderPosterPage();
+}
+
+function updatePosterToggleNamesUI() {
+  btnPosterToggleNames.setAttribute('aria-pressed', String(posterShowNames));
+  btnPosterToggleNames.classList.toggle('quiz-active', !posterShowNames);
+  posterToggleIcon.textContent = posterShowNames ? '\u{1F441}' : '\u{1F576}';
+  posterToggleLabel.textContent = posterShowNames ? 'Nombres' : 'Adivinar';
+}
+
+function togglePosterNames() {
+  posterShowNames = !posterShowNames;
+  posterGrid.classList.toggle('show-names', posterShowNames);
+  if (!posterShowNames) {
+    // Turning quiz mode on starts a fresh round: hide every name again.
+    posterGrid.querySelectorAll('.poster-bird-cell.revealed').forEach(cell => {
+      cell.classList.remove('revealed');
+    });
+  }
+  updatePosterToggleNamesUI();
+}
+
+function enterPosterMode() {
+  if (!catalog) return;
+  birdAudio.pause();
+  posterMode = true;
+  posterPlaceName.textContent = catalog.places[currentPlace].name_es;
+  posterGrid.classList.toggle('show-names', posterShowNames);
+  updatePosterToggleNamesUI();
+  shufflePoster();
+  stageEl.hidden = true;
+  posterView.hidden = false;
+  closeMenu();
+}
+
+function exitPosterMode() {
+  posterMode = false;
+  posterView.hidden = true;
+  stageEl.hidden = false;
+}
+
+posterGrid.addEventListener('click', e => {
+  if (posterShowNames) return;
+  const cell = e.target.closest('.poster-bird-cell');
+  if (!cell) return;
+  cell.classList.toggle('revealed');
+});
+
+btnPosterMode.addEventListener('click', enterPosterMode);
+btnPosterBack.addEventListener('click', exitPosterMode);
+btnPosterShuffle.addEventListener('click', shufflePoster);
+btnPosterToggleNames.addEventListener('click', togglePosterNames);
+btnPosterPrev.addEventListener('click', goPosterPrevPage);
+btnPosterNext.addEventListener('click', goPosterNextPage);
+
+// Swipe between poster pages (mirrors the card swipe handling above, horizontal only)
+let posterTouchStartX = 0;
+let posterTouchStartY = 0;
+let posterTouchActive = false;
+
+posterGridWrap.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1) return;
+  posterTouchStartX = e.touches[0].clientX;
+  posterTouchStartY = e.touches[0].clientY;
+  posterTouchActive = true;
+}, { passive: true });
+
+posterGridWrap.addEventListener('touchend', e => {
+  if (!posterTouchActive) return;
+  posterTouchActive = false;
+  const dx = e.changedTouches[0].clientX - posterTouchStartX;
+  const dy = e.changedTouches[0].clientY - posterTouchStartY;
+  if (Math.abs(dx) < SWIPE_MIN_PX) return;
+  if (Math.abs(dx) < Math.abs(dy) * SWIPE_RATIO) return; // too diagonal
+  if (dx < 0) goPosterNextPage();
+  else goPosterPrevPage();
+}, { passive: true });
+
+posterGridWrap.addEventListener('touchcancel', () => { posterTouchActive = false; }, { passive: true });
 
 // ─── Browser back/forward ─────────────────────────────────────────────────────
 

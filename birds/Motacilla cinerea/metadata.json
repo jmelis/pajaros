@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ],
-  "poster_cutout_aspect": 1.6477
+  "poster_cutout_aspect": 1.6477,
+  "audio": {
+    "file": "song.mp3",
+    "alt_es": "Canto de Lavandera cascadeña",
+    "author": "Pascal Christe",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Motacilla_cinerea_-_Grey_Wagtail_XC596811.mp3",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

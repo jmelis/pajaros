@@ -29,5 +29,13 @@
       "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
     }
   ],
-  "poster_cutout_aspect": 0.9988
+  "poster_cutout_aspect": 0.9988,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Grajilla occidental",
+    "author": "Veljo Runnel",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Corvus_monedula_calls.ogg",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ],
-  "poster_cutout_aspect": 1.6523
+  "poster_cutout_aspect": 1.6523,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Golondrina común",
+    "author": "Jonathon Jongsma",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Hirundo_rustica_-_Barn_Swallow_-_XC83449.ogg",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+  }
 }

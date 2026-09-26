@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
     }
   ],
-  "poster_cutout_aspect": 1.0325
+  "poster_cutout_aspect": 1.0325,
+  "audio": {
+    "file": "song.mp3",
+    "alt_es": "Canto de Colirrojo tizón",
+    "author": "Marie-Lan Taÿ Pamart",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Phoenicurus_ochruros_-_Black_Redstart_XC473243.mp3",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

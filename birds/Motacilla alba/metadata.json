@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by/2.0"
     }
   ],
-  "poster_cutout_aspect": 1.806
+  "poster_cutout_aspect": 1.806,
+  "audio": {
+    "file": "song.mp3",
+    "alt_es": "Canto de Lavandera blanca",
+    "author": "Pascal Christe",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Motacilla_alba_-_White_Wagtail_XC466458.mp3",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

@@ -14,12 +14,13 @@ Catálogo de identificación de aves para paseos familiares en **Alicante**, **O
 
 - **Especie nueva:** crea `birds/<Genus species>/metadata.json` (copia el de otra especie), añádela a `places.json`, y ejecuta `python3 scripts/fetch_images.py "<Genus species>"` para descargar 3 fotos con licencia libre y su atribución desde Wikimedia (solo stdlib, sin `pip install`).
 - **Imagen nueva en una especie existente:** copia el archivo a `birds/<Genus species>/` y añade su entrada en `images[]` de `metadata.json` (`file`, `author`, `source_url`, `license`, `license_url`).
+- **Canto de un ave:** `python3 scripts/fetch_audio.py "<Genus species>"` descarga una grabación con licencia libre desde Wikimedia Commons (categoría `Audio files of <Genus species>`, mayormente importada de Xeno-canto) y rellena `audio` en `metadata.json`. No todas las especies tienen grabación disponible con licencia libre — en ese caso el botón de reproducir simplemente no aparece.
 - **Lugar nuevo:** añade la entrada en `places.json` (`name_es`, `name_fr`, 20 `species`) y un botón en `index.template.html` (`#place-buttons`).
 - **Cambio de interfaz:** edita `index.template.html`, `src/app.js` o `src/style.css`, nunca `index.html` directamente.
-- **Recorte para el póster:** `scripts/cutout.py` quita el fondo de `principal.jpg` y genera `birds/<Genus species>/poster-cutout.png` (ave flotando, sin caja) que usa la guía impresa si existe. Aparte del resto del proyecto — necesita un entorno con `rembg`+`Pillow` (descarga un modelo de ~1GB la primera vez):
+- **Recorte para el póster:** `scripts/cutout.py` quita el fondo de `principal.jpg` y genera `birds/<Genus species>/poster-cutout.png` (ave flotando, sin caja) que usa la guía impresa si existe. Aparte del resto del proyecto — usa [`uv`](https://docs.astral.sh/uv/) para resolver `rembg`+`Pillow` desde las dependencias inline del script (descarga un modelo de ~1GB la primera vez y lo conserva en `~/.rembg/models/`):
   ```bash
-  python3 -m venv .venv && .venv/bin/pip install rembg pillow
-  .venv/bin/python scripts/cutout.py
+  uv run scripts/cutout.py            # todas las especies
+  uv run scripts/cutout.py --missing  # solo las que aún no tienen recorte
   ```
 
 Después de cualquier cambio:
@@ -38,6 +39,7 @@ Menú (☰) → **Imprimir esta guía** → diálogo de impresión del navegador
 ```
 birds/<Genus species>/metadata.json, principal.jpg, foto2.jpg, foto3.jpg
                             poster-cutout.png (opcional)  # ave sin fondo, para el póster
+                            song.mp3/.ogg (opcional)      # canto, con botón de reproducir en la ficha
 places.json                # 3 lugares × 20 especies
 
 index.template.html        # plantilla — edítala a ella, no a index.html
@@ -48,6 +50,7 @@ scripts/
   bake.sh                  # places.json + birds/ → index.html
   validate.sh              # integridad del catálogo (bash + jq)
   fetch_images.py          # descarga fotos + atribución desde Wikimedia (Python stdlib)
+  fetch_audio.py           # descarga cantos + atribución desde Wikimedia Commons (Python stdlib)
   cutout.py                # quita el fondo del póster (Python + rembg, aparte)
 
 docs/DESIGN.md, docs/IMPLEMENTATION_PLAN.md
@@ -55,6 +58,6 @@ docs/DESIGN.md, docs/IMPLEMENTATION_PLAN.md
 
 CI (`.github/workflows/ci.yml`) valida, hornea y publica en GitHub Pages en cada push a `main`.
 
-## Licencias de imágenes
+## Licencias de imágenes y audio
 
-Todas con licencia libre (CC BY, CC BY-SA, CC0 o dominio público). Los datos de atribución (`author`, `source_url`, `license`, `license_url`) siguen en `metadata.json` de cada especie, pero no se muestran en la web ni en la guía impresa — proyecto familiar no comercial, sin intención de redistribución más allá de este uso.
+Todo con licencia libre (CC BY, CC BY-SA, CC0 o dominio público). Los datos de atribución (`author`, `source_url`, `license`, `license_url`) siguen en `metadata.json` de cada especie, pero no se muestran en la web ni en la guía impresa — proyecto familiar no comercial, sin intención de redistribución más allá de este uso.

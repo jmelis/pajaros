@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by/3.0"
     }
   ],
-  "poster_cutout_aspect": 1.1935
+  "poster_cutout_aspect": 1.1935,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Gaviota patiamarilla",
+    "author": "Cedric MROCZKO",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Yellow-legged_Gull_-_Larus_michahellis_michahellis.ogg",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

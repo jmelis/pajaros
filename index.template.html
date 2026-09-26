@@ -39,6 +39,12 @@
             <span id="photos-count"></span>
           </button>
 
+          <!-- Bird song playback -->
+          <button id="btn-play-song" class="song-btn" aria-label="Reproducir canto" hidden>
+            <span id="song-icon" class="song-icon" aria-hidden="true">&#9658;</span>
+          </button>
+          <audio id="bird-audio" preload="none"></audio>
+
           <!-- Image dots indicator -->
           <div id="img-dots" aria-hidden="true"></div>
         </div>
@@ -75,8 +81,15 @@
           <li><span class="gesture">← deslizar</span> Ave siguiente</li>
           <li><span class="gesture">→ deslizar</span> Ave anterior</li>
           <li><span class="gesture">&#128247; botón</span> Más fotos de esta ave</li>
+          <li><span class="gesture">&#128266; botón</span> Reproducir el canto</li>
         </ul>
         <p class="help-note">También puedes usar las flechas del teclado o los botones de la pantalla.</p>
+      </section>
+
+      <section aria-labelledby="poster-heading">
+        <h2 id="poster-heading">Modo póster</h2>
+        <button id="btn-poster-mode" class="print-btn">Ver póster a pantalla completa</button>
+        <p class="help-note">Aves a tamaño completo, en orden aleatorio y por páginas — ideal para la tablet. Oculta los nombres para jugar a adivinarlos: toca un ave para revelar su nombre.</p>
       </section>
 
       <section aria-labelledby="pdf-heading">
@@ -89,6 +102,32 @@
 
   <!-- Overlay for menu -->
   <div id="menu-overlay" aria-hidden="true"></div>
+
+  <!-- Poster mode: fullscreen bin-packed collage, random order, paginated,
+       with a names on/off toggle for quizzing (tap a bird to reveal its name). -->
+  <div id="poster-view" hidden>
+    <div id="poster-topbar">
+      <button id="btn-poster-back" class="poster-ctrl-btn" aria-label="Volver a la ficha">&#8592; Volver</button>
+      <div id="poster-place-name"></div>
+      <div id="poster-topbar-actions">
+        <button id="btn-poster-shuffle" class="poster-ctrl-btn" aria-label="Barajar orden">
+          <span aria-hidden="true">&#128256;</span> Barajar
+        </button>
+        <button id="btn-poster-toggle-names" class="poster-ctrl-btn" aria-pressed="true" aria-label="Mostrar u ocultar los nombres">
+          <span id="poster-toggle-icon" aria-hidden="true">&#128065;</span>
+          <span id="poster-toggle-label">Nombres</span>
+        </button>
+      </div>
+    </div>
+    <div id="poster-grid-wrap">
+      <div id="poster-grid" class="show-names" role="group" aria-label="Aves del póster"></div>
+    </div>
+    <div id="poster-bottombar">
+      <button id="btn-poster-prev" class="poster-ctrl-btn poster-ctrl-btn-round" aria-label="Página anterior">&#8249;</button>
+      <span id="poster-page-indicator"></span>
+      <button id="btn-poster-next" class="poster-ctrl-btn poster-ctrl-btn-round" aria-label="Página siguiente">&#8250;</button>
+    </div>
+  </div>
 
   <!-- Printable guide, built from the catalog data below, only shown by @media print -->
   <div id="print-sheet" aria-hidden="true"></div>

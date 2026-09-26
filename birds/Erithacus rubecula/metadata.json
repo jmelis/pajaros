@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ],
-  "poster_cutout_aspect": 1.4568
+  "poster_cutout_aspect": 1.4568,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Petirrojo europeo",
+    "author": "Jonathon Jongsma",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Erithacus_rubecula_-_European_Robin_-_XC114615.ogg",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+  }
 }

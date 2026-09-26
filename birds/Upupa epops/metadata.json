@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by/4.0"
     }
   ],
-  "poster_cutout_aspect": 1.6059
+  "poster_cutout_aspect": 1.6059,
+  "audio": {
+    "file": "song.mp3",
+    "alt_es": "Canto de Abubilla común",
+    "author": "Alexander Kurthy",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Upupa_epops_-_Eurasian_Hoopoe_XC108366.mp3",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

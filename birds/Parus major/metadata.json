@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ],
-  "poster_cutout_aspect": 2.0907
+  "poster_cutout_aspect": 2.0907,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Carbonero común",
+    "author": "Gavin Vella",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Parus_major_-_Great_Tit_XC129643.ogg",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+  }
 }

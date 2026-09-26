@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by/4.0"
     }
   ],
-  "poster_cutout_aspect": 1.5794
+  "poster_cutout_aspect": 1.5794,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Mirlo común",
+    "author": "Adrienne Eaton",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Turdus_merula_-_Common_Blackbird_XC123548.ogg",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+  }
 }

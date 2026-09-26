@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ],
-  "poster_cutout_aspect": 1.1449
+  "poster_cutout_aspect": 1.1449,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Ánade azulón",
+    "author": "Jonathon Jongsma",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Anas_platyrhynchos_-_Mallard_-_XC112828.ogg",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+  }
 }

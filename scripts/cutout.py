@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "pillow>=10,<13",
+#   "rembg[cpu]>=2.0.69,<3",
+# ]
+# ///
 """cutout.py — Remove the background from each species' poster image, for the
 printed poster (organic floating-bird layout instead of boxed photos).
 
@@ -8,15 +15,15 @@ into that species' metadata.json (used to size its cell in the print poster's
 collage layout). scripts/bake.sh picks both up automatically if present.
 
 Not part of the zero-dependency toolchain — this is a rare, one-off,
-local-only maintenance step (never runs in CI, never ships to the site) that
-needs rembg (ML background removal) and Pillow. Use a throwaway venv:
+local-only maintenance step (never runs in CI, never ships to the site).
+Dependencies are declared above and managed by uv's persistent cache:
 
-  python3 -m venv .venv
-  .venv/bin/pip install rembg pillow
-  .venv/bin/python scripts/cutout.py                # all species
-  .venv/bin/python scripts/cutout.py "Turdus merula" # a single species
+  uv run scripts/cutout.py                 # all species
+  uv run scripts/cutout.py --missing       # only species without a cutout
+  uv run scripts/cutout.py "Turdus merula" # a single species
 
-First run downloads a ~1GB model to ~/.rembg/ (cached after that).
+The first run downloads the background-removal model to ~/.rembg/models/.
+Both the uv environment and model cache are reused by later runs.
 """
 
 import io
@@ -25,7 +32,7 @@ import os
 import sys
 
 from PIL import Image
-from rembg import remove
+from rembg import new_session, remove
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 BIRDS_DIR = os.path.join(ROOT, "birds")
@@ -33,7 +40,7 @@ MAX_DIM = 1200    # cap output size — these are display cutouts, not archival 
 PAD_FRAC = 0.03   # small breathing room kept around the tight content bbox
 
 
-def process_species(dir_name):
+def process_species(dir_name, session):
     dir_path = os.path.join(BIRDS_DIR, dir_name)
     src_path = os.path.join(dir_path, "principal.jpg")
     dest_path = os.path.join(dir_path, "poster-cutout.png")
@@ -46,7 +53,7 @@ def process_species(dir_name):
     with open(src_path, "rb") as f:
         src_bytes = f.read()
 
-    out_bytes = remove(src_bytes)
+    out_bytes = remove(src_bytes, session=session)
     img = Image.open(io.BytesIO(out_bytes)).convert("RGBA")
 
     # Crop to the bird's actual silhouette, not the full photo's canvas — the
@@ -79,15 +86,28 @@ def process_species(dir_name):
 
 
 def main():
-    arg = sys.argv[1] if len(sys.argv) > 1 else None
-    dirs = [arg] if arg else sorted(
+    args = sys.argv[1:]
+    all_dirs = sorted(
         d for d in os.listdir(BIRDS_DIR) if os.path.isdir(os.path.join(BIRDS_DIR, d))
     )
+    if not args:
+        dirs = all_dirs
+    elif args == ["--missing"]:
+        dirs = [
+            d for d in all_dirs
+            if not os.path.isfile(os.path.join(BIRDS_DIR, d, "poster-cutout.png"))
+        ]
+    elif len(args) == 1 and not args[0].startswith("-"):
+        dirs = args
+    else:
+        print(f"Usage: {sys.argv[0]} [--missing | 'Genus species']", file=sys.stderr)
+        sys.exit(2)
 
     ok = 0
+    session = new_session() if dirs else None
     for d in dirs:
         print(f"--- {d} ---")
-        if process_species(d):
+        if process_species(d, session):
             ok += 1
 
     print(f"\n=== Done: {ok}/{len(dirs)} ===")

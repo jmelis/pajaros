@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ],
-  "poster_cutout_aspect": 2.3343
+  "poster_cutout_aspect": 2.3343,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Avión común",
+    "author": "Desconocido",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Common_House_Martin_%28Delichon_urbica%29_%28W_DELICHON_URBICA_R3_C3%29.ogg",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0"
+  }
 }

@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by/2.0"
     }
   ],
-  "poster_cutout_aspect": 1.3478
+  "poster_cutout_aspect": 1.3478,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Barnacla canadiense",
+    "author": "Jonathon Jongsma",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Branta_canadensis_-_Canada_Goose_-_XC62259.ogg",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+  }
 }

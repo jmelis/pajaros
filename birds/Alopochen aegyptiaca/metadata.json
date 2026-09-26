@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
     }
   ],
-  "poster_cutout_aspect": 1.4962
+  "poster_cutout_aspect": 1.4962,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Ganso del Nilo",
+    "author": "Beeld en Geluid",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Artis%2C_Nijlgans_-_SoundCloud_-_Beeld_en_Geluid.ogg",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+  }
 }

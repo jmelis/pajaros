@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
     }
   ],
-  "poster_cutout_aspect": 0.9403
+  "poster_cutout_aspect": 0.9403,
+  "audio": {
+    "file": "song.mp3",
+    "alt_es": "Canto de Estornino pinto",
+    "author": "Alvaro Ortiz Troncoso",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Sturnus_vulgaris_-_Common_Starling_XC401497.mp3",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

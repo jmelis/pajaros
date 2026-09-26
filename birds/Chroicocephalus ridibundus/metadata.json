@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ],
-  "poster_cutout_aspect": 1.2784
+  "poster_cutout_aspect": 1.2784,
+  "audio": {
+    "file": "song.mp3",
+    "alt_es": "Canto de Gaviota reidora",
+    "author": "Dan Stowell",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Chroicocephalus_ridibundus_-_Black-headed_Gull_XC143894.mp3",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+  }
 }

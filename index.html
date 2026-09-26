@@ -39,6 +39,12 @@
             <span id="photos-count"></span>
           </button>
 
+          <!-- Bird song playback -->
+          <button id="btn-play-song" class="song-btn" aria-label="Reproducir canto" hidden>
+            <span id="song-icon" class="song-icon" aria-hidden="true">&#9658;</span>
+          </button>
+          <audio id="bird-audio" preload="none"></audio>
+
           <!-- Image dots indicator -->
           <div id="img-dots" aria-hidden="true"></div>
         </div>
@@ -75,8 +81,15 @@
           <li><span class="gesture">← deslizar</span> Ave siguiente</li>
           <li><span class="gesture">→ deslizar</span> Ave anterior</li>
           <li><span class="gesture">&#128247; botón</span> Más fotos de esta ave</li>
+          <li><span class="gesture">&#128266; botón</span> Reproducir el canto</li>
         </ul>
         <p class="help-note">También puedes usar las flechas del teclado o los botones de la pantalla.</p>
+      </section>
+
+      <section aria-labelledby="poster-heading">
+        <h2 id="poster-heading">Modo póster</h2>
+        <button id="btn-poster-mode" class="print-btn">Ver póster a pantalla completa</button>
+        <p class="help-note">Aves a tamaño completo, en orden aleatorio y por páginas — ideal para la tablet. Oculta los nombres para jugar a adivinarlos: toca un ave para revelar su nombre.</p>
       </section>
 
       <section aria-labelledby="pdf-heading">
@@ -90,6 +103,32 @@
   <!-- Overlay for menu -->
   <div id="menu-overlay" aria-hidden="true"></div>
 
+  <!-- Poster mode: fullscreen bin-packed collage, random order, paginated,
+       with a names on/off toggle for quizzing (tap a bird to reveal its name). -->
+  <div id="poster-view" hidden>
+    <div id="poster-topbar">
+      <button id="btn-poster-back" class="poster-ctrl-btn" aria-label="Volver a la ficha">&#8592; Volver</button>
+      <div id="poster-place-name"></div>
+      <div id="poster-topbar-actions">
+        <button id="btn-poster-shuffle" class="poster-ctrl-btn" aria-label="Barajar orden">
+          <span aria-hidden="true">&#128256;</span> Barajar
+        </button>
+        <button id="btn-poster-toggle-names" class="poster-ctrl-btn" aria-pressed="true" aria-label="Mostrar u ocultar los nombres">
+          <span id="poster-toggle-icon" aria-hidden="true">&#128065;</span>
+          <span id="poster-toggle-label">Nombres</span>
+        </button>
+      </div>
+    </div>
+    <div id="poster-grid-wrap">
+      <div id="poster-grid" class="show-names" role="group" aria-label="Aves del póster"></div>
+    </div>
+    <div id="poster-bottombar">
+      <button id="btn-poster-prev" class="poster-ctrl-btn poster-ctrl-btn-round" aria-label="Página anterior">&#8249;</button>
+      <span id="poster-page-indicator"></span>
+      <button id="btn-poster-next" class="poster-ctrl-btn poster-ctrl-btn-round" aria-label="Página siguiente">&#8250;</button>
+    </div>
+  </div>
+
   <!-- Printable guide, built from the catalog data below, only shown by @media print -->
   <div id="print-sheet" aria-hidden="true"></div>
 
@@ -97,7 +136,7 @@
        Inlined (rather than fetched) so the page works straight from file://, no server needed. -->
 <script type="application/json" id="catalog-data">
 {
-  "generated": "2026-09-26T06:03:44Z",
+  "generated": "2026-09-26T08:29:15Z",
   "places": {
     "alicante": {
       "name_es": "Alicante",
@@ -179,6 +218,129 @@
     }
   },
   "species": {
+    "Acanthis flammea": {
+      "scientific_name": "Acanthis flammea",
+      "name_es": "Pardillo sizerín",
+      "name_fr": "Sizerin flammé",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.9112,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Pardillo sizerín",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Pardillo sizerín (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Pardillo sizerín (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Cephas",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Carduelis_flammea_CT6.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2017.01.27.-13-Paradiski-La_Plagne-Champagny-en-Vanoise--Birkenzeisig.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Ott Rebane",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2018-02-25_Urvalind.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        }
+      ],
+      "audio": null
+    },
+    "Accipiter gentilis": {
+      "scientific_name": "Accipiter gentilis",
+      "name_es": "Azor común",
+      "name_fr": "Autour des palombes",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.6325,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Azor común",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Norbert Kenntner, Berlin",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Northern_Goshawk_ad_M2.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "http://creativecommons.org/licenses/by-sa/3.0/"
+        }
+      ],
+      "audio": null
+    },
+    "Accipiter nisus": {
+      "scientific_name": "Accipiter nisus",
+      "name_es": "Gavilán común",
+      "name_fr": "Épervier d'Europe",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.625,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Gavilán común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Gavilán común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Gavilán común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Dion Art",
+          "source_url": "https://commons.wikimedia.org/wiki/File:%D0%AF%D1%81%D1%82%D1%80%D0%B5%D0%B1-%D0%BF%D0%B5%D1%80%D0%B5%D0%BF%D0%B5%D0%BB%D1%8F%D1%82%D0%BD%D0%B8%D0%BA_%28Accipiter_nisus%2C_m%29%2C_%D0%98%D0%B7%D0%BC%D0%B0%D0%B9%D0%BB%D0%BE%D0%B2%D1%81%D0%BA%D0%B8%D0%B9_%D0%BF%D0%B0%D1%80%D0%BA.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Bortali",
+          "source_url": "https://commons.wikimedia.org/wiki/File:01_Sparviere_Venezia_2022.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Andy Morffew from Itchen Abbas, Hampshire, UK",
+          "source_url": "https://commons.wikimedia.org/wiki/File:A_sparrowhawk_cools_down_in_a_reflection_pool_%2853929259015%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        }
+      ],
+      "audio": null
+    },
     "Actitis hypoleucos": {
       "scientific_name": "Actitis hypoleucos",
       "name_es": "Andarríos chico",
@@ -225,7 +387,89 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Andarríos chico",
+        "author": "Joost van Bruggen",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Actitis_hypoleucos_-_Common_Sandpiper_XC431822.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Aegithalos caudatus": {
+      "scientific_name": "Aegithalos caudatus",
+      "name_es": "Mito común",
+      "name_fr": "Orite à longue queue",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.2889,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Mito común",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Ігор Червоненко",
+          "source_url": "https://commons.wikimedia.org/wiki/File:%D0%94%D0%BE%D0%B2%D0%B3%D0%BE%D1%85%D0%B2%D0%BE%D1%81%D1%82%D0%B0_2.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
+    },
+    "Alauda arvensis": {
+      "scientific_name": "Alauda arvensis",
+      "name_es": "Alondra común",
+      "name_fr": "Alouette des champs",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.444,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Alondra común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Alondra común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Alondra común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "User:Diliff",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Skylark_2%2C_Lake_District%2C_England_-_June_2009.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Kolforn",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2018-05-24_Skylark_%28Alauda_arvensis%29%2C_Beeston_Regis.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Matthias Bethke",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20240609_Feldlerche_%28Alauda_arvensis%29.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
     },
     "Alcedo atthis": {
       "scientific_name": "Alcedo atthis",
@@ -273,7 +517,15 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Martín pescador común",
+        "author": "Marie-Lan Taÿ Pamart",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Alcedo_atthis_-_Common_Kingfisher_XC476785.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
     },
     "Alopochen aegyptiaca": {
       "scientific_name": "Alopochen aegyptiaca",
@@ -321,7 +573,15 @@
           "license": "CC BY-SA 2.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Ganso del Nilo",
+        "author": "Beeld en Geluid",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Artis%2C_Nijlgans_-_SoundCloud_-_Beeld_en_Geluid.ogg",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
     },
     "Anas platyrhynchos": {
       "scientific_name": "Anas platyrhynchos",
@@ -369,7 +629,64 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Ánade azulón",
+        "author": "Jonathon Jongsma",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Anas_platyrhynchos_-_Mallard_-_XC112828.ogg",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
+    },
+    "Anthus pratensis": {
+      "scientific_name": "Anthus pratensis",
+      "name_es": "Bisbita pratense",
+      "name_fr": "Pipit farlouse",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.4388,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Bisbita pratense",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Bisbita pratense (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Bisbita pratense (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Andreas Trepte",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Wiesenpieper_Meadow_pipit.jpg",
+          "license": "CC BY-SA 2.5",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.5"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Lars Vad",
+          "source_url": "https://commons.wikimedia.org/wiki/File:6830_Norre_Nebel%2C_Denmark_-_panoramio_%281%29.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Ian Greig",
+          "source_url": "https://commons.wikimedia.org/wiki/File:A_meadow_pipit_-_geograph.org.uk_-_1352379.jpg",
+          "license": "CC BY-SA 2.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+        }
+      ],
+      "audio": null
     },
     "Apus apus": {
       "scientific_name": "Apus apus",
@@ -417,7 +734,8 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": null
     },
     "Apus pallidus": {
       "scientific_name": "Apus pallidus",
@@ -465,7 +783,57 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": null
+    },
+    "Bombycilla garrulus": {
+      "scientific_name": "Bombycilla garrulus",
+      "name_es": "Ampelis europeo",
+      "name_fr": "Jaseur boréal",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 2.1583,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Ampelis europeo",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Ampelis europeo (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Ampelis europeo (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Tatiana Bulyonkova from Novosibirsk, Russia",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Bombycilla_garrulus%2C_Novosibirsk_1.jpg",
+          "license": "CC BY-SA 2.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Andrey Butko",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2024-03-11._%D0%9A%D1%80%D0%B0%D1%81%D0%BD%D0%BE%D0%B4%D0%B0%D1%80_DSC_8354.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Andrey Butko",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2024-03-11._%D0%9A%D1%80%D0%B0%D1%81%D0%BD%D0%BE%D0%B4%D0%B0%D1%80_DSC_8356.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
     },
     "Branta canadensis": {
       "scientific_name": "Branta canadensis",
@@ -513,7 +881,64 @@
           "license": "CC BY 2.0",
           "license_url": "https://creativecommons.org/licenses/by/2.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Barnacla canadiense",
+        "author": "Jonathon Jongsma",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Branta_canadensis_-_Canada_Goose_-_XC62259.ogg",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
+    },
+    "Buteo buteo": {
+      "scientific_name": "Buteo buteo",
+      "name_es": "Busardo ratonero",
+      "name_fr": "Buse variable",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.7142,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Busardo ratonero",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Busardo ratonero (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Busardo ratonero (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "caroline legg",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Common_Buzzard_by_caroline_legg_%28cropped%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Richard Dorrell",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Anyone_know_the_way_to_Staffin%5E_-_geograph.org.uk_-_1051005.jpg",
+          "license": "CC BY-SA 2.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Dûrzan cîrano",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Baz-3.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        }
+      ],
+      "audio": null
     },
     "Carduelis carduelis": {
       "scientific_name": "Carduelis carduelis",
@@ -561,7 +986,113 @@
           "license": "CC BY 2.0",
           "license_url": "https://creativecommons.org/licenses/by/2.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.oga",
+        "alt_es": "Canto de Jilguero europeo",
+        "author": "Gérard OLIVIER http://www",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Carduelis_carduelis_-_Chardonneret_Elegant_-_XC292577.oga",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Certhia brachydactyla": {
+      "scientific_name": "Certhia brachydactyla",
+      "name_es": "Agateador europeo",
+      "name_fr": "Grimpereau des jardins",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.42,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Agateador europeo",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Agateador europeo (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Agateador europeo (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Charles J. Sharp",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Short-toed_treecreeper_%28Certhia_brachydactyla_brachydactyla%29.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Jac. Janssen from Baarlo lb, NL",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20130630_045_Peel_en_Maas_Kessel_Weerdbeemden_Boomkruiper_%289178230934%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Jac. Janssen from Baarlo lb, NL",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20150614_033_Kessel_Weerdbeemden_Boomkruuiper_%2818179446074%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        }
+      ],
+      "audio": null
+    },
+    "Certhia familiaris": {
+      "scientific_name": "Certhia familiaris",
+      "name_es": "Agateador norteño",
+      "name_fr": "Grimpereau des bois",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.3917,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Agateador norteño",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Agateador norteño (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Agateador norteño (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "caroline legg",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_Treecreeper_-_Certhia_familiaris_%2854192274817%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Peter von Bagh",
+          "source_url": "https://commons.wikimedia.org/wiki/File:A_funny_friend._A_treekreeper_looking_into_my_cameras_lens_-_Flickr_-_peter.v.b.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Stephan Sprinz",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Bauml%C3%A4ufer_im_NSG_Oftersheimer_D%C3%BCnen_02.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        }
+      ],
+      "audio": null
     },
     "Chloris chloris": {
       "scientific_name": "Chloris chloris",
@@ -609,7 +1140,8 @@
           "license": "CC BY 2.0",
           "license_url": "https://creativecommons.org/licenses/by/2.0"
         }
-      ]
+      ],
+      "audio": null
     },
     "Chroicocephalus ridibundus": {
       "scientific_name": "Chroicocephalus ridibundus",
@@ -657,7 +1189,15 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Gaviota reidora",
+        "author": "Dan Stowell",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Chroicocephalus_ridibundus_-_Black-headed_Gull_XC143894.mp3",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
     },
     "Cinclus cinclus": {
       "scientific_name": "Cinclus cinclus",
@@ -705,7 +1245,64 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Mirlo acuático europeo",
+        "author": "Desconocido",
+        "source_url": "https://commons.wikimedia.org/wiki/File:European_Dipper_%28Cinclus_cinclus%29_%28W1CDR0001383_BD8%29.ogg",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Coccothraustes coccothraustes": {
+      "scientific_name": "Coccothraustes coccothraustes",
+      "name_es": "Picogordo común",
+      "name_fr": "Grosbec casse-noyau",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 2.0033,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Picogordo común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Picogordo común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Picogordo común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Charles J. Sharp",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Hawfinch_%28Coccothraustes_coccothraustes%29_male_Drenthe.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Dellex",
+          "source_url": "https://commons.wikimedia.org/wiki/File:0_Kernbei%C3%9Fer_M%C3%A4nnchen.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Holger Uwe Schmitt",
+          "source_url": "https://commons.wikimedia.org/wiki/File:16%2C5_bis_18_cm_ist_die_K%C3%B6rperl%C3%A4nge_des_Kernbei%C3%9Fers._01.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
     },
     "Coloeus monedula": {
       "scientific_name": "Coloeus monedula",
@@ -753,7 +1350,15 @@
           "license": "CC0",
           "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Grajilla occidental",
+        "author": "Veljo Runnel",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Corvus_monedula_calls.ogg",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
     },
     "Columba livia": {
       "scientific_name": "Columba livia",
@@ -801,7 +1406,57 @@
           "license": "CC BY 4.0",
           "license_url": "https://creativecommons.org/licenses/by/4.0"
         }
-      ]
+      ],
+      "audio": null
+    },
+    "Columba oenas": {
+      "scientific_name": "Columba oenas",
+      "name_es": "Paloma zurita",
+      "name_fr": "Pigeon colombin",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.9508,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Paloma zurita",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Paloma zurita (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Paloma zurita (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Frank Vassen from Brussels, Belgium",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Pigeon_colombin_%28Colulmba_oenas%29%2C_Parc_de_Woluwe%2C_Bruxelles_%2851921513878%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "MPF",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2016-04-30_Columba_oenas%2C_Armstrong_Park_1.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "MPF",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2016-04-30_Columba_oenas%2C_Armstrong_Park_2.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        }
+      ],
+      "audio": null
     },
     "Columba palumbus": {
       "scientific_name": "Columba palumbus",
@@ -849,7 +1504,15 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Paloma torcaz",
+        "author": "Alexander Kurthy",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Columba_palumbus_-_Common_Wood_Pigeon_XC108354.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
     },
     "Corvus corone": {
       "scientific_name": "Corvus corone",
@@ -897,7 +1560,64 @@
           "license": "CC0",
           "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Corneja negra",
+        "author": "Harry Rutherford",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Corvus_corone_-_Carrion_Crow_XC147235.mp3",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
+    },
+    "Corvus frugilegus": {
+      "scientific_name": "Corvus frugilegus",
+      "name_es": "Graja",
+      "name_fr": "Corbeau freux",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.086,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Graja",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Graja (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Graja (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Charles J. Sharp",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Rook_%28Corvus_frugilegus%29_Heligan.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Ann Harrison",
+          "source_url": "https://commons.wikimedia.org/wiki/File:A_Rook_at_Lossiemouth_-_geograph.org.uk_-_1441948.jpg",
+          "license": "CC BY-SA 2.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Alan Murray-Rust",
+          "source_url": "https://commons.wikimedia.org/wiki/File:A_rook_on_every_pinnacle_-_geograph.org.uk_-_4237058.jpg",
+          "license": "CC BY-SA 2.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+        }
+      ],
+      "audio": null
     },
     "Curruca melanocephala": {
       "scientific_name": "Curruca melanocephala",
@@ -945,7 +1665,15 @@
           "license": "CC BY 4.0",
           "license_url": "https://creativecommons.org/licenses/by/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Curruca cabecinegra",
+        "author": "Ryan Hodnett",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Sardinian_Warbler_%28Curruca_melanocephala%29_-_Parc_Natural_de_s%27Albufera%2C_Spain_2022-04-18.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
     },
     "Cyanistes caeruleus": {
       "scientific_name": "Cyanistes caeruleus",
@@ -993,7 +1721,15 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Herrerillo común",
+        "author": "Adrienne Eaton",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Cyanistes_caeruleus_-_Eurasian_Blue_Tit_XC121562.ogg",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
     },
     "Delichon urbicum": {
       "scientific_name": "Delichon urbicum",
@@ -1041,7 +1777,15 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Avión común",
+        "author": "Desconocido",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Common_House_Martin_%28Delichon_urbica%29_%28W_DELICHON_URBICA_R3_C3%29.ogg",
+        "license": "CC BY 4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0"
+      }
     },
     "Dendrocopos major": {
       "scientific_name": "Dendrocopos major",
@@ -1089,7 +1833,309 @@
           "license": "CC BY-SA 2.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Pico picapinos",
+        "author": "Alexander Kürthy",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Dendrocopos_major_-_Great_Spotted_Woodpecker_XC309807.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Dendrocoptes medius": {
+      "scientific_name": "Dendrocoptes medius",
+      "name_es": "Pico mediano",
+      "name_fr": "Pic mar",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.9983,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Pico mediano",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Pico mediano (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Pico mediano (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Dion Art",
+          "source_url": "https://commons.wikimedia.org/wiki/File:%D0%A1%D1%80%D0%B5%D0%B4%D0%BD%D0%B8%D0%B9_%D0%BF%D1%91%D1%81%D1%82%D1%80%D1%8B%D0%B9_%D0%B4%D1%8F%D1%82%D0%B5%D0%BB_%28Dendrocoptes_medius%29%2C_%D0%91%D0%B8%D1%82%D1%86%D0%B5%D0%B2%D1%81%D0%BA%D0%B8%D0%B9_%D0%BB%D0%B5%D1%81.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Desconocido",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Dendrocopos_medius_%28Marek_Szczepanek%29_cut.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "http://creativecommons.org/licenses/by-sa/3.0/"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Marek Szczepanek",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Dendrocopos_medius_%28Marek_Szczepanek%29.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "http://creativecommons.org/licenses/by-sa/3.0/"
+        }
+      ],
+      "audio": null
+    },
+    "Dryobates minor": {
+      "scientific_name": "Dryobates minor",
+      "name_es": "Pico menor",
+      "name_fr": "Pic épeichette",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.9425,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Pico menor",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Pico menor (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Pico menor (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Andrey Gulivanov",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Male_lesser_spotted_woodpecker_%28Dryobates_minor%29.png",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Øyvind Holmstad",
+          "source_url": "https://commons.wikimedia.org/wiki/File:05-06-24_dvergspett_PermaLiv.jpg",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Martin Mecnarowski",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Dendrocopos_minor_1_%28Martin_Mecnarowski%29.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "http://creativecommons.org/licenses/by-sa/3.0/"
+        }
+      ],
+      "audio": null
+    },
+    "Dryocopus martius": {
+      "scientific_name": "Dryocopus martius",
+      "name_es": "Picamaderos negro",
+      "name_fr": "Pic noir",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.5067,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Picamaderos negro",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Picamaderos negro (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Picamaderos negro (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Dion Art",
+          "source_url": "https://commons.wikimedia.org/wiki/File:%D0%96%D0%B5%D0%BB%D0%BD%D0%B0_%28Dryocopus_martius%2C_fem%29%2C_%C2%AB%D0%93%D0%BE%D1%80%D0%BE%D0%B4%D1%81%D0%BA%D0%B0%D1%8F_%D1%88%D1%83%D0%BC%D0%B0%D1%88%D0%B5%D1%88%D0%B0%D1%8F%C2%BB.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2016.08.27.-12-Viernheimer_Heide-Viernheim--Schwarzspecht-Weibchen.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2016.08.27.-13-Viernheimer_Heide-Viernheim--Schwarzspecht-Weibchen.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
+    },
+    "Emberiza calandra": {
+      "scientific_name": "Emberiza calandra",
+      "name_es": "Escribano triguero",
+      "name_fr": "Bruant proyer",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.9767,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Escribano triguero",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Escribano triguero (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Escribano triguero (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "El Golli Mohamed",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Bruant_proyer_Ichkeul018.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2013.06.27.-05-Ahrensberg-Grauammer_Weibchen.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2013.06.27.-06-Ahrensberg-Grauammer_Weibchen.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        }
+      ],
+      "audio": null
+    },
+    "Emberiza citrinella": {
+      "scientific_name": "Emberiza citrinella",
+      "name_es": "Escribano cerillo",
+      "name_fr": "Bruant jaune",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.2076,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Escribano cerillo",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Escribano cerillo (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Escribano cerillo (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Andreas Trepte",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Goldammer_Emberiza_citrinella.jpg",
+          "license": "CC BY-SA 2.5",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.5"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "PtrQs",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20160607_GoldammerAhrenshoop_DSC01696_crop_PtrQs.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2017.03.26.-01-Rhein_Lampertheim--Goldammer-Maennchen.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
+    },
+    "Emberiza schoeniclus": {
+      "scientific_name": "Emberiza schoeniclus",
+      "name_es": "Escribano palustre",
+      "name_fr": "Bruant des roseaux",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.7045,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Escribano palustre",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Escribano palustre (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Escribano palustre (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "caroline legg",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Reed_Bunting_-_Emberiza_schoeniclus_%2852015951301%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "TRinaud",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Common_reed_bunting_%28Emberiza_schoeniclus%29_2021.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "TRinaud",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Common_reed_bunting_%28Emberiza_schoeniclus%29_2022.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        }
+      ],
+      "audio": null
     },
     "Erithacus rubecula": {
       "scientific_name": "Erithacus rubecula",
@@ -1137,7 +2183,15 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Petirrojo europeo",
+        "author": "Jonathon Jongsma",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Erithacus_rubecula_-_European_Robin_-_XC114615.ogg",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
     },
     "Falco tinnunculus": {
       "scientific_name": "Falco tinnunculus",
@@ -1185,7 +2239,15 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Cernícalo vulgar",
+        "author": "Javier Herrera",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Falco_tinnunculus_-_Common_Kestrel_XC463430.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
     },
     "Fringilla coelebs": {
       "scientific_name": "Fringilla coelebs",
@@ -1233,7 +2295,64 @@
           "license": "CC BY 2.0",
           "license_url": "https://creativecommons.org/licenses/by/2.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Pinzón vulgar",
+        "author": "Alexander Kurthy",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Fringilla_coelebs_-_Common_Chaffinch_XC108344.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Fringilla montifringilla": {
+      "scientific_name": "Fringilla montifringilla",
+      "name_es": "Pinzón real",
+      "name_fr": "Pinson du Nord",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.9139,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Pinzón real",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Pinzón real (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Pinzón real (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Pierre Dalous",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Pinson_du_nord.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2018.03.14.-01-Mannheim-Vogelstang--Bergfink-Weibchen.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2018.03.14.-02-Mannheim-Vogelstang--Bergfink-Weibchen.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
     },
     "Fulica atra": {
       "scientific_name": "Fulica atra",
@@ -1281,7 +2400,64 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Focha común",
+        "author": "Joost van Bruggen",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Fulica_atra_-_Eurasian_Coot_XC432890.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Garrulus glandarius": {
+      "scientific_name": "Garrulus glandarius",
+      "name_es": "Arrendajo euroasiático",
+      "name_fr": "Geai des chênes",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.5686,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Arrendajo euroasiático",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Arrendajo euroasiático (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Arrendajo euroasiático (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Luc Viatour",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Garrulus_glandarius_1_Luc_Viatour.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "http://creativecommons.org/licenses/by-sa/3.0/"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Shiv's fotografia",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_Jay_A_whisper_of_color_in_the_silent_woods_01.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Shiv's fotografia",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_Jay_A_whisper_of_color_in_the_silent_woods_02.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
     },
     "Hirundo rustica": {
       "scientific_name": "Hirundo rustica",
@@ -1329,7 +2505,15 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Golondrina común",
+        "author": "Jonathon Jongsma",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Hirundo_rustica_-_Barn_Swallow_-_XC83449.ogg",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
     },
     "Larus michahellis": {
       "scientific_name": "Larus michahellis",
@@ -1377,7 +2561,162 @@
           "license": "CC BY 3.0",
           "license_url": "https://creativecommons.org/licenses/by/3.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Gaviota patiamarilla",
+        "author": "Cedric MROCZKO",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Yellow-legged_Gull_-_Larus_michahellis_michahellis.ogg",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Linaria cannabina": {
+      "scientific_name": "Linaria cannabina",
+      "name_es": "Pardillo común",
+      "name_fr": "Linotte mélodieuse",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.3714,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Pardillo común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Pardillo común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Pardillo común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Joe Pell",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Carduelis_cannabina_-England_-male-8.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Jac. Janssen from Baarlo lb, NL",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20130630_072_Peel_en_Maas_Kessel_Weerdbeemden_Kneeu_%289178249124%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Jac. Janssen from Baarlo lb, NL",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20140403_048_Kessel_Weerdbeemden_vogeltje_%2813609364523%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        }
+      ],
+      "audio": null
+    },
+    "Lophophanes cristatus": {
+      "scientific_name": "Lophophanes cristatus",
+      "name_es": "Herrerillo capuchino",
+      "name_fr": "Mésange huppée",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.0152,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Herrerillo capuchino",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Herrerillo capuchino (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Herrerillo capuchino (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Carlos Delgado",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Lophophanes_cristatus_-_01.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Giles Laurent",
+          "source_url": "https://commons.wikimedia.org/wiki/File:083_Wild_European_crested_tit_at_Parc_naturel_r%C3%A9gional_Jura_vaudois_Photo_by_Giles_Laurent.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Giles Laurent",
+          "source_url": "https://commons.wikimedia.org/wiki/File:084_Wild_European_crested_tit_at_Parc_naturel_r%C3%A9gional_Jura_vaudois_Photo_by_Giles_Laurent.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
+    },
+    "Loxia curvirostra": {
+      "scientific_name": "Loxia curvirostra",
+      "name_es": "Piquituerto común",
+      "name_fr": "Bec-croisé des sapins",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.4528,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Piquituerto común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Piquituerto común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Piquituerto común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Elaine R. Wilson, www.naturespicsonline.com",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Red_Crossbills_%28Male%29.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2017.01.27.-08-Paradiski-La_Plagne-Champagny-en-Vanoise--Fichtenkreuzschnabel-Maennchen.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2017.01.27.-09-Paradiski-La_Plagne-Champagny-en-Vanoise--Fichtenkreuzschnabel-Maennchen.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
     },
     "Motacilla alba": {
       "scientific_name": "Motacilla alba",
@@ -1425,7 +2764,15 @@
           "license": "CC BY 2.0",
           "license_url": "https://creativecommons.org/licenses/by/2.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Lavandera blanca",
+        "author": "Pascal Christe",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Motacilla_alba_-_White_Wagtail_XC466458.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
     },
     "Motacilla cinerea": {
       "scientific_name": "Motacilla cinerea",
@@ -1473,7 +2820,64 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Lavandera cascadeña",
+        "author": "Pascal Christe",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Motacilla_cinerea_-_Grey_Wagtail_XC596811.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Myiopsitta monachus": {
+      "scientific_name": "Myiopsitta monachus",
+      "name_es": "Cotorra argentina",
+      "name_fr": "Conure veuve",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.0008,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Cotorra argentina",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Cotorra argentina (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Cotorra argentina (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Charles J. Sharp",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Monk_parakeet_%28Myiopsitta_monachus%29_Santiago.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Ligocsicnarf89",
+          "source_url": "https://commons.wikimedia.org/wiki/File:0_Myiopsitta_monachus_in_Old_San_Juan.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Ligocsicnarf89",
+          "source_url": "https://commons.wikimedia.org/wiki/File:0_Myiopsitta_monachus_in_Santa_Isabel%2C_Puerto_Rico.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
     },
     "Oenanthe leucura": {
       "scientific_name": "Oenanthe leucura",
@@ -1521,7 +2925,8 @@
           "license": "CC BY-SA 2.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
         }
-      ]
+      ],
+      "audio": null
     },
     "Parus major": {
       "scientific_name": "Parus major",
@@ -1569,7 +2974,15 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Carbonero común",
+        "author": "Gavin Vella",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Parus_major_-_Great_Tit_XC129643.ogg",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
     },
     "Passer domesticus": {
       "scientific_name": "Passer domesticus",
@@ -1617,7 +3030,162 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Gorrión común",
+        "author": "Jonathon Jongsma",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Passer_domesticus_-_House_Sparrow_-_XC86749.ogg",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
+    },
+    "Passer montanus": {
+      "scientific_name": "Passer montanus",
+      "name_es": "Gorrión molinero",
+      "name_fr": "Moineau friquet",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.2333,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Gorrión molinero",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Gorrión molinero (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Gorrión molinero (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Laitche",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Tree_Sparrow_August_2007_Osaka_Japan.jpg",
+          "license": "Public domain",
+          "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "blondinrikard",
+          "source_url": "https://commons.wikimedia.org/wiki/File:%28The_underrated_beauty_of%29_Eurasian_tree_sparrow%2C_Passer_montanus%2C_Pilfink.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Paul Korecky",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2017-03-30_AT_Wien_22_Donaustadt%2C_Blumeng%C3%A4rten_Hirschstetten%2C_Passer_montanus_%2851685292059%29.jpg",
+          "license": "CC BY-SA 2.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+        }
+      ],
+      "audio": null
+    },
+    "Perdix perdix": {
+      "scientific_name": "Perdix perdix",
+      "name_es": "Perdiz pardilla",
+      "name_fr": "Perdrix grise",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.476,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Perdiz pardilla",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Perdiz pardilla (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Perdiz pardilla (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "david galavan",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Perdix_perdix_Turvey_3.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Bene Riobó",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Charrela_cinsenta_01.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Bene Riobó",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Charrela.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
+    },
+    "Periparus ater": {
+      "scientific_name": "Periparus ater",
+      "name_es": "Carbonero garrapinos",
+      "name_fr": "Mésange noire",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.0396,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Carbonero garrapinos",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Carbonero garrapinos (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Carbonero garrapinos (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Alexis Lours",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Coal_Tit_2026_03_23.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2017.01.27.-14-Paradiski-La_Plagne-Champagny-en-Vanoise--Tannenmeise.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2017.01.27.-15-Paradiski-La_Plagne-Champagny-en-Vanoise--Tannenmeise.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
     },
     "Phalacrocorax carbo": {
       "scientific_name": "Phalacrocorax carbo",
@@ -1665,7 +3233,64 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Cormorán grande",
+        "author": "Sonothèque ADVL",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Cormor%C3%A1n_grande_%28Phalacrocorax_carbo%29.mp3",
+        "license": "CC0",
+        "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+      }
+    },
+    "Phasianus colchicus": {
+      "scientific_name": "Phasianus colchicus",
+      "name_es": "Faisán común",
+      "name_fr": "Faisan de Colchide",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.1278,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Faisán común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Faisán común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Faisán común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Estormiz",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Phasianus_colchicus_Oulu_20200524_02.jpg",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Rod Allday",
+          "source_url": "https://commons.wikimedia.org/wiki/File:A_pheasant_pen_at_Nullas_Plantation_-_geograph.org.uk_-_2317601.jpg",
+          "license": "CC BY-SA 2.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "BLMUtah",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Green_River_District-_Pheasant_Release_Pariette_Wetlands_%2853332856125%29.jpg",
+          "license": "Public domain",
+          "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing"
+        }
+      ],
+      "audio": null
     },
     "Phoenicurus ochruros": {
       "scientific_name": "Phoenicurus ochruros",
@@ -1713,7 +3338,64 @@
           "license": "CC BY-SA 2.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Colirrojo tizón",
+        "author": "Marie-Lan Taÿ Pamart",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Phoenicurus_ochruros_-_Black_Redstart_XC473243.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Phylloscopus collybita": {
+      "scientific_name": "Phylloscopus collybita",
+      "name_es": "Mosquitero común",
+      "name_fr": "Pouillot véloce",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.5645,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Mosquitero común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Mosquitero común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Mosquitero común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Alexis Lours",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Common_Chiffchaff_2025_04_04_01.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "President",
+          "source_url": "https://commons.wikimedia.org/wiki/File:%22The_Common_Chiffchaff%22_-_DPLA_-_1b695a61c07becc0ed8e2e5a16cdc4df_%28page_1%29.jpg",
+          "license": "Public domain",
+          "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "President",
+          "source_url": "https://commons.wikimedia.org/wiki/File:%22The_Common_Chiffchaff%22_-_DPLA_-_1b695a61c07becc0ed8e2e5a16cdc4df_%28page_2%29.jpg",
+          "license": "Public domain",
+          "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing"
+        }
+      ],
+      "audio": null
     },
     "Pica pica": {
       "scientific_name": "Pica pica",
@@ -1761,7 +3443,260 @@
           "license": "CC BY 2.0",
           "license_url": "https://creativecommons.org/licenses/by/2.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Urraca común",
+        "author": "Joost van Bruggen",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Pica_pica_-_Eurasian_Magpie_XC432921.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Picus viridis": {
+      "scientific_name": "Picus viridis",
+      "name_es": "Pito real",
+      "name_fr": "Pic vert",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.475,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Pito real",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Pito real (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Pito real (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Charles J. Sharp",
+          "source_url": "https://commons.wikimedia.org/wiki/File:European_green_woodpecker_%28Picus_viridis%29_female_Barnes.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Steinrösel",
+          "source_url": "https://commons.wikimedia.org/wiki/File:18.04.24_Gr%C3%BCnspecht-H%C3%B6rnle.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Jac. Janssen from Baarlo lb, NL",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20150419_007_Kessel_Weerdbeemden_Groenespecht%2C_European_Green_Woodpecker%2C_Gr%C3%BCnspecht%2C_Picus_viridis_%2817201110081%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        }
+      ],
+      "audio": null
+    },
+    "Poecile montanus": {
+      "scientific_name": "Poecile montanus",
+      "name_es": "Carbonero montano",
+      "name_fr": "Mésange boréale",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.6925,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Carbonero montano",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Carbonero montano (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Carbonero montano (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Francis C. Franklin",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Poecile_montanus_kleinschmidti.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Niepokój Zbigniew",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Czarnog%C5%82%C3%B3wka_%28Poecile_montanus%29%2C_Czarnorzecko-Strzy%C5%BCowski_Park%2C_Poland.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Arnstein Rønning",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Granmeis_Poecile_montanus.JPG",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        }
+      ],
+      "audio": null
+    },
+    "Poecile palustris": {
+      "scientific_name": "Poecile palustris",
+      "name_es": "Carbonero palustre",
+      "name_fr": "Mésange nonnette",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 2.0408,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Carbonero palustre",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Carbonero palustre (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Carbonero palustre (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Stephan Sprinz",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Sumpfmeise_im_NSG_Hirschacker_und_Dossenwald_2.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Jac. Janssen from Baarlo lb, NL",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20150215_029_Kessel_Weerdbeemden_Glanskop_%2815920265914%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Solymári",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Bar%C3%A1tcinege_f%C3%A9szke_2011_Pilisszentiv%C3%A1n.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
+    },
+    "Prunella modularis": {
+      "scientific_name": "Prunella modularis",
+      "name_es": "Acentor común",
+      "name_fr": "Accenteur mouchet",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.2598,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Acentor común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Acentor común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Acentor común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Charles J. Sharp",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Dunnock_%28Prunella_modularis%29_3.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Holger Uwe Schmitt",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20_Gramm_wiegt_im_Durchschnitt_eine_Heckenbraunelle._01.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Holger Uwe Schmitt",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20_Gramm_wiegt_im_Durchschnitt_eine_Heckenbraunelle._02.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
+    },
+    "Psittacula eupatria": {
+      "scientific_name": "Psittacula eupatria",
+      "name_es": "Cotorra alejandrina",
+      "name_fr": "Perruche alexandre",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.7867,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Cotorra alejandrina",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Cotorra alejandrina (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Cotorra alejandrina (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Charles J. Sharp",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Alexandrine_parakeet_%28Psittacula_eupatria_eupatria%29_male.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "DrRohithgurugubelli",
+          "source_url": "https://commons.wikimedia.org/wiki/File:A_flight_to_impress.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "mainak pal",
+          "source_url": "https://commons.wikimedia.org/wiki/File:A_team_of_alexandrine_parakeet.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
     },
     "Psittacula krameri": {
       "scientific_name": "Psittacula krameri",
@@ -1809,7 +3744,155 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": null
+    },
+    "Pyrrhula pyrrhula": {
+      "scientific_name": "Pyrrhula pyrrhula",
+      "name_es": "Camachuelo común",
+      "name_fr": "Bouvreuil pivoine",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.3408,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Camachuelo común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Camachuelo común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Camachuelo común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Francis Franklin",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Bullfinch_male.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Ian Kirk from Broadstone, Dorset, UK",
+          "source_url": "https://commons.wikimedia.org/wiki/File:A_male_bullfinch_%288420316038%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Inge St",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Am_Futterh%C3%A4uschen_%28135639101%29.jpeg",
+          "license": "CC BY 3.0",
+          "license_url": "https://creativecommons.org/licenses/by/3.0"
+        }
+      ],
+      "audio": null
+    },
+    "Regulus ignicapilla": {
+      "scientific_name": "Regulus ignicapilla",
+      "name_es": "Reyezuelo listado",
+      "name_fr": "Roitelet triple-bandeau",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.1879,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Reyezuelo listado",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Reyezuelo listado (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Reyezuelo listado (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Alexis Lours",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Common_firecrest_Franconville_03.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "hedera.baltica from Wrocław, Poland",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Autumn_firecrest_%2822331557249%29.jpg",
+          "license": "CC BY-SA 2.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Hans Norelius from Älvsjö, Sweden",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Brandkronad_kungsf%C3%A5gel%2C_Hallands%C3%A5sen%2C_Halland%2C_April_2017_-_Flickr_-_Gavia_Stellata.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        }
+      ],
+      "audio": null
+    },
+    "Regulus regulus": {
+      "scientific_name": "Regulus regulus",
+      "name_es": "Reyezuelo sencillo",
+      "name_fr": "Roitelet huppé",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.7673,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Reyezuelo sencillo",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Reyezuelo sencillo (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Reyezuelo sencillo (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Francis C. Franklin",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Goldcrest_1.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Thomas Bresson",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2014-10-30_09-11-05_Regulus_regulus.jpg",
+          "license": "CC BY 3.0",
+          "license_url": "https://creativecommons.org/licenses/by/3.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Thomas Bresson",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2014-10-30_09-11-15_Regulus_regulus.jpg",
+          "license": "CC BY 3.0",
+          "license_url": "https://creativecommons.org/licenses/by/3.0"
+        }
+      ],
+      "audio": null
     },
     "Serinus serinus": {
       "scientific_name": "Serinus serinus",
@@ -1857,7 +3940,113 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Serín verdecillo",
+        "author": "Marie-Lan Taÿ Pamart",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Serinus_serinus_-_European_Serin_XC471334.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Sitta europaea": {
+      "scientific_name": "Sitta europaea",
+      "name_es": "Trepador azul",
+      "name_fr": "Sittelle torchepot",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.476,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Trepador azul",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Trepador azul (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Trepador azul (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Isiwal",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Kleiber_Sitta_europaea-0447.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "ŠJů",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Kl%C3%ADnec%2C_brhl%C3%ADk_lesn%C3%AD_u_dutiny_stromu_%2801%29.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "ŠJů",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Kl%C3%ADnec%2C_brhl%C3%ADk_lesn%C3%AD_u_dutiny_stromu_%2802%29.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        }
+      ],
+      "audio": null
+    },
+    "Spinus spinus": {
+      "scientific_name": "Spinus spinus",
+      "name_es": "Lúgano",
+      "name_fr": "Tarin des aulnes",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.4286,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Lúgano",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Lúgano (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Lúgano (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Charles J. Sharp",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_siskin_%28Spinus_spinus%29_male_Biebrzanski.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Andreas Eichler",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2017.01.27.-12-Paradiski-La_Plagne-Champagny-en-Vanoise--Erlenzeisig-Maennchen.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Paul Lucas from Leicestershire, UK",
+          "source_url": "https://commons.wikimedia.org/wiki/File:A_Siskin_In_Ord_%289877680654%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        }
+      ],
+      "audio": null
     },
     "Streptopelia decaocto": {
       "scientific_name": "Streptopelia decaocto",
@@ -1905,7 +4094,64 @@
           "license": "CC BY-SA 4.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Tórtola turca",
+        "author": "Jonathon Jongsma",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Streptopelia_decaocto_-_Eurasian_Collared_Dove_-_XC82758.ogg",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
+    },
+    "Strix aluco": {
+      "scientific_name": "Strix aluco",
+      "name_es": "Cárabo común",
+      "name_fr": "Chouette hulotte",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.6109,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Cárabo común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Cárabo común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Cárabo común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Martin Mecnarowski",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Strix_aluco_3_%28Martin_Mecnarowski%29.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "http://creativecommons.org/licenses/by-sa/3.0/"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Blondinrikard Fröberg",
+          "source_url": "https://commons.wikimedia.org/wiki/File:%28Explored_2021-12-26%29_Tawny_owl%2C_brown_owl%2C_Strix_aluco%2C_Kattuggla_-_Flickr_-_blondinrikard.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Diginatur",
+          "source_url": "https://commons.wikimedia.org/wiki/File:01_Waldkauz.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        }
+      ],
+      "audio": null
     },
     "Sturnus unicolor": {
       "scientific_name": "Sturnus unicolor",
@@ -1953,7 +4199,15 @@
           "license": "CC BY-SA 3.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Estornino negro",
+        "author": "Joost van Bruggen",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Sturnus_unicolor_-_Spotless_Starling_XC431985.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
     },
     "Sturnus vulgaris": {
       "scientific_name": "Sturnus vulgaris",
@@ -2001,7 +4255,162 @@
           "license": "CC BY-SA 3.0",
           "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Estornino pinto",
+        "author": "Alvaro Ortiz Troncoso",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Sturnus_vulgaris_-_Common_Starling_XC401497.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
+    },
+    "Sylvia atricapilla": {
+      "scientific_name": "Sylvia atricapilla",
+      "name_es": "Curruca capirotada",
+      "name_fr": "Fauvette à tête noire",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.8746,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Curruca capirotada",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Curruca capirotada (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Curruca capirotada (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Charles J. Sharp",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_blackcap_%28Sylvia_atricapilla%29_male_Drenthe.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Jac. Janssen from Baarlo lb, NL",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20130630_046_Peel_en_Maas_Kessel_Weerdbeemden_Zwartkop_%289176044529%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Jac. Janssen from Baarlo lb, NL",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20130913_088_Kessel_Weerdbeemden_Zwartkop_%289738173336%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        }
+      ],
+      "audio": null
+    },
+    "Troglodytes troglodytes": {
+      "scientific_name": "Troglodytes troglodytes",
+      "name_es": "Chochín paleártico",
+      "name_fr": "Troglodyte mignon",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.2267,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Chochín paleártico",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Chochín paleártico (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Chochín paleártico (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Alexis Lours",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_wren_Franconville_02.jpg",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "M J Richardson",
+          "source_url": "https://commons.wikimedia.org/wiki/File:An_unfortunate_troglodyte_-_geograph.org.uk_-_6330854.jpg",
+          "license": "CC BY-SA 2.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Rainforestindian94",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_wren.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
+    },
+    "Turdus iliacus": {
+      "scientific_name": "Turdus iliacus",
+      "name_es": "Zorzal alirrojo",
+      "name_fr": "Grive mauvis",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.7316,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Zorzal alirrojo",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Zorzal alirrojo (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Zorzal alirrojo (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Andreas Trepte",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Redwing_Turdus_iliacus.jpg",
+          "license": "CC BY-SA 2.5",
+          "license_url": "https://creativecommons.org/licenses/by-sa/2.5"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "MPF",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Cotoneaster_frigidus_Turdus_iliacus_1.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "MPF",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Cotoneaster_frigidus_Turdus_iliacus_2.jpg",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        }
+      ],
+      "audio": null
     },
     "Turdus merula": {
       "scientific_name": "Turdus merula",
@@ -2049,7 +4458,162 @@
           "license": "CC BY 4.0",
           "license_url": "https://creativecommons.org/licenses/by/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.ogg",
+        "alt_es": "Canto de Mirlo común",
+        "author": "Adrienne Eaton",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Turdus_merula_-_Common_Blackbird_XC123548.ogg",
+        "license": "CC BY-SA 3.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+      }
+    },
+    "Turdus philomelos": {
+      "scientific_name": "Turdus philomelos",
+      "name_es": "Zorzal común",
+      "name_fr": "Grive musicienne",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 1.217,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Zorzal común",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Zorzal común (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Zorzal común (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Dion Art",
+          "source_url": "https://commons.wikimedia.org/wiki/File:%D0%9F%D0%B5%D0%B2%D1%87%D0%B8%D0%B9_%D0%B4%D1%80%D0%BE%D0%B7%D0%B4_%D0%BD%D0%B0_%D0%BF%D0%B5%D0%BD%D1%8C%D0%BA%D0%B5_%28Turdus_philomelos%29%2C_%D0%91%D0%B8%D1%82%D1%86%D0%B5%D0%B2%D1%81%D0%BA%D0%B8%D0%B9_%D0%BB%D0%B5%D1%81.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Jac. Janssen from Baarlo lb, NL",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20130929_081_Kessel_Weerdbeemden_Zanglijster_%2810002007014%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Jac. Janssen from Baarlo lb, NL",
+          "source_url": "https://commons.wikimedia.org/wiki/File:20150517_052_Kessel_Weerdbeemden_Zanglijster_%2817159771444%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        }
+      ],
+      "audio": null
+    },
+    "Turdus pilaris": {
+      "scientific_name": "Turdus pilaris",
+      "name_es": "Zorzal real",
+      "name_fr": "Grive litorne",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.9292,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Zorzal real",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Zorzal real (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Zorzal real (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Bengt Nyman from Vaxholm, Sweden",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Turdus_pilaris_EM1B9020_%2834450664312%29.jpg",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Vera Buhl",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2010-02-20_%2831%29_bird.JPG",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "Vera Buhl",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2010-02-20_%2832%29_bird.JPG",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+        }
+      ],
+      "audio": null
+    },
+    "Turdus viscivorus": {
+      "scientific_name": "Turdus viscivorus",
+      "name_es": "Zorzal charlo",
+      "name_fr": "Grive draine",
+      "poster_image": "principal.jpg",
+      "poster_cutout": "poster-cutout.png",
+      "poster_cutout_aspect": 0.8607,
+      "images": [
+        {
+          "file": "principal.jpg",
+          "alt_es": "Zorzal charlo",
+          "sex_age": null
+        },
+        {
+          "file": "foto2.jpg",
+          "alt_es": "Zorzal charlo (vista adicional)",
+          "sex_age": null
+        },
+        {
+          "file": "foto3.jpg",
+          "alt_es": "Zorzal charlo (vista adicional)",
+          "sex_age": null
+        }
+      ],
+      "attribution": [
+        {
+          "file": "principal.jpg",
+          "author": "Fernando Losada Rodríguez",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Turdus_viscivorus.001_-_Cardiff.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto2.jpg",
+          "author": "Giles Laurent",
+          "source_url": "https://commons.wikimedia.org/wiki/File:081_Wild_Mistle_thrush_singing_in_autumn_at_Lake_Neuch%C3%A2tel_Photo_by_Giles_Laurent.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        },
+        {
+          "file": "foto3.jpg",
+          "author": "MPF",
+          "source_url": "https://commons.wikimedia.org/wiki/File:2020-01-01_Mistle_Thrush_with_Rowan_berries%2C_Jesmond_Dene_1.jpg",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "audio": null
     },
     "Upupa epops": {
       "scientific_name": "Upupa epops",
@@ -2097,7 +4661,15 @@
           "license": "CC BY 4.0",
           "license_url": "https://creativecommons.org/licenses/by/4.0"
         }
-      ]
+      ],
+      "audio": {
+        "file": "song.mp3",
+        "alt_es": "Canto de Abubilla común",
+        "author": "Alexander Kurthy",
+        "source_url": "https://commons.wikimedia.org/wiki/File:Upupa_epops_-_Eurasian_Hoopoe_XC108366.mp3",
+        "license": "CC BY-SA 4.0",
+        "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+      }
     }
   }
 }

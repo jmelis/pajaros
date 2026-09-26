@@ -143,6 +143,33 @@ for sp in "${all_species[@]}"; do
     [[ -n "$license" ]]     || err "$sp: image $file missing field: license"
     [[ -n "$license_url" ]] || err "$sp: image $file missing field: license_url"
   done < <(jq -r '.images[] | [.file, (.author//""), (.source_url//""), (.license//""), (.license_url//"")] | @tsv' "$meta")
+
+  has_audio=$(jq 'has("audio") and (.audio != null)' "$meta")
+  if [[ "$has_audio" == "true" ]]; then
+    while IFS=$'\t' read -r file author source_url license license_url; do
+      if [[ -z "$file" ]]; then
+        err "$sp: audio entry missing file field"
+        continue
+      fi
+      path="$dir/$file"
+      if [[ ! -f "$path" ]]; then
+        err "$sp: audio file missing: $file"
+      else
+        size=$(filesize "$path")
+        if [[ "$size" -lt 1000 ]]; then
+          warn "$sp: audio $file is very small ($size bytes) - may be corrupt"
+        else
+          ok "$sp: audio $file exists ($((size/1024))KB)"
+        fi
+      fi
+      [[ -n "$author" ]]      || err "$sp: audio $file missing field: author"
+      [[ -n "$source_url" ]]  || err "$sp: audio $file missing field: source_url"
+      [[ -n "$license" ]]     || err "$sp: audio $file missing field: license"
+      [[ -n "$license_url" ]] || err "$sp: audio $file missing field: license_url"
+    done < <(jq -r '[.audio.file, (.audio.author//""), (.audio.source_url//""), (.audio.license//""), (.audio.license_url//"")] | @tsv' "$meta")
+  else
+    warn "$sp: no audio recording (song button will be hidden)"
+  fi
 done
 
 echo

@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
     }
   ],
-  "poster_cutout_aspect": 1.1464
+  "poster_cutout_aspect": 1.1464,
+  "audio": {
+    "file": "song.mp3",
+    "alt_es": "Canto de Pico picapinos",
+    "author": "Alexander Kürthy",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Dendrocopos_major_-_Great_Spotted_Woodpecker_XC309807.mp3",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

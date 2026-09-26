@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ],
-  "poster_cutout_aspect": 1.3465
+  "poster_cutout_aspect": 1.3465,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Herrerillo común",
+    "author": "Adrienne Eaton",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Cyanistes_caeruleus_-_Eurasian_Blue_Tit_XC121562.ogg",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+  }
 }

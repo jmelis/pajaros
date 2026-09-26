@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by/2.0"
     }
   ],
-  "poster_cutout_aspect": 1.81
+  "poster_cutout_aspect": 1.81,
+  "audio": {
+    "file": "song.oga",
+    "alt_es": "Canto de Jilguero europeo",
+    "author": "Gérard OLIVIER http://www",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Carduelis_carduelis_-_Chardonneret_Elegant_-_XC292577.oga",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

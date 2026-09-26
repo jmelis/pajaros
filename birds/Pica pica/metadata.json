@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by/2.0"
     }
   ],
-  "poster_cutout_aspect": 1.6401
+  "poster_cutout_aspect": 1.6401,
+  "audio": {
+    "file": "song.mp3",
+    "alt_es": "Canto de Urraca común",
+    "author": "Joost van Bruggen",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Pica_pica_-_Eurasian_Magpie_XC432921.mp3",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ],
-  "poster_cutout_aspect": 1.2391
+  "poster_cutout_aspect": 1.2391,
+  "audio": {
+    "file": "song.ogg",
+    "alt_es": "Canto de Mirlo acuático europeo",
+    "author": "Desconocido",
+    "source_url": "https://commons.wikimedia.org/wiki/File:European_Dipper_%28Cinclus_cinclus%29_%28W1CDR0001383_BD8%29.ogg",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }

@@ -29,5 +29,13 @@
       "license_url": "https://creativecommons.org/licenses/by/2.0"
     }
   ],
-  "poster_cutout_aspect": 1.1656
+  "poster_cutout_aspect": 1.1656,
+  "audio": {
+    "file": "song.mp3",
+    "alt_es": "Canto de Pinzón vulgar",
+    "author": "Alexander Kurthy",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Fringilla_coelebs_-_Common_Chaffinch_XC108344.mp3",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
 }
