@@ -2,8 +2,10 @@
 """cutout.py — Remove the background from each species' poster image, for the
 printed poster (organic floating-bird layout instead of boxed photos).
 
-Output: birds/<Genus species>/poster-cutout.png (RGBA, transparent background).
-scripts/bake.sh picks these up automatically if present.
+Output: birds/<Genus species>/poster-cutout.png (RGBA, transparent background,
+cropped to the bird's silhouette) plus a poster_cutout_aspect field written
+into that species' metadata.json (used to size its cell in the print poster's
+collage layout). scripts/bake.sh picks both up automatically if present.
 
 Not part of the zero-dependency toolchain — this is a rare, one-off,
 local-only maintenance step (never runs in CI, never ships to the site) that
@@ -18,6 +20,7 @@ First run downloads a ~1GB model to ~/.rembg/ (cached after that).
 """
 
 import io
+import json
 import os
 import sys
 
@@ -26,13 +29,15 @@ from rembg import remove
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 BIRDS_DIR = os.path.join(ROOT, "birds")
-MAX_DIM = 1200  # cap output size — these are display cutouts, not archival masters
+MAX_DIM = 1200    # cap output size — these are display cutouts, not archival masters
+PAD_FRAC = 0.03   # small breathing room kept around the tight content bbox
 
 
 def process_species(dir_name):
     dir_path = os.path.join(BIRDS_DIR, dir_name)
     src_path = os.path.join(dir_path, "principal.jpg")
     dest_path = os.path.join(dir_path, "poster-cutout.png")
+    meta_path = os.path.join(dir_path, "metadata.json")
 
     if not os.path.isfile(src_path):
         print(f"  SKIP {dir_name}: no principal.jpg")
@@ -44,11 +49,31 @@ def process_species(dir_name):
     out_bytes = remove(src_bytes)
     img = Image.open(io.BytesIO(out_bytes)).convert("RGBA")
 
+    # Crop to the bird's actual silhouette, not the full photo's canvas — the
+    # print layout sizes each cell from this aspect ratio, so empty transparent
+    # margins around a small subject would otherwise waste the cell's space.
+    bbox = img.split()[-1].getbbox()
+    if bbox:
+        x0, y0, x1, y1 = bbox
+        pad_x, pad_y = round((x1 - x0) * PAD_FRAC), round((y1 - y0) * PAD_FRAC)
+        img = img.crop((
+            max(0, x0 - pad_x), max(0, y0 - pad_y),
+            min(img.width, x1 + pad_x), min(img.height, y1 + pad_y),
+        ))
+
     if max(img.size) > MAX_DIM:
         ratio = MAX_DIM / max(img.size)
         img = img.resize((round(img.width * ratio), round(img.height * ratio)), Image.LANCZOS)
 
     img.save(dest_path, optimize=True)
+
+    with open(meta_path, encoding="utf-8") as f:
+        meta = json.load(f)
+    meta["poster_cutout_aspect"] = round(img.width / img.height, 4)
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
     print(f"  OK {dir_name}: {img.size[0]}x{img.size[1]} -> {os.path.getsize(dest_path)//1024}KB")
     return True
 

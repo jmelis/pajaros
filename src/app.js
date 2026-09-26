@@ -388,9 +388,37 @@ placeBtns.forEach(btn => {
   btn.addEventListener('click', () => goToPlace(btn.dataset.place));
 });
 
-// ─── Print sheet (A4, replaces the old Puppeteer PDF pipeline) ───────────────
+// ─── Print sheet (A4 poster collage, replaces the old Puppeteer PDF pipeline) ─
 
-const BIRDS_PER_PAGE = 5;
+const BIRDS_PER_PAGE = 10;
+
+// Small deterministic hash so the same species always lands on the same size/
+// rotation between reloads and print runs, without a lookup table to maintain.
+function hashStr(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h * 31 + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+// Grid cell size from the cutout's aspect ratio (falls back to a fixed size
+// for species without a cutout yet). ~1/3 of birds get bumped up a size for
+// variety, so the poster reads as scattered rather than tiled.
+function gridSpanClass(sp) {
+  if (!sp.poster_cutout_aspect) return 'span-normal';
+  const big = hashStr(sp.scientific_name) % 3 === 0;
+  const ratio = sp.poster_cutout_aspect;
+  if (ratio >= 1.3) return big ? 'span-wide-big' : 'span-wide';
+  if (ratio <= 0.7) return big ? 'span-tall-big' : 'span-tall';
+  return big ? 'span-normal-big' : 'span-normal';
+}
+
+// A few degrees either way — enough to feel scattered, not enough to tilt
+// the bird into an awkward pose.
+function rotationDeg(sp) {
+  return (hashStr(sp.scientific_name + '#rot') % 9) - 4;
+}
 
 function buildPrintSheet() {
   const place = catalog.places[currentPlace];
@@ -407,26 +435,29 @@ function buildPrintSheet() {
         <span class="print-place-name">Aves de ${escHtml(place.name_es)}</span>
         <span class="print-page-num">Lámina ${pageIdx + 1} de ${pages.length}</span>
       </div>
-      ${keys.map(key => {
-        const sp = catalog.species[key];
-        // Prefer the background-removed cutout for a floating, poster-like look;
-        // falls back to the regular boxed photo if no cutout has been generated.
-        const hasCutout = Boolean(sp.poster_cutout);
-        const imgSrc = hasCutout ? imageUrl(sp, sp.poster_cutout) : imageUrl(sp, sp.poster_image);
-        const imgClass = hasCutout ? 'print-bird-img print-bird-img-cutout' : 'print-bird-img';
-        return `
-          <div class="print-bird-row">
-            <div class="print-bird-img-wrap">
-              <img src="${imgSrc}" alt="${escHtml(sp.name_es)}" class="${imgClass}">
+      <div class="print-poster-grid">
+        ${keys.map(key => {
+          const sp = catalog.species[key];
+          // Prefer the background-removed cutout floating free on the page;
+          // falls back to the regular boxed photo if no cutout exists yet.
+          const hasCutout = Boolean(sp.poster_cutout);
+          const imgSrc = hasCutout ? imageUrl(sp, sp.poster_cutout) : imageUrl(sp, sp.poster_image);
+          const imgClass = hasCutout ? 'print-bird-img print-bird-img-cutout' : 'print-bird-img';
+          const imgStyle = hasCutout ? `transform: rotate(${rotationDeg(sp)}deg);` : '';
+          return `
+            <div class="print-bird-cell ${gridSpanClass(sp)}">
+              <div class="print-bird-img-wrap">
+                <img src="${imgSrc}" alt="${escHtml(sp.name_es)}" class="${imgClass}" style="${imgStyle}">
+              </div>
+              <p class="print-bird-label">
+                <span class="print-name-es">${escHtml(sp.name_es)}</span>
+                <span class="print-name-fr">${escHtml(sp.name_fr)}</span>
+                <span class="print-name-latin">${escHtml(sp.scientific_name)}</span>
+              </p>
             </div>
-            <div class="print-bird-names">
-              <p class="print-name-es">${escHtml(sp.name_es)}</p>
-              <p class="print-name-fr">${escHtml(sp.name_fr)}</p>
-              <p class="print-name-latin">${escHtml(sp.scientific_name)}</p>
-            </div>
-          </div>
-        `;
-      }).join('')}
+          `;
+        }).join('')}
+      </div>
     </div>
   `).join('');
 

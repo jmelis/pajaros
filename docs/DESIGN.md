@@ -118,7 +118,7 @@ Mirlo común, Gorrión común, Paloma bravía/urbana, Herrerillo común, Carbone
 
 - `principal.jpg` — imagen para el póster (obligatoria, siempre macho adulto o plumaje más característico).
 - Nombres descriptivos para las demás: `hembra.jpg`, `juvenil.jpg`, `vuelo.jpg`, etc.
-- `poster-cutout.png` (opcional) — `principal.jpg` con el fondo quitado (`scripts/cutout.py`), usada por la guía impresa para que el ave flote sobre la página en vez de ir en una caja. No lleva atribución propia: es una versión derivada de `principal.jpg`, mismos créditos.
+- `poster-cutout.png` (opcional) — `principal.jpg` con el fondo quitado y recortado a la silueta (`scripts/cutout.py`), usada por la guía impresa para que el ave flote sobre la página en vez de ir en una caja. No lleva atribución propia: es una versión derivada de `principal.jpg`, mismos créditos. Su proporción se guarda en `metadata.json` como `poster_cutout_aspect` (ancho/alto), usada para dimensionar la celda de cada ave en el collage impreso — ver §6.2.
 
 ### 4.4 Atribución
 
@@ -205,12 +205,14 @@ Implementadas con `location.pathname` (sin hash) usando el prefijo de repo GitHu
 ### 6.2 Maquetación
 
 - Formato A4 vertical (210 × 297 mm), vía `@page { size: A4 }`.
-- 4 láminas por lugar, 5 aves por lámina (`page-break-after` entre láminas). Sin créditos — ver §4.4.
-- Cada fila de ave: imagen a la izquierda (≈ 40 % del ancho), nombres a la derecha (español y francés al mismo tamaño, latín pequeño debajo).
-- Si existe `poster-cutout.png` para la especie, se usa esa versión (sin fondo, flotando directamente sobre la página); si no, la foto normal en una caja con esquinas redondeadas. Estilo tipo "póster de aves de jardín" en vez de fila de fichas.
+- 2 láminas por lugar, 10 aves por lámina (`page-break-after` entre láminas). Sin créditos — ver §4.4.
+- **Collage, no fila de fichas** ("póster de aves de jardín", no spec sheet): cada lámina es un `grid` CSS de 8 columnas con `grid-auto-flow: dense` — el propio *bin packing* del navegador. Cada ave ocupa una celda de 2×2, 2×3 o 3×4 (columnas×filas) según la proporción de su silueta (`poster_cutout_aspect`: apaisada, vertical o cuadrada), con ~1/3 en tamaño extra para variedad. Rotación de ±4° por ave, derivada de un hash de `scientific_name` (determinista: la misma ave siempre en el mismo tamaño/ángulo).
+- Si existe `poster-cutout.png` para la especie, se usa esa versión (sin fondo, flotando directamente sobre la página, con la rotación); si no, la foto normal en una caja con esquinas redondeadas, sin rotar, tamaño de celda fijo.
+- Nombre debajo de cada ave: español y francés al mismo tamaño, latín pequeño debajo.
 - Cabecera: lugar + número de lámina.
 - Fondo blanco; tipografía grande, legible para una niña de 7 años.
 - Sin párrafos descriptivos.
+- La cuadrícula no fija su altura ni recorta overflow a propósito: si el empaquetado de una lámina necesitara más espacio del esperado, se desborda visiblemente a una página extra en vez de recortar un ave en silencio.
 
 ### 6.3 Proceso de validación visual
 

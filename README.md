@@ -31,7 +31,7 @@ bash scripts/bake.sh       # regenera index.html — comitéalo
 
 ## Imprimir
 
-Menú (☰) → **Imprimir esta guía** → diálogo de impresión del navegador (Guardar como PDF, o imprimir a tamaño real 100%). Genera 4 láminas A4 (5 aves cada una). Las especies con `poster-cutout.png` aparecen sin caja, flotando sobre la página; el resto usa la foto normal.
+Menú (☰) → **Imprimir esta guía** → diálogo de impresión del navegador (Guardar como PDF, o imprimir a tamaño real 100%). Genera 2 láminas A4 (10 aves cada una) en forma de collage — tamaño y rotación de cada ave según su silueta, empaquetado denso vía CSS Grid (`grid-auto-flow: dense`), sin caja alrededor. Las especies sin `poster-cutout.png` caen de vuelta a la foto normal en un recuadro.
 
 ## Estructura
 

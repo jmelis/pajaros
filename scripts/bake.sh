@@ -35,6 +35,7 @@ jq -s --slurpfile cutouts "$TMP_CUTOUTS" '
     name_fr: $m.name_fr,
     poster_image: $m.poster_image,
     poster_cutout: ($cutouts[0][$m.scientific_name] // null),
+    poster_cutout_aspect: ($m.poster_cutout_aspect // null),
     images: ($m.images | map({file, alt_es: (.alt_es // $m.name_es), sex_age: (.sex_age // null)})),
     attribution: ($m.images | map({file, author, source_url, license, license_url}))
   }}) | add

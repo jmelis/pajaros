@@ -538,68 +538,88 @@ html, body {
     color: #777;
   }
 
-  .print-bird-row {
+  /* Collage grid: dense flow packs the varying cell sizes without gaps left
+     by strict row/column order — this *is* the bin-packing, done in CSS. */
+  .print-poster-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-auto-rows: 21mm;
+    grid-auto-flow: dense;
+    column-gap: 3mm;
+    row-gap: 1mm;
+    /* No fixed height/overflow:hidden here on purpose — if a page's mix of
+       cell sizes ever needs more room than fits, it should visibly spill
+       onto an extra printed page, never silently clip a bird off. */
+  }
+
+  .print-bird-cell {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 4mm;
-    height: 47mm;
+    justify-content: flex-end;
+    min-width: 0;
+    min-height: 0;
   }
 
   .print-bird-img-wrap {
-    flex: 0 0 72mm;
-    height: 47mm;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: visible;
   }
 
-  /* Boxed fallback photo (only used if a species has no poster-cutout.png yet) */
   .print-bird-img {
-    max-width: 70mm;
-    max-height: 45mm;
+    max-width: 100%;
+    max-height: 100%;
     width: auto;
     height: auto;
     object-fit: contain;
     display: block;
+  }
+
+  /* Boxed fallback photo (only used if a species has no poster-cutout.png yet) */
+  .print-bird-img:not(.print-bird-img-cutout) {
     border-radius: 3mm;
     background: #f5f5f5;
+    padding: 2mm;
   }
 
-  /* Background-removed cutout: floats directly on the page, no box */
-  .print-bird-img-cutout {
-    max-width: 72mm;
-    max-height: 47mm;
-    background: none;
-    border-radius: 0;
+  .print-bird-label {
+    margin-top: 1mm;
+    text-align: center;
+    line-height: 1.15;
   }
 
-  .print-bird-names {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 2mm;
+  .print-name-es, .print-name-fr {
+    font-size: 9pt;
   }
 
   .print-name-es {
-    font-size: 18pt;
     font-weight: 700;
-    line-height: 1.15;
   }
 
   .print-name-fr {
-    font-size: 18pt;
     color: #444;
     font-style: italic;
-    line-height: 1.15;
   }
 
   .print-name-latin {
-    font-size: 11pt;
+    display: block;
+    font-size: 6.5pt;
     color: #888;
     font-style: italic;
   }
 
+  /* Grid cell sizes, from each bird's aspect ratio (see gridSpanClass in app.js) */
+  .span-normal     { grid-column: span 2; grid-row: span 2; }
+  .span-normal-big { grid-column: span 3; grid-row: span 3; }
+  .span-wide       { grid-column: span 3; grid-row: span 2; }
+  .span-wide-big   { grid-column: span 4; grid-row: span 3; }
+  .span-tall       { grid-column: span 2; grid-row: span 3; }
+  .span-tall-big   { grid-column: span 3; grid-row: span 4; }
 }
 
 /* ─── Reduced motion ────────────────────────────────────────────────────── */
