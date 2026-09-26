@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Phoenicurus ochruros",
+  "name_es": "Colirrojo tizón",
+  "name_fr": "Rougequeue noir",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Phoenicurus%20ochruros",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Colirrojo tizón (imagen provisional)"
+    }
+  ]
+}

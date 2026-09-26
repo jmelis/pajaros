@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Apus pallidus",
+  "name_es": "Vencejo pálido",
+  "name_fr": "Martinet pâle",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Apus%20pallidus",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Vencejo pálido (imagen provisional)"
+    }
+  ]
+}

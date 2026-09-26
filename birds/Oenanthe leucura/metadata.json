@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Oenanthe leucura",
+  "name_es": "Collalba negra",
+  "name_fr": "Traquet rieur",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Oenanthe%20leucura",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Collalba negra (imagen provisional)"
+    }
+  ]
+}

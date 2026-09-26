@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Upupa epops",
+  "name_es": "Abubilla común",
+  "name_fr": "Huppe fasciée",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Upupa%20epops",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Abubilla común (imagen provisional)"
+    }
+  ]
+}

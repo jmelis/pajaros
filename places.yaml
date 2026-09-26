@@ -1,0 +1,73 @@
+places:
+  alicante:
+    name_es: Alicante
+    name_fr: Alicante
+    species:
+      - Larus michahellis
+      - Passer domesticus
+      - Columba livia
+      - Turdus merula
+      - Serinus serinus
+      - Streptopelia decaocto
+      - Sturnus unicolor
+      - Apus apus
+      - Curruca melanocephala
+      - Chloris chloris
+      - Carduelis carduelis
+      - Erithacus rubecula
+      - Motacilla alba
+      - Parus major
+      - Falco tinnunculus
+      - Oenanthe leucura
+      - Upupa epops
+      - Phoenicurus ochruros
+      - Apus pallidus
+      - Phalacrocorax carbo
+  ourense:
+    name_es: Ourense
+    name_fr: Ourense
+    species:
+      - Passer domesticus
+      - Motacilla alba
+      - Columba livia
+      - Carduelis carduelis
+      - Erithacus rubecula
+      - Turdus merula
+      - Columba palumbus
+      - Sturnus unicolor
+      - Streptopelia decaocto
+      - Anas platyrhynchos
+      - Serinus serinus
+      - Parus major
+      - Apus apus
+      - Delichon urbicum
+      - Hirundo rustica
+      - Motacilla cinerea
+      - Cinclus cinclus
+      - Actitis hypoleucos
+      - Alcedo atthis
+      - Larus michahellis
+  bruselas:
+    name_es: Bruselas
+    name_fr: Bruxelles
+    species:
+      - Columba palumbus
+      - Corvus corone
+      - Parus major
+      - Cyanistes caeruleus
+      - Turdus merula
+      - Psittacula krameri
+      - Pica pica
+      - Columba livia
+      - Erithacus rubecula
+      - Anas platyrhynchos
+      - Fulica atra
+      - Branta canadensis
+      - Alopochen aegyptiaca
+      - Fringilla coelebs
+      - Sturnus vulgaris
+      - Coloeus monedula
+      - Dendrocopos major
+      - Chroicocephalus ridibundus
+      - Apus apus
+      - Passer domesticus

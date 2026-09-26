@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Pica pica",
+  "name_es": "Urraca común",
+  "name_fr": "Pie bavarde",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Pica%20pica",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Urraca común (imagen provisional)"
+    }
+  ]
+}

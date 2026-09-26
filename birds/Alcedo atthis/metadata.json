@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Alcedo atthis",
+  "name_es": "Martín pescador común",
+  "name_fr": "Martin-pêcheur d'Europe",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Alcedo%20atthis",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Martín pescador común (imagen provisional)"
+    }
+  ]
+}

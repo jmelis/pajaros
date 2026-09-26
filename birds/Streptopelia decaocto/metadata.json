@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Streptopelia decaocto",
+  "name_es": "Tórtola turca",
+  "name_fr": "Tourterelle turque",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Streptopelia%20decaocto",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Tórtola turca (imagen provisional)"
+    }
+  ]
+}

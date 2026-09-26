@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Sturnus vulgaris",
+  "name_es": "Estornino pinto",
+  "name_fr": "Étourneau sansonnet",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Sturnus%20vulgaris",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Estornino pinto (imagen provisional)"
+    }
+  ]
+}

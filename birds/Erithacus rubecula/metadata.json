@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Erithacus rubecula",
+  "name_es": "Petirrojo europeo",
+  "name_fr": "Rougegorge familier",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Erithacus%20rubecula",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Petirrojo europeo (imagen provisional)"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Motacilla alba",
+  "name_es": "Lavandera blanca",
+  "name_fr": "Bergeronnette grise",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Motacilla%20alba",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Lavandera blanca (imagen provisional)"
+    }
+  ]
+}

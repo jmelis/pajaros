@@ -1,0 +1,20 @@
+{
+  "name": "pajaros",
+  "version": "1.0.0",
+  "description": "Guía familiar de identificación de aves",
+  "private": true,
+  "scripts": {
+    "validate": "node scripts/validate.js",
+    "build": "node scripts/build-catalog.js",
+    "pdf": "node scripts/generate-pdf.js",
+    "dev": "npx serve . -l 8080",
+    "all": "npm run validate && npm run build && npm run pdf"
+  },
+  "dependencies": {
+    "js-yaml": "^4.3.2",
+    "puppeteer": "^22.15.0"
+  },
+  "allowScripts": {
+    "puppeteer@22.15.0": true
+  }
+}

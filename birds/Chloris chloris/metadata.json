@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Chloris chloris",
+  "name_es": "Verderón común",
+  "name_fr": "Verdier d'Europe",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Chloris%20chloris",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Verderón común (imagen provisional)"
+    }
+  ]
+}

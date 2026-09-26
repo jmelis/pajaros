@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Chroicocephalus ridibundus",
+  "name_es": "Gaviota reidora",
+  "name_fr": "Mouette rieuse",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Chroicocephalus%20ridibundus",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Gaviota reidora (imagen provisional)"
+    }
+  ]
+}

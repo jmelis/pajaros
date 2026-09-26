@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Carduelis carduelis",
+  "name_es": "Jilguero europeo",
+  "name_fr": "Chardonneret élégant",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Carduelis%20carduelis",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Jilguero europeo (imagen provisional)"
+    }
+  ]
+}

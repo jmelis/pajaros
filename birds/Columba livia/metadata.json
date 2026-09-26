@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Columba livia",
+  "name_es": "Paloma bravía",
+  "name_fr": "Pigeon biset",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Columba%20livia",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Paloma bravía (imagen provisional)"
+    }
+  ]
+}
