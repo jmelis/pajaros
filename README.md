@@ -16,6 +16,11 @@ Catálogo de identificación de aves para paseos familiares en **Alicante**, **O
 - **Imagen nueva en una especie existente:** copia el archivo a `birds/<Genus species>/` y añade su entrada en `images[]` de `metadata.json` (`file`, `author`, `source_url`, `license`, `license_url`).
 - **Lugar nuevo:** añade la entrada en `places.json` (`name_es`, `name_fr`, 20 `species`) y un botón en `index.template.html` (`#place-buttons`).
 - **Cambio de interfaz:** edita `index.template.html`, `src/app.js` o `src/style.css`, nunca `index.html` directamente.
+- **Recorte para el póster:** `scripts/cutout.py` quita el fondo de `principal.jpg` y genera `birds/<Genus species>/poster-cutout.png` (ave flotando, sin caja) que usa la guía impresa si existe. Aparte del resto del proyecto — necesita un entorno con `rembg`+`Pillow` (descarga un modelo de ~1GB la primera vez):
+  ```bash
+  python3 -m venv .venv && .venv/bin/pip install rembg pillow
+  .venv/bin/python scripts/cutout.py
+  ```
 
 Después de cualquier cambio:
 
@@ -26,12 +31,13 @@ bash scripts/bake.sh       # regenera index.html — comitéalo
 
 ## Imprimir
 
-Menú (☰) → **Imprimir esta guía** → diálogo de impresión del navegador (Guardar como PDF, o imprimir a tamaño real 100%). Genera 4 láminas A4 (5 aves cada una) más una página de créditos.
+Menú (☰) → **Imprimir esta guía** → diálogo de impresión del navegador (Guardar como PDF, o imprimir a tamaño real 100%). Genera 4 láminas A4 (5 aves cada una). Las especies con `poster-cutout.png` aparecen sin caja, flotando sobre la página; el resto usa la foto normal.
 
 ## Estructura
 
 ```
 birds/<Genus species>/metadata.json, principal.jpg, foto2.jpg, foto3.jpg
+                            poster-cutout.png (opcional)  # ave sin fondo, para el póster
 places.json                # 3 lugares × 20 especies
 
 index.template.html        # plantilla — edítala a ella, no a index.html
@@ -42,6 +48,7 @@ scripts/
   bake.sh                  # places.json + birds/ → index.html
   validate.sh              # integridad del catálogo (bash + jq)
   fetch_images.py          # descarga fotos + atribución desde Wikimedia (Python stdlib)
+  cutout.py                # quita el fondo del póster (Python + rembg, aparte)
 
 docs/DESIGN.md, docs/IMPLEMENTATION_PLAN.md
 ```
@@ -50,4 +57,4 @@ CI (`.github/workflows/ci.yml`) valida, hornea y publica en GitHub Pages en cada
 
 ## Licencias de imágenes
 
-Todas con licencia libre (CC BY, CC BY-SA, CC0 o dominio público). Créditos en `metadata.json` de cada especie, en la web (menú → Créditos) y en la última página de cada guía impresa.
+Todas con licencia libre (CC BY, CC BY-SA, CC0 o dominio público). Créditos en `metadata.json` de cada especie y en la web (menú → Créditos); la guía impresa no los incluye, por diseño.

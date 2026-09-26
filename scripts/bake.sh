@@ -13,15 +13,28 @@ command -v jq >/dev/null || { echo "FATAL: jq is required (brew install jq / apt
 
 TMP_SPECIES="$(mktemp)"
 TMP_CATALOG="$(mktemp)"
-trap 'rm -f "$TMP_SPECIES" "$TMP_CATALOG"' EXIT
+TMP_CUTOUTS="$(mktemp)"
+trap 'rm -f "$TMP_SPECIES" "$TMP_CATALOG" "$TMP_CUTOUTS"' EXIT
+
+# Map of scientific_name -> poster-cutout.png, only for species that have one
+# (background-removed version of poster_image, used by the print poster).
+{
+  for dir in birds/*/; do
+    sp="$(basename "$dir")"
+    if [[ -f "${dir}poster-cutout.png" ]]; then
+      jq -n --arg sp "$sp" '{($sp): "poster-cutout.png"}'
+    fi
+  done
+} | jq -s 'add // {}' > "$TMP_CUTOUTS"
 
 # One object per species, keyed by scientific_name, in the shape app.js expects.
-jq -s '
+jq -s --slurpfile cutouts "$TMP_CUTOUTS" '
   map(. as $m | {($m.scientific_name): {
     scientific_name: $m.scientific_name,
     name_es: $m.name_es,
     name_fr: $m.name_fr,
     poster_image: $m.poster_image,
+    poster_cutout: ($cutouts[0][$m.scientific_name] // null),
     images: ($m.images | map({file, alt_es: (.alt_es // $m.name_es), sex_age: (.sex_age // null)})),
     attribution: ($m.images | map({file, author, source_url, license, license_url}))
   }}) | add

@@ -118,11 +118,12 @@ Mirlo común, Gorrión común, Paloma bravía/urbana, Herrerillo común, Carbone
 
 - `principal.jpg` — imagen para el póster (obligatoria, siempre macho adulto o plumaje más característico).
 - Nombres descriptivos para las demás: `hembra.jpg`, `juvenil.jpg`, `vuelo.jpg`, etc.
+- `poster-cutout.png` (opcional) — `principal.jpg` con el fondo quitado (`scripts/cutout.py`), usada por la guía impresa para que el ave flote sobre la página en vez de ir en una caja. No lleva atribución propia: es una versión derivada de `principal.jpg`, mismos créditos.
 
 ### 4.4 Atribución
 
 - Campos `author`, `source_url`, `license`, `license_url` en cada entrada de `images`.
-- Página de créditos en la web y anexo de créditos en cada PDF.
+- Solo en la web (menú → Créditos). La guía impresa no lleva créditos, por decisión explícita — es un objeto físico para una niña de 7 años, no un documento legal; la atribución completa vive en la web, siempre accesible.
 
 ## 5. Aplicación web
 
@@ -205,12 +206,12 @@ Implementadas con `location.pathname` (sin hash) usando el prefijo de repo GitHu
 ### 6.2 Maquetación
 
 - Formato A4 vertical (210 × 297 mm), vía `@page { size: A4 }`.
-- 4 láminas por lugar, 5 aves por lámina (`page-break-after` entre láminas).
-- Cada fila de ave: imagen a la izquierda (≈ 40 % del ancho), nombres a la derecha (latín grande + español + francés).
+- 4 láminas por lugar, 5 aves por lámina (`page-break-after` entre láminas). Sin página de créditos — ver §4.4.
+- Cada fila de ave: imagen a la izquierda (≈ 40 % del ancho), nombres a la derecha (español y francés al mismo tamaño, latín pequeño debajo).
+- Si existe `poster-cutout.png` para la especie, se usa esa versión (sin fondo, flotando directamente sobre la página); si no, la foto normal en una caja con esquinas redondeadas. Estilo tipo "póster de aves de jardín" en vez de fila de fichas.
 - Cabecera: lugar + número de lámina.
 - Fondo blanco; tipografía grande, legible para una niña de 7 años.
 - Sin párrafos descriptivos.
-- Última página: anexo de créditos (no necesario plastificar).
 
 ### 6.3 Proceso de validación visual
 
@@ -249,3 +250,5 @@ Comprobaciones:
 | Nombres científicos como IDs | Estables, unívocos, no requieren UUID artificial |
 | 404.html redirect SPA | Técnica estándar y documentada para GitHub Pages sin servidor |
 | CC BY / CC BY-SA / CC0 | Licencias compatibles con repositorio público, web y PDF |
+| Cutouts (`rembg`) solo para el póster, generados aparte | La web sigue usando las fotos normales; solo la guía impresa necesita el ave "flotando" sin caja. Mantiene ese único paso pesado (modelo de ~1GB) fuera del resto del toolchain |
+| Sin créditos en el PDF impreso | Es un objeto físico para un paseo familiar, no un documento de atribución; los créditos completos siguen siempre disponibles en la web |

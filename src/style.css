@@ -567,29 +567,19 @@ html, body {
   .print-bird-row {
     display: flex;
     align-items: center;
-    gap: 6mm;
-    margin-bottom: 4mm;
-    padding-bottom: 4mm;
-    border-bottom: 1px solid #e8e8e8;
+    gap: 4mm;
     height: 47mm;
   }
 
-  .print-bird-row:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-  }
-
   .print-bird-img-wrap {
-    flex: 0 0 70mm;
-    height: 45mm;
-    overflow: hidden;
-    border-radius: 3mm;
-    background: #f5f5f5;
+    flex: 0 0 72mm;
+    height: 47mm;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
+  /* Boxed fallback photo (only used if a species has no poster-cutout.png yet) */
   .print-bird-img {
     max-width: 70mm;
     max-height: 45mm;
@@ -597,6 +587,16 @@ html, body {
     height: auto;
     object-fit: contain;
     display: block;
+    border-radius: 3mm;
+    background: #f5f5f5;
+  }
+
+  /* Background-removed cutout: floats directly on the page, no box */
+  .print-bird-img-cutout {
+    max-width: 72mm;
+    max-height: 47mm;
+    background: none;
+    border-radius: 0;
   }
 
   .print-bird-names {
@@ -608,15 +608,16 @@ html, body {
   }
 
   .print-name-es {
-    font-size: 22pt;
+    font-size: 18pt;
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1.15;
   }
 
   .print-name-fr {
-    font-size: 16pt;
+    font-size: 18pt;
     color: #444;
     font-style: italic;
+    line-height: 1.15;
   }
 
   .print-name-latin {
@@ -625,40 +626,6 @@ html, body {
     font-style: italic;
   }
 
-  .print-credits-page h1 {
-    font-size: 16pt;
-    color: #2c5f8a;
-    margin-bottom: 6mm;
-  }
-
-  .print-credits-page table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 8.5pt;
-  }
-
-  .print-credits-page th {
-    background: #2c5f8a;
-    color: #fff;
-    padding: 2mm 3mm;
-    text-align: left;
-    font-size: 8pt;
-  }
-
-  .print-credits-page td {
-    padding: 1.5mm 3mm;
-    border-bottom: 1px solid #eee;
-    vertical-align: top;
-  }
-
-  .print-credits-page tr:nth-child(even) td {
-    background: #f8f8f8;
-  }
-
-  .print-source-url {
-    word-break: break-all;
-    font-size: 7pt;
-  }
 }
 
 /* ─── Reduced motion ────────────────────────────────────────────────────── */

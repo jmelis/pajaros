@@ -429,10 +429,15 @@ function buildPrintSheet() {
       </div>
       ${keys.map(key => {
         const sp = catalog.species[key];
+        // Prefer the background-removed cutout for a floating, poster-like look;
+        // falls back to the regular boxed photo if no cutout has been generated.
+        const hasCutout = Boolean(sp.poster_cutout);
+        const imgSrc = hasCutout ? imageUrl(sp, sp.poster_cutout) : imageUrl(sp, sp.poster_image);
+        const imgClass = hasCutout ? 'print-bird-img print-bird-img-cutout' : 'print-bird-img';
         return `
           <div class="print-bird-row">
             <div class="print-bird-img-wrap">
-              <img src="${imageUrl(sp, sp.poster_image)}" alt="${escHtml(sp.name_es)}" class="print-bird-img">
+              <img src="${imgSrc}" alt="${escHtml(sp.name_es)}" class="${imgClass}">
             </div>
             <div class="print-bird-names">
               <p class="print-name-es">${escHtml(sp.name_es)}</p>
@@ -445,34 +450,7 @@ function buildPrintSheet() {
     </div>
   `).join('');
 
-  const credits = speciesKeys.flatMap(key => {
-    const sp = catalog.species[key];
-    return sp.attribution.map(attr => ({ name_es: sp.name_es, scientific_name: sp.scientific_name, ...attr }));
-  });
-
-  const creditsHtml = `
-    <div class="print-page print-credits-page">
-      <h1>Créditos de imágenes — ${escHtml(place.name_es)}</h1>
-      <table>
-        <thead>
-          <tr><th>Nombre español</th><th>Nombre científico</th><th>Autor/a</th><th>Licencia</th><th>Fuente</th></tr>
-        </thead>
-        <tbody>
-          ${credits.map(c => `
-            <tr>
-              <td>${escHtml(c.name_es)}</td>
-              <td><em>${escHtml(c.scientific_name)}</em></td>
-              <td>${escHtml(c.author)}</td>
-              <td>${escHtml(c.license)}</td>
-              <td class="print-source-url">${escHtml(c.source_url)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-
-  printSheet.innerHTML = pagesHtml + creditsHtml;
+  printSheet.innerHTML = pagesHtml;
 }
 
 if (btnPrint) {
