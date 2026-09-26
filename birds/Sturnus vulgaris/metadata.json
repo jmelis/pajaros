@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Sturnus%20vulgaris",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Estornino pinto (imagen provisional)"
+      "alt_es": "Estornino pinto",
+      "author": "Charles J. Sharp",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Common_starling_(Sturnus_vulgaris)_breeding_male_Marken.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Estornino pinto (vista adicional)",
+      "author": "Andrey Butko",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2005-2010._%D0%9F%D1%82%D0%B8%D1%86%D1%8B_%D0%94%D0%BE%D0%BD%D0%B5%D1%86%D0%BA%D0%B0_(C-740)_17.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Estornino pinto (vista adicional)",
+      "author": "Andrey Butko",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2019._%D0%96%D0%B8%D0%B2%D0%BE%D1%82%D0%BD%D1%8B%D0%B5_%D0%94%D0%BE%D0%BD%D0%B5%D1%86%D0%BA%D0%B0_N_040.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
     }
   ]
 }

@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Apus%20pallidus",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Vencejo pálido (imagen provisional)"
+      "alt_es": "Vencejo pálido",
+      "author": "Irvin calicut",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Pallid_Swift_by_Irvin_Calicut_IRV07813.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Vencejo pálido (vista adicional)",
+      "author": "stavros karabinas from Thessaloniki, Greece",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Apus_pallidus_-Greece-8.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Vencejo pálido (vista adicional)",
+      "author": "Jokot021",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Apus_pallidus_1.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

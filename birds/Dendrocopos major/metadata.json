@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Dendrocopos%20major",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Pico picapinos (imagen provisional)"
+      "alt_es": "Pico picapinos",
+      "author": "Charles J. Sharp",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Great_spotted_woodpecker_(Dendrocopos_major)_male_Drenthe.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Pico picapinos (vista adicional)",
+      "author": "Auctor quaerendae",
+      "source_url": "https://commons.wikimedia.org/wiki/File:02026_0022_Dendrocopos_major.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Pico picapinos (vista adicional)",
+      "author": "Pierre-Marie Epiney",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2017-09-16_(11)-f_(36862431570).jpg",
+      "license": "CC BY-SA 2.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
     }
   ]
 }

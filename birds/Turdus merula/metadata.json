@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Turdus%20merula",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Mirlo común (imagen provisional)"
+      "alt_es": "Mirlo común",
+      "author": "Andreas Trepte",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Common_Blackbird.jpg",
+      "license": "CC BY-SA 2.5",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.5"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Mirlo común (vista adicional)",
+      "author": "Federlesen",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Amsel_(Turdus_merula)_in_Beeren.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Mirlo común (vista adicional)",
+      "author": "Glitzerli",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Amsel_in_Fassadenbegr%C3%BCnung.jpg",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0"
     }
   ]
 }

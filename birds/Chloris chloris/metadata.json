@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Chloris%20chloris",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Verderón común (imagen provisional)"
+      "alt_es": "Verderón común",
+      "author": "Martin Kunz",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Chloris_chloris_(profile).jpg",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Verderón común (vista adicional)",
+      "author": "Mark Freeth",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2_Chloris_chloris.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Verderón común (vista adicional)",
+      "author": "Tony Hisgett from Birmingham, UK",
+      "source_url": "https://commons.wikimedia.org/wiki/File:A_sorry_looking_greenfinch_(3735312956).jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
     }
   ]
 }

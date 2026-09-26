@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Phalacrocorax%20carbo",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Cormorán grande (imagen provisional)"
+      "alt_es": "Cormorán grande",
+      "author": "MPF",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2021-05-05_Phalacrocorax_carbo_carbo%2C_Killingworth_Lake%2C_Northumberland_1-1.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Cormorán grande (vista adicional)",
+      "author": "Molgreen",
+      "source_url": "https://commons.wikimedia.org/wiki/File:20250829_xl_0709-Kormoran_(Phalacrocorax_carbo)_bei_der_Pflege_des_Gefieders.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Cormorán grande (vista adicional)",
+      "author": "Chris06",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2026_Quai_de_la_Croix_(Concarneau)_(1).jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

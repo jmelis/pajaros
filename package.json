@@ -6,15 +6,11 @@
   "scripts": {
     "validate": "node scripts/validate.js",
     "build": "node scripts/build-catalog.js",
-    "pdf": "node scripts/generate-pdf.js",
+    "fetch-images": "node scripts/fetch-images.js",
     "dev": "npx serve . -l 8080",
-    "all": "npm run validate && npm run build && npm run pdf"
+    "all": "npm run validate && npm run build"
   },
   "dependencies": {
-    "js-yaml": "^4.3.2",
-    "puppeteer": "^22.15.0"
-  },
-  "allowScripts": {
-    "puppeteer@22.15.0": true
+    "js-yaml": "^4.3.2"
   }
 }

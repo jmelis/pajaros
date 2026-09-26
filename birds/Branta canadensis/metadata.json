@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Branta%20canadensis",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Barnacla canadiense (imagen provisional)"
+      "alt_es": "Barnacla canadiense",
+      "author": "USFWS Mountain-Prairie",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Canada_goose_on_Seedskadee_NWR_(27826185489).jpg",
+      "license": "Public domain",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Barnacla canadiense (vista adicional)",
+      "author": "Anthony O'Neil",
+      "source_url": "https://commons.wikimedia.org/wiki/File:'Branta_canadensis'_-_geograph.org.uk_-_8213335.jpg",
+      "license": "CC BY-SA 2.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Barnacla canadiense (vista adicional)",
+      "author": "Judy Gallagher",
+      "source_url": "https://commons.wikimedia.org/wiki/File:046_366_-_Canada_Goose_-_Branta_canadensis%2C_Lake_Accotink_Park%2C_Springfield%2C_Virginia%2C_February_15%2C_2024_(53532034886).jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
     }
   ]
 }

@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Motacilla%20alba",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Lavandera blanca (imagen provisional)"
+      "alt_es": "Lavandera blanca",
+      "author": "Jac. Janssen from BAARLO LB, NL",
+      "source_url": "https://commons.wikimedia.org/wiki/File:20180415_015_Winterswijk_Witte_kwikstaart_(40785272624).jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Lavandera blanca (vista adicional)",
+      "author": "Faisal Akram from Dhaka, Bangladesh",
+      "source_url": "https://commons.wikimedia.org/wiki/File:A_Fluffy_White_Wagtail_Motacilla_alba_%E0%A6%B8%E0%A6%BE%E0%A6%A6%E0%A6%BE_%E0%A6%96%E0%A6%9E%E0%A7%8D%E0%A6%9C%E0%A6%A8%E0%A6%BE_(14733769213).jpg",
+      "license": "CC BY-SA 2.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Lavandera blanca (vista adicional)",
+      "author": "Luiz Lapa from Oeiras, Portugal",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Alv%C3%A9ola-branca_juvenil%2C_a_chamar_pelos_progenitores..._White_Wagtail%2C_juvenile%2C_on_calling..._(53745322734).jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
     }
   ]
 }

@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Columba%20livia",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Paloma bravía (imagen provisional)"
+      "alt_es": "Paloma bravía",
+      "author": "william_stephens",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Columba_livia_(Rock_Dove%2C_wild)%2C_Duncansby_Head%2C_Caithness%2C_Scotland_1.jpg",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Paloma bravía (vista adicional)",
+      "author": "dipper12",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Columba_livia_(Rock_Dove%2C_wild)%2C_Duncansby_Head%2C_Caithness%2C_Scotland_2.jpg",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Paloma bravía (vista adicional)",
+      "author": "dipper12",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Columba_livia_(Rock_Dove%2C_wild)%2C_Duncansby_Head%2C_Caithness%2C_Scotland_3.jpg",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0"
     }
   ]
 }

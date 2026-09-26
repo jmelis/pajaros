@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Carduelis%20carduelis",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Jilguero europeo (imagen provisional)"
+      "alt_es": "Jilguero europeo",
+      "author": "Giles Laurent",
+      "source_url": "https://commons.wikimedia.org/wiki/File:072_Wild_European_goldfinch_at_the_Parc_Jura_vaudois_Photo_by_Giles_Laurent.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Jilguero europeo (vista adicional)",
+      "author": "Giles Laurent",
+      "source_url": "https://commons.wikimedia.org/wiki/File:030_European_goldfinch_with_Wisteria_in_the_background_in_Gl%C3%A2ne_District_Photo_by_Giles_Laurent.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Jilguero europeo (vista adicional)",
+      "author": "Jac. Janssen from Baarlo lb, NL",
+      "source_url": "https://commons.wikimedia.org/wiki/File:20130630_063_Peel_en_Maas_Kessel_Weerdbeemden_Putter_(9176037831).jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
     }
   ]
 }

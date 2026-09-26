@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Anas%20platyrhynchos",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Ánade azulón (imagen provisional)"
+      "alt_es": "Ánade azulón",
+      "author": "This picture was realized by Richard Bartz by using a Canon EF 70-300mm f/4-5.6 IS USM Lens",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Anas_platyrhynchos_male_female_quadrat.jpg",
+      "license": "CC BY-SA 2.5",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.5"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Ánade azulón (vista adicional)",
+      "author": "Acabashi",
+      "source_url": "https://commons.wikimedia.org/wiki/File:'Anas_platyrhynchos'_duck_Mallard_at_Henham_Essex_England_01.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Ánade azulón (vista adicional)",
+      "author": "Acabashi",
+      "source_url": "https://commons.wikimedia.org/wiki/File:'Anas_platyrhynchos'_duck_Mallard_at_Henham_Essex_England_02.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

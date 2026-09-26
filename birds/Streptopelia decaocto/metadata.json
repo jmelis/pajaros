@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Streptopelia%20decaocto",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Tórtola turca (imagen provisional)"
+      "alt_es": "Tórtola turca",
+      "author": "stevem4560",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2022-04-06_Streptopelia_decaocto%2C_Plovdiv%2C_Bulgaria_1.jpg",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Tórtola turca (vista adicional)",
+      "author": "Runologe",
+      "source_url": "https://commons.wikimedia.org/wiki/File:-02-_Eurasian_collared_dove_with_chicks_-_T%C3%BCrkentaube_mit_zwei_K%C3%BCken.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Tórtola turca (vista adicional)",
+      "author": "Runologe",
+      "source_url": "https://commons.wikimedia.org/wiki/File:-03-_Two_juvenile_Eurasian_collared_doves_in_a_bird_feeder_-_zwei_T%C3%BCrkentauben-K%C3%BCken_in_Vogelh%C3%A4uschen.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

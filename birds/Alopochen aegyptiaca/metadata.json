@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Alopochen%20aegyptiaca",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Ganso del Nilo (imagen provisional)"
+      "alt_es": "Ganso del Nilo",
+      "author": "Charles J. Sharp",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Egyptian_goose_(Alopochen_aegyptiaca)_London.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Ganso del Nilo (vista adicional)",
+      "author": "(c) Jan Vršovský, some rights reserved (CC BY-SA)",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Alopochen_aegyptiaca_in_Rwanda_287351360.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Ganso del Nilo (vista adicional)",
+      "author": "Ana Raquel S. Hernandes from Sao Paulo, Brazil",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Chobe%2C_RTW_2012_(8358011065).jpg",
+      "license": "CC BY-SA 2.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
     }
   ]
 }

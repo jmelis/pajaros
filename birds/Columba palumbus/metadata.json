@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Columba%20palumbus",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Paloma torcaz (imagen provisional)"
+      "alt_es": "Paloma torcaz",
+      "author": "Bengt Nyman from Vaxholm, Sweden",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Columba_palumbus_EM1B1397_(27445478998).jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Paloma torcaz (vista adicional)",
+      "author": "Marat Rysbekov",
+      "source_url": "https://commons.wikimedia.org/wiki/File:09_%D0%92_%D1%80%D0%BE%D1%89%D0%B5_%D0%91%D0%B0%D1%83%D0%BC%D0%B0.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Paloma torcaz (vista adicional)",
+      "author": "Marat Rysbekov",
+      "source_url": "https://commons.wikimedia.org/wiki/File:10_%D0%92_%D1%80%D0%BE%D1%89%D0%B5_%D0%91%D0%B0%D1%83%D0%BC%D0%B0.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

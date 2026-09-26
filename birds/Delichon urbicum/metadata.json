@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Delichon%20urbicum",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Avión común (imagen provisional)"
+      "alt_es": "Avión común",
+      "author": "Andreas Trepte",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Mehlschwalbe_Delichon_urbicum.jpg",
+      "license": "CC BY-SA 2.5",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.5"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Avión común (vista adicional)",
+      "author": "Kolforn",
+      "source_url": "https://commons.wikimedia.org/wiki/File:15-05-2017_Swallows%2C_Regato_de_Ferragudo.JPG",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Avión común (vista adicional)",
+      "author": "M.J.",
+      "source_url": "https://commons.wikimedia.org/wiki/File:200818_1243_Delichon_urbica.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

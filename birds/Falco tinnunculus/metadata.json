@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Falco%20tinnunculus",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Cernícalo vulgar (imagen provisional)"
+      "alt_es": "Cernícalo vulgar",
+      "author": "Andreas Trepte",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Common_kestrel_falco_tinnunculus.jpg",
+      "license": "CC BY-SA 2.5",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.5"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Cernícalo vulgar (vista adicional)",
+      "author": "Fabian Horst",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2020-06-14_-_Falco_tinnunculus_FMT_Kiel_(1).jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Cernícalo vulgar (vista adicional)",
+      "author": "Fabian Horst",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2020-06-14_-_Falco_tinnunculus_FMT_Kiel_(2).jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

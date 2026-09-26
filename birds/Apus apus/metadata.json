@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Apus%20apus",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Vencejo común (imagen provisional)"
+      "alt_es": "Vencejo común",
+      "author": "Alexis Lours",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Common_Swift_2025_07_18_02_(cropped).jpg",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Vencejo común (vista adicional)",
+      "author": "Finch",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Ailes_martinet_noir.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Vencejo común (vista adicional)",
+      "author": "Simon Mannweiler",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Apus_apus_(Mauersegler)_2024-07-16_(01).jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

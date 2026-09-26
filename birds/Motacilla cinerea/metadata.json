@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Motacilla%20cinerea",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Lavandera cascadeña (imagen provisional)"
+      "alt_es": "Lavandera cascadeña",
+      "author": "Herwig Winter",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Gebirgsstelze_im_Geo-Naturpark_Bergstra%C3%9Fe-Odenwald.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Lavandera cascadeña (vista adicional)",
+      "author": "Donald Judge",
+      "source_url": "https://commons.wikimedia.org/wiki/File:11.8.20_Tabor_River_Luznice_017_(50217252016).jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Lavandera cascadeña (vista adicional)",
+      "author": "Christiane Höltschl",
+      "source_url": "https://commons.wikimedia.org/wiki/File:20160503DSC_9900CH.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

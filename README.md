@@ -18,7 +18,7 @@ Requiere [Node.js](https://nodejs.org/) ≥ 18.
 npm install
 ```
 
-Esto instala `js-yaml` (para parsear places.yaml) y `puppeteer` (para generar PDFs).
+Esto instala `js-yaml`, para parsear `places.yaml`. La web en sí es HTML/CSS/JS vanilla, sin dependencias.
 
 ---
 
@@ -51,29 +51,16 @@ Sale con código 0 si todo es correcto, 1 si hay errores.
 
 ---
 
-## Generar los PDF
+## Imprimir la guía en A4
 
-```bash
-npm run pdf
-# node scripts/generate-pdf.js
-```
+No hace falta generar PDFs por separado: la propia web incluye una hoja imprimible.
 
-Esto genera:
-- `output/pdf/alicante.pdf`
-- `output/pdf/ourense.pdf`
-- `output/pdf/bruselas.pdf`
+1. Abre la web y selecciona el lugar que quieras imprimir.
+2. Abre el menú (☰) → **Imprimir esta guía**.
+3. Se abre el diálogo de impresión del navegador. Elige "Guardar como PDF" o imprime directamente.
+4. Imprime a **tamaño real (100%)**, sin ajustar a página.
 
-**Página de prueba** (solo primera lámina de Alicante):
-
-```bash
-node scripts/generate-pdf.js --test
-# Genera output/pdf/alicante-test.pdf
-```
-
-**Cómo imprimir:**
-- Imprime a **tamaño real (100%)**, sin ajustar a página.
-- Las **páginas 1–4** son las láminas para plastificar (5 aves por lámina).
-- La **última página** es el anexo de créditos (no hace falta plastificarla).
+Genera automáticamente 4 láminas A4 (5 aves por lámina, con las 20 especies del lugar) más una página final de créditos.
 
 ---
 
@@ -81,7 +68,7 @@ node scripts/generate-pdf.js --test
 
 ```bash
 npm run all
-# Ejecuta: validate → build → pdf
+# Ejecuta: validate → build
 ```
 
 La publicación en GitHub Pages se realiza automáticamente a través de GitHub Actions cuando se hace push a `main` (si los permisos de la integración lo permiten).
@@ -94,9 +81,9 @@ Para activar GitHub Pages manualmente:
 
 ## Añadir una especie
 
-1. Crea `birds/<Genus species>/metadata.json` con todos los campos obligatorios.
-2. Descarga al menos `principal.jpg` en esa carpeta.
-3. Añade la especie a la lista del lugar en `places.yaml`.
+1. Crea `birds/<Genus species>/metadata.json` (puedes copiar el de otra especie como plantilla) y su carpeta.
+2. Añade la especie a la lista del lugar en `places.yaml`.
+3. Ejecuta `node scripts/fetch-images.js "<Genus species>"` para descargar automáticamente `principal.jpg` y dos fotos adicionales desde Wikimedia, con su atribución.
 4. Ejecuta `npm run validate` para verificar.
 5. Ejecuta `npm run build` para regenerar `catalog.json`.
 
@@ -110,9 +97,8 @@ Para activar GitHub Pages manualmente:
 
 1. Añade una entrada en `places.yaml` con `name_es`, `name_fr` y una lista de 20 `species`.
 2. Asegúrate de que cada especie tiene su carpeta en `birds/`.
-3. Añade un botón en `index.html` (dentro de `#place-buttons`) y una ruta si es necesario.
-4. Añade el enlace al PDF en el menú.
-5. Ejecuta `npm run validate` y `npm run build`.
+3. Añade un botón en `index.html` (dentro de `#place-buttons`).
+4. Ejecuta `npm run validate` y `npm run build`.
 
 ---
 
@@ -137,13 +123,7 @@ src/
 scripts/
   validate.js           # comprobaciones de integridad
   build-catalog.js      # genera catalog.json
-  generate-pdf.js       # genera los PDFs
-
-output/
-  pdf/
-    alicante.pdf
-    ourense.pdf
-    bruselas.pdf
+  fetch-images.js       # descarga fotos e info de licencia desde Wikimedia
 
 docs/
   DESIGN.md             # arquitectura y decisiones de diseño
@@ -154,4 +134,4 @@ docs/
 
 ## Licencias de imágenes
 
-Todas las imágenes del catálogo tienen licencia compatible con redistribución pública (CC BY, CC BY-SA, CC0 o dominio público). Los créditos individuales están en `metadata.json` de cada especie, en la página de créditos de la web (menú → Créditos) y en el anexo de cada PDF.
+Todas las imágenes del catálogo tienen licencia compatible con redistribución pública (CC BY, CC BY-SA, CC0 o dominio público). Los créditos individuales están en `metadata.json` de cada especie, en la página de créditos de la web (menú → Créditos) y en la página final de cada guía impresa.

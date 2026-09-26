@@ -199,29 +199,29 @@ Implementadas con `location.pathname` (sin hash) usando el prefijo de repo GitHu
 - Al cambiar de ficha, se cancela cualquier carga pendiente de la ficha anterior (limpieza de `src` antes de asignar el nuevo).
 - `catalog.json` incluye todas las fichas; las imágenes se cargan bajo demanda.
 
-## 6. Guías A4 en PDF
+## 6. Guías A4 para imprimir
 
 ### 6.1 Generación
 
-- Script Node.js (`scripts/generate-pdf.js`) usando **Puppeteer** (headless Chrome) para renderizar HTML→PDF.
-- Plantilla HTML en `scripts/pdf-template.html`.
-- Salida: `output/pdf/alicante.pdf`, `output/pdf/ourense.pdf`, `output/pdf/bruselas.pdf`.
+- Sin proceso de build aparte: `src/app.js` construye un `#print-sheet` oculto a partir de `catalog.json`, con el mismo HTML/CSS que se ve en pantalla.
+- Una hoja de estilos `@media print` en `src/style.css` define la maquetación A4 y oculta la interfaz normal (tarjeta, menú) al imprimir.
+- El botón "Imprimir esta guía" del menú llama a `window.print()`; el usuario elige "Guardar como PDF" o imprime directamente desde el navegador. No hace falta Node, Chrome headless ni ningún paso de CI para generar el PDF.
 
 ### 6.2 Maquetación
 
-- Formato A4 vertical (210 × 297 mm).
-- 4 láminas por lugar (páginas 1–4), 5 aves por lámina.
+- Formato A4 vertical (210 × 297 mm), vía `@page { size: A4 }`.
+- 4 láminas por lugar, 5 aves por lámina (`page-break-after` entre láminas).
 - Cada fila de ave: imagen a la izquierda (≈ 40 % del ancho), nombres a la derecha (latín grande + español + francés).
 - Cabecera: lugar + número de lámina.
 - Fondo blanco; tipografía grande, legible para una niña de 7 años.
 - Sin párrafos descriptivos.
-- Páginas 5–N: anexo de créditos (no necesario plastificar).
+- Última página: anexo de créditos (no necesario plastificar).
 
 ### 6.3 Proceso de validación visual
 
-1. Renderizar solo la primera lámina de Alicante.
-2. Revisar: texto no cortado, imagen proporcionada, márgenes adecuados.
-3. Si correcto, generar los tres PDF completos.
+1. Abrir la web, seleccionar un lugar y usar la vista previa de impresión del navegador (Ctrl/Cmd+P).
+2. Revisar: texto no cortado, imagen proporcionada, márgenes adecuados, saltos de página en el sitio correcto.
+3. Repetir para los otros dos lugares.
 4. Revisión final: 20 especies, sin duplicados, nombres coinciden con la web.
 
 ## 7. Validación y CI
@@ -241,14 +241,14 @@ Comprobaciones:
 ### 7.2 GitHub Actions (`.github/workflows/ci.yml`)
 
 - `on: push, pull_request`
-- Jobs: validate → build-web → build-pdf → deploy (Pages, solo en `main`).
+- Jobs: validate → build-web → deploy (Pages, solo en `main`).
 
 ## 8. Decisiones de diseño registradas
 
 | Decisión | Razón |
 |----------|-------|
 | Vanilla JS sin framework | Simplicidad, sin dependencias de npm para la web; evita rot de dependencias |
-| Puppeteer para PDF | Control total de la maquetación; reproduce exactamente el HTML de prueba |
+| Impresión vía `@media print` (sin Puppeteer) | Reutiliza el mismo HTML/CSS/catalog.json de la web; cero dependencias de Node en runtime; el usuario controla el PDF final con el diálogo de impresión de su navegador |
 | catalog.json generado | Separa datos editables del artefacto web; permite validar antes de compilar |
 | Nombres científicos como IDs | Estables, unívocos, no requieren UUID artificial |
 | 404.html redirect SPA | Técnica estándar y documentada para GitHub Pages sin servidor |

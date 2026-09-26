@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Serinus%20serinus",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Serín verdecillo (imagen provisional)"
+      "alt_es": "Serín verdecillo",
+      "author": "Charles J. Sharp",
+      "source_url": "https://commons.wikimedia.org/wiki/File:European_serin_(Serinus_serinus)_male.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Serín verdecillo (vista adicional)",
+      "author": "Eichler, Andreas",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2018.07.06.-01-Mannheim_Vogelstang--Girlitz-Jungvogel.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Serín verdecillo (vista adicional)",
+      "author": "Eichler, Andreas",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2018.07.06.-02-Mannheim_Vogelstang--Girlitz-Jungvogel.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

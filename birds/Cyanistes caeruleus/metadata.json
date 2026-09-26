@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Cyanistes%20caeruleus",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Herrerillo común (imagen provisional)"
+      "alt_es": "Herrerillo común",
+      "author": "Francis Franklin",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_blue_tit_Lancashire.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Herrerillo común (vista adicional)",
+      "author": "m.shattock",
+      "source_url": "https://commons.wikimedia.org/wiki/File:(1)_Blue_Tit_-_Cyanistes_caeruleus.jpg",
+      "license": "CC BY-SA 2.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Herrerillo común (vista adicional)",
+      "author": "Giles Laurent",
+      "source_url": "https://commons.wikimedia.org/wiki/File:073_Wild_Eurasian_blue_tit_parent_feeding_at_Pfyn-Finges_Photo_by_Giles_Laurent.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
     }
   ]
 }

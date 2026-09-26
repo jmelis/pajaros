@@ -70,13 +70,9 @@
       </section>
 
       <section aria-labelledby="pdf-heading">
-        <h2 id="pdf-heading">Guías para imprimir</h2>
-        <ul class="pdf-list">
-          <li><a href="output/pdf/alicante.pdf" target="_blank" rel="noopener">Alicante (PDF)</a></li>
-          <li><a href="output/pdf/ourense.pdf" target="_blank" rel="noopener">Ourense (PDF)</a></li>
-          <li><a href="output/pdf/bruselas.pdf" target="_blank" rel="noopener">Bruselas (PDF)</a></li>
-        </ul>
-        <p class="help-note">Imprime a tamaño real (100%, sin ajustar). Las páginas 1–4 son las láminas para plastificar; la última página son los créditos.</p>
+        <h2 id="pdf-heading">Guía para imprimir</h2>
+        <button id="btn-print" class="print-btn">Imprimir esta guía</button>
+        <p class="help-note">Abre el diálogo de impresión del navegador. Elige "Guardar como PDF" o imprime directamente a tamaño real (100%). Incluye las 20 especies del lugar seleccionado y una página final de créditos.</p>
       </section>
 
       <section aria-labelledby="credits-heading">
@@ -88,6 +84,9 @@
 
   <!-- Overlay for menu -->
   <div id="menu-overlay" aria-hidden="true"></div>
+
+  <!-- Printable guide, built from catalog.json, only shown by @media print -->
+  <div id="print-sheet" aria-hidden="true"></div>
 
   <script src="src/app.js"></script>
 </body>

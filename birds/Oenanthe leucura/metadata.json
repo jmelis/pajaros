@@ -6,11 +6,27 @@
   "images": [
     {
       "file": "principal.jpg",
-      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
-      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Oenanthe%20leucura",
-      "license": "Unresolved due to network restrictions",
-      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
-      "alt_es": "Collalba negra (imagen provisional)"
+      "alt_es": "Collalba negra",
+      "author": "El Golli Mohamed",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Traquet_rieur_Gabes.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Collalba negra (vista adicional)",
+      "author": "Charles J. Sharp",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Black_wheatear_(Oenanthe_leucura_riggenbachi)_Gabes.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Collalba negra (vista adicional)",
+      "author": "Francesco Veronesi from Italy",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Black_Wheatear_-_Merzouga_Marocco_07_3429_(19400616192).jpg",
+      "license": "CC BY-SA 2.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
     }
   ]
 }

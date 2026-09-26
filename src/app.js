@@ -48,6 +48,8 @@ const menuClose   = document.getElementById('menu-close');
 const menuOverlay = document.getElementById('menu-overlay');
 const placeBtns   = document.querySelectorAll('.place-btn');
 const creditsList = document.getElementById('credits-list');
+const btnPrint    = document.getElementById('btn-print');
+const printSheet  = document.getElementById('print-sheet');
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
@@ -198,6 +200,7 @@ function goToPlace(place) {
   currentImageIndex = 0;
   updateUrl(place);
   render();
+  buildPrintSheet();
   closeMenu();
 }
 
@@ -358,6 +361,77 @@ function buildCredits() {
   `).join('');
 }
 
+// ─── Print sheet (A4, replaces the old Puppeteer PDF pipeline) ───────────────
+
+const BIRDS_PER_PAGE = 5;
+
+function buildPrintSheet() {
+  const place = catalog.places[currentPlace];
+  const speciesKeys = place.species;
+
+  const pages = [];
+  for (let i = 0; i < speciesKeys.length; i += BIRDS_PER_PAGE) {
+    pages.push(speciesKeys.slice(i, i + BIRDS_PER_PAGE));
+  }
+
+  const pagesHtml = pages.map((keys, pageIdx) => `
+    <div class="print-page">
+      <div class="print-page-header">
+        <span class="print-place-name">Aves de ${escHtml(place.name_es)}</span>
+        <span class="print-page-num">Lámina ${pageIdx + 1} de ${pages.length}</span>
+      </div>
+      ${keys.map(key => {
+        const sp = catalog.species[key];
+        return `
+          <div class="print-bird-row">
+            <div class="print-bird-img-wrap">
+              <img src="${imageUrl(sp, sp.poster_image)}" alt="${escHtml(sp.name_es)}" class="print-bird-img">
+            </div>
+            <div class="print-bird-names">
+              <p class="print-name-es">${escHtml(sp.name_es)}</p>
+              <p class="print-name-fr">${escHtml(sp.name_fr)}</p>
+              <p class="print-name-latin">${escHtml(sp.scientific_name)}</p>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `).join('');
+
+  const credits = speciesKeys.flatMap(key => {
+    const sp = catalog.species[key];
+    return sp.attribution.map(attr => ({ name_es: sp.name_es, scientific_name: sp.scientific_name, ...attr }));
+  });
+
+  const creditsHtml = `
+    <div class="print-page print-credits-page">
+      <h1>Créditos de imágenes — ${escHtml(place.name_es)}</h1>
+      <table>
+        <thead>
+          <tr><th>Nombre español</th><th>Nombre científico</th><th>Autor/a</th><th>Licencia</th><th>Fuente</th></tr>
+        </thead>
+        <tbody>
+          ${credits.map(c => `
+            <tr>
+              <td>${escHtml(c.name_es)}</td>
+              <td><em>${escHtml(c.scientific_name)}</em></td>
+              <td>${escHtml(c.author)}</td>
+              <td>${escHtml(c.license)}</td>
+              <td class="print-source-url">${escHtml(c.source_url)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  printSheet.innerHTML = pagesHtml + creditsHtml;
+}
+
+if (btnPrint) {
+  btnPrint.addEventListener('click', () => window.print());
+}
+
 function escHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -375,6 +449,7 @@ window.addEventListener('popstate', e => {
     currentBirdIndex = 0;
     currentImageIndex = 0;
     render();
+    buildPrintSheet();
   }
 });
 
@@ -397,6 +472,7 @@ async function init() {
 
     buildCredits();
     render();
+    buildPrintSheet();
   } catch (err) {
     console.error('Failed to load catalog:', err);
     nameEs.textContent = 'Error al cargar el catálogo';
