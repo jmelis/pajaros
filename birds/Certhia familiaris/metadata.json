@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Certhia familiaris",
+  "name_es": "Agateador norteño",
+  "name_fr": "Grimpereau des bois",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Agateador norteño",
+      "author": "caroline legg",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_Treecreeper_-_Certhia_familiaris_%2854192274817%29.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Agateador norteño (vista adicional)",
+      "author": "Peter von Bagh",
+      "source_url": "https://commons.wikimedia.org/wiki/File:A_funny_friend._A_treekreeper_looking_into_my_cameras_lens_-_Flickr_-_peter.v.b.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Agateador norteño (vista adicional)",
+      "author": "Stephan Sprinz",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Bauml%C3%A4ufer_im_NSG_Oftersheimer_D%C3%BCnen_02.jpg",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0"
+    }
+  ],
+  "poster_cutout_aspect": 0.3917
+}

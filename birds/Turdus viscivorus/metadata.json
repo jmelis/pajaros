@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Turdus viscivorus",
+  "name_es": "Zorzal charlo",
+  "name_fr": "Grive draine",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Zorzal charlo",
+      "author": "Fernando Losada Rodríguez",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Turdus_viscivorus.001_-_Cardiff.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Zorzal charlo (vista adicional)",
+      "author": "Giles Laurent",
+      "source_url": "https://commons.wikimedia.org/wiki/File:081_Wild_Mistle_thrush_singing_in_autumn_at_Lake_Neuch%C3%A2tel_Photo_by_Giles_Laurent.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Zorzal charlo (vista adicional)",
+      "author": "MPF",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2020-01-01_Mistle_Thrush_with_Rowan_berries%2C_Jesmond_Dene_1.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  ],
+  "poster_cutout_aspect": 0.8607
+}

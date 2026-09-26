@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Regulus ignicapilla",
+  "name_es": "Reyezuelo listado",
+  "name_fr": "Roitelet triple-bandeau",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Reyezuelo listado",
+      "author": "Alexis Lours",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Common_firecrest_Franconville_03.jpg",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Reyezuelo listado (vista adicional)",
+      "author": "hedera.baltica from Wrocław, Poland",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Autumn_firecrest_%2822331557249%29.jpg",
+      "license": "CC BY-SA 2.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Reyezuelo listado (vista adicional)",
+      "author": "Hans Norelius from Älvsjö, Sweden",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Brandkronad_kungsf%C3%A5gel%2C_Hallands%C3%A5sen%2C_Halland%2C_April_2017_-_Flickr_-_Gavia_Stellata.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    }
+  ],
+  "poster_cutout_aspect": 1.1879
+}

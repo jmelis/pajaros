@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Coccothraustes coccothraustes",
+  "name_es": "Picogordo común",
+  "name_fr": "Grosbec casse-noyau",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Picogordo común",
+      "author": "Charles J. Sharp",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Hawfinch_%28Coccothraustes_coccothraustes%29_male_Drenthe.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Picogordo común (vista adicional)",
+      "author": "Dellex",
+      "source_url": "https://commons.wikimedia.org/wiki/File:0_Kernbei%C3%9Fer_M%C3%A4nnchen.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Picogordo común (vista adicional)",
+      "author": "Holger Uwe Schmitt",
+      "source_url": "https://commons.wikimedia.org/wiki/File:16%2C5_bis_18_cm_ist_die_K%C3%B6rperl%C3%A4nge_des_Kernbei%C3%9Fers._01.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  ],
+  "poster_cutout_aspect": 2.0033
+}

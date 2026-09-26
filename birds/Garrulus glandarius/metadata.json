@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Garrulus glandarius",
+  "name_es": "Arrendajo euroasiático",
+  "name_fr": "Geai des chênes",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Arrendajo euroasiático",
+      "author": "Luc Viatour",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Garrulus_glandarius_1_Luc_Viatour.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "http://creativecommons.org/licenses/by-sa/3.0/"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Arrendajo euroasiático (vista adicional)",
+      "author": "Shiv's fotografia",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_Jay_A_whisper_of_color_in_the_silent_woods_01.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Arrendajo euroasiático (vista adicional)",
+      "author": "Shiv's fotografia",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_Jay_A_whisper_of_color_in_the_silent_woods_02.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  ],
+  "poster_cutout_aspect": 1.5686
+}

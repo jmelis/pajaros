@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Passer montanus",
+  "name_es": "Gorrión molinero",
+  "name_fr": "Moineau friquet",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Gorrión molinero",
+      "author": "Laitche",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Tree_Sparrow_August_2007_Osaka_Japan.jpg",
+      "license": "Public domain",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Gorrión molinero (vista adicional)",
+      "author": "blondinrikard",
+      "source_url": "https://commons.wikimedia.org/wiki/File:%28The_underrated_beauty_of%29_Eurasian_tree_sparrow%2C_Passer_montanus%2C_Pilfink.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Gorrión molinero (vista adicional)",
+      "author": "Paul Korecky",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2017-03-30_AT_Wien_22_Donaustadt%2C_Blumeng%C3%A4rten_Hirschstetten%2C_Passer_montanus_%2851685292059%29.jpg",
+      "license": "CC BY-SA 2.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+    }
+  ],
+  "poster_cutout_aspect": 1.2333
+}

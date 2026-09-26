@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Columba oenas",
+  "name_es": "Paloma zurita",
+  "name_fr": "Pigeon colombin",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Paloma zurita",
+      "author": "Frank Vassen from Brussels, Belgium",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Pigeon_colombin_%28Colulmba_oenas%29%2C_Parc_de_Woluwe%2C_Bruxelles_%2851921513878%29.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Paloma zurita (vista adicional)",
+      "author": "MPF",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2016-04-30_Columba_oenas%2C_Armstrong_Park_1.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Paloma zurita (vista adicional)",
+      "author": "MPF",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2016-04-30_Columba_oenas%2C_Armstrong_Park_2.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+    }
+  ],
+  "poster_cutout_aspect": 0.9508
+}

@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Sylvia atricapilla",
+  "name_es": "Curruca capirotada",
+  "name_fr": "Fauvette à tête noire",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Curruca capirotada",
+      "author": "Charles J. Sharp",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_blackcap_%28Sylvia_atricapilla%29_male_Drenthe.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Curruca capirotada (vista adicional)",
+      "author": "Jac. Janssen from Baarlo lb, NL",
+      "source_url": "https://commons.wikimedia.org/wiki/File:20130630_046_Peel_en_Maas_Kessel_Weerdbeemden_Zwartkop_%289176044529%29.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Curruca capirotada (vista adicional)",
+      "author": "Jac. Janssen from Baarlo lb, NL",
+      "source_url": "https://commons.wikimedia.org/wiki/File:20130913_088_Kessel_Weerdbeemden_Zwartkop_%289738173336%29.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    }
+  ],
+  "poster_cutout_aspect": 0.8746
+}

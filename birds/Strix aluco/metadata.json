@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Strix aluco",
+  "name_es": "Cárabo común",
+  "name_fr": "Chouette hulotte",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Cárabo común",
+      "author": "Martin Mecnarowski",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Strix_aluco_3_%28Martin_Mecnarowski%29.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "http://creativecommons.org/licenses/by-sa/3.0/"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Cárabo común (vista adicional)",
+      "author": "Blondinrikard Fröberg",
+      "source_url": "https://commons.wikimedia.org/wiki/File:%28Explored_2021-12-26%29_Tawny_owl%2C_brown_owl%2C_Strix_aluco%2C_Kattuggla_-_Flickr_-_blondinrikard.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Cárabo común (vista adicional)",
+      "author": "Diginatur",
+      "source_url": "https://commons.wikimedia.org/wiki/File:01_Waldkauz.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+    }
+  ],
+  "poster_cutout_aspect": 0.6109
+}

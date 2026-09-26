@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Lophophanes cristatus",
+  "name_es": "Herrerillo capuchino",
+  "name_fr": "Mésange huppée",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Herrerillo capuchino",
+      "author": "Carlos Delgado",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Lophophanes_cristatus_-_01.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Herrerillo capuchino (vista adicional)",
+      "author": "Giles Laurent",
+      "source_url": "https://commons.wikimedia.org/wiki/File:083_Wild_European_crested_tit_at_Parc_naturel_r%C3%A9gional_Jura_vaudois_Photo_by_Giles_Laurent.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Herrerillo capuchino (vista adicional)",
+      "author": "Giles Laurent",
+      "source_url": "https://commons.wikimedia.org/wiki/File:084_Wild_European_crested_tit_at_Parc_naturel_r%C3%A9gional_Jura_vaudois_Photo_by_Giles_Laurent.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  ],
+  "poster_cutout_aspect": 1.0152
+}

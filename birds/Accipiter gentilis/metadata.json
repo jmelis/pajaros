@@ -1,0 +1,17 @@
+{
+  "scientific_name": "Accipiter gentilis",
+  "name_es": "Azor común",
+  "name_fr": "Autour des palombes",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Azor común",
+      "author": "Norbert Kenntner, Berlin",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Northern_Goshawk_ad_M2.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "http://creativecommons.org/licenses/by-sa/3.0/"
+    }
+  ],
+  "poster_cutout_aspect": 0.6325
+}

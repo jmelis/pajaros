@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Fringilla montifringilla",
+  "name_es": "Pinzón real",
+  "name_fr": "Pinson du Nord",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Pinzón real",
+      "author": "Pierre Dalous",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Pinson_du_nord.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Pinzón real (vista adicional)",
+      "author": "Andreas Eichler",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2018.03.14.-01-Mannheim-Vogelstang--Bergfink-Weibchen.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Pinzón real (vista adicional)",
+      "author": "Andreas Eichler",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2018.03.14.-02-Mannheim-Vogelstang--Bergfink-Weibchen.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  ],
+  "poster_cutout_aspect": 1.9139
+}

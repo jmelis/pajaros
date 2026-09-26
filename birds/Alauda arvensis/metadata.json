@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Alauda arvensis",
+  "name_es": "Alondra común",
+  "name_fr": "Alouette des champs",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Alondra común",
+      "author": "User:Diliff",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Skylark_2%2C_Lake_District%2C_England_-_June_2009.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Alondra común (vista adicional)",
+      "author": "Kolforn",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2018-05-24_Skylark_%28Alauda_arvensis%29%2C_Beeston_Regis.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Alondra común (vista adicional)",
+      "author": "Matthias Bethke",
+      "source_url": "https://commons.wikimedia.org/wiki/File:20240609_Feldlerche_%28Alauda_arvensis%29.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  ],
+  "poster_cutout_aspect": 1.444
+}

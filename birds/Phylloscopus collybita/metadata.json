@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Phylloscopus collybita",
+  "name_es": "Mosquitero común",
+  "name_fr": "Pouillot véloce",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Mosquitero común",
+      "author": "Alexis Lours",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Common_Chiffchaff_2025_04_04_01.jpg",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Mosquitero común (vista adicional)",
+      "author": "President",
+      "source_url": "https://commons.wikimedia.org/wiki/File:%22The_Common_Chiffchaff%22_-_DPLA_-_1b695a61c07becc0ed8e2e5a16cdc4df_%28page_1%29.jpg",
+      "license": "Public domain",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Mosquitero común (vista adicional)",
+      "author": "President",
+      "source_url": "https://commons.wikimedia.org/wiki/File:%22The_Common_Chiffchaff%22_-_DPLA_-_1b695a61c07becc0ed8e2e5a16cdc4df_%28page_2%29.jpg",
+      "license": "Public domain",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing"
+    }
+  ],
+  "poster_cutout_aspect": 1.5645
+}

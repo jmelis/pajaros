@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Spinus spinus",
+  "name_es": "Lúgano",
+  "name_fr": "Tarin des aulnes",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Lúgano",
+      "author": "Charles J. Sharp",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Eurasian_siskin_%28Spinus_spinus%29_male_Biebrzanski.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Lúgano (vista adicional)",
+      "author": "Andreas Eichler",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2017.01.27.-12-Paradiski-La_Plagne-Champagny-en-Vanoise--Erlenzeisig-Maennchen.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Lúgano (vista adicional)",
+      "author": "Paul Lucas from Leicestershire, UK",
+      "source_url": "https://commons.wikimedia.org/wiki/File:A_Siskin_In_Ord_%289877680654%29.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    }
+  ],
+  "poster_cutout_aspect": 1.4286
+}

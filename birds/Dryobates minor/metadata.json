@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Dryobates minor",
+  "name_es": "Pico menor",
+  "name_fr": "Pic épeichette",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Pico menor",
+      "author": "Andrey Gulivanov",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Male_lesser_spotted_woodpecker_%28Dryobates_minor%29.png",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Pico menor (vista adicional)",
+      "author": "Øyvind Holmstad",
+      "source_url": "https://commons.wikimedia.org/wiki/File:05-06-24_dvergspett_PermaLiv.jpg",
+      "license": "CC0",
+      "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Pico menor (vista adicional)",
+      "author": "Martin Mecnarowski",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Dendrocopos_minor_1_%28Martin_Mecnarowski%29.jpg",
+      "license": "CC BY-SA 3.0",
+      "license_url": "http://creativecommons.org/licenses/by-sa/3.0/"
+    }
+  ],
+  "poster_cutout_aspect": 0.9425
+}

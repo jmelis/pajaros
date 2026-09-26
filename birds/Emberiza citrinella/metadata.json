@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Emberiza citrinella",
+  "name_es": "Escribano cerillo",
+  "name_fr": "Bruant jaune",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Escribano cerillo",
+      "author": "Andreas Trepte",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Goldammer_Emberiza_citrinella.jpg",
+      "license": "CC BY-SA 2.5",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.5"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Escribano cerillo (vista adicional)",
+      "author": "PtrQs",
+      "source_url": "https://commons.wikimedia.org/wiki/File:20160607_GoldammerAhrenshoop_DSC01696_crop_PtrQs.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Escribano cerillo (vista adicional)",
+      "author": "Andreas Eichler",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2017.03.26.-01-Rhein_Lampertheim--Goldammer-Maennchen.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  ],
+  "poster_cutout_aspect": 1.2076
+}

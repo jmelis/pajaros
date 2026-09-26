@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Linaria cannabina",
+  "name_es": "Pardillo común",
+  "name_fr": "Linotte mélodieuse",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Pardillo común",
+      "author": "Joe Pell",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Carduelis_cannabina_-England_-male-8.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Pardillo común (vista adicional)",
+      "author": "Jac. Janssen from Baarlo lb, NL",
+      "source_url": "https://commons.wikimedia.org/wiki/File:20130630_072_Peel_en_Maas_Kessel_Weerdbeemden_Kneeu_%289178249124%29.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Pardillo común (vista adicional)",
+      "author": "Jac. Janssen from Baarlo lb, NL",
+      "source_url": "https://commons.wikimedia.org/wiki/File:20140403_048_Kessel_Weerdbeemden_vogeltje_%2813609364523%29.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    }
+  ],
+  "poster_cutout_aspect": 1.3714
+}

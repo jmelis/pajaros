@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Psittacula eupatria",
+  "name_es": "Cotorra alejandrina",
+  "name_fr": "Perruche alexandre",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Cotorra alejandrina",
+      "author": "Charles J. Sharp",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Alexandrine_parakeet_%28Psittacula_eupatria_eupatria%29_male.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Cotorra alejandrina (vista adicional)",
+      "author": "DrRohithgurugubelli",
+      "source_url": "https://commons.wikimedia.org/wiki/File:A_flight_to_impress.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Cotorra alejandrina (vista adicional)",
+      "author": "mainak pal",
+      "source_url": "https://commons.wikimedia.org/wiki/File:A_team_of_alexandrine_parakeet.jpg",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+    }
+  ],
+  "poster_cutout_aspect": 0.7867
+}

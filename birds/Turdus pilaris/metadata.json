@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Turdus pilaris",
+  "name_es": "Zorzal real",
+  "name_fr": "Grive litorne",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Zorzal real",
+      "author": "Bengt Nyman from Vaxholm, Sweden",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Turdus_pilaris_EM1B9020_%2834450664312%29.jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Zorzal real (vista adicional)",
+      "author": "Vera Buhl",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2010-02-20_%2831%29_bird.JPG",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Zorzal real (vista adicional)",
+      "author": "Vera Buhl",
+      "source_url": "https://commons.wikimedia.org/wiki/File:2010-02-20_%2832%29_bird.JPG",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0"
+    }
+  ],
+  "poster_cutout_aspect": 0.9292
+}

@@ -1,0 +1,33 @@
+{
+  "scientific_name": "Phasianus colchicus",
+  "name_es": "Faisán común",
+  "name_fr": "Faisan de Colchide",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "alt_es": "Faisán común",
+      "author": "Estormiz",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Phasianus_colchicus_Oulu_20200524_02.jpg",
+      "license": "CC0",
+      "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+    },
+    {
+      "file": "foto2.jpg",
+      "alt_es": "Faisán común (vista adicional)",
+      "author": "Rod Allday",
+      "source_url": "https://commons.wikimedia.org/wiki/File:A_pheasant_pen_at_Nullas_Plantation_-_geograph.org.uk_-_2317601.jpg",
+      "license": "CC BY-SA 2.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.0"
+    },
+    {
+      "file": "foto3.jpg",
+      "alt_es": "Faisán común (vista adicional)",
+      "author": "BLMUtah",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Green_River_District-_Pheasant_Release_Pariette_Wetlands_%2853332856125%29.jpg",
+      "license": "Public domain",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing"
+    }
+  ],
+  "poster_cutout_aspect": 1.1278
+}
