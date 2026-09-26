@@ -81,13 +81,15 @@ const menuOverlay = document.getElementById('menu-overlay');
 const placeBtns   = document.querySelectorAll('.place-btn');
 const btnPrint    = document.getElementById('btn-print');
 const printSheet  = document.getElementById('print-sheet');
-const primaryLanguageSelect = document.getElementById('primary-language');
-const secondaryLanguageSelect = document.getElementById('secondary-language');
+const primaryLanguageSelects = document.querySelectorAll('.primary-language-select');
+const secondaryLanguageSelects = document.querySelectorAll('.secondary-language-select');
 
 const stageEl              = document.getElementById('stage');
 const placeChooser         = document.getElementById('place-chooser');
 const chooserBtns          = document.querySelectorAll('.chooser-btn');
 const btnPosterMode        = document.getElementById('btn-poster-mode');
+const btnViewCard          = document.getElementById('btn-view-card');
+const btnViewPoster        = document.getElementById('btn-view-poster');
 const posterView           = document.getElementById('poster-view');
 const posterPlaceName      = document.getElementById('poster-place-name');
 const posterGrid           = document.getElementById('poster-grid');
@@ -136,8 +138,8 @@ function readLanguagesFromUrl() {
 }
 
 function syncLanguageControls() {
-  primaryLanguageSelect.value = primaryLanguage;
-  secondaryLanguageSelect.value = secondaryLanguage;
+  primaryLanguageSelects.forEach(el => { el.value = primaryLanguage; });
+  secondaryLanguageSelects.forEach(el => { el.value = secondaryLanguage; });
   namePrimary.lang = primaryLanguage;
   nameSecondary.lang = secondaryLanguage;
 }
@@ -557,8 +559,8 @@ chooserBtns.forEach(btn => {
   btn.addEventListener('click', () => enterPlace(btn.dataset.place));
 });
 
-primaryLanguageSelect.addEventListener('change', e => selectLanguage('primary', e.target.value));
-secondaryLanguageSelect.addEventListener('change', e => selectLanguage('secondary', e.target.value));
+primaryLanguageSelects.forEach(el => el.addEventListener('change', e => selectLanguage('primary', e.target.value)));
+secondaryLanguageSelects.forEach(el => el.addEventListener('change', e => selectLanguage('secondary', e.target.value)));
 
 // ─── Print sheet (A4 poster collage, replaces the old Puppeteer PDF pipeline) ─
 
@@ -739,6 +741,7 @@ posterGrid.addEventListener('click', e => {
 });
 
 btnPosterMode.addEventListener('click', enterPosterMode);
+btnViewPoster.addEventListener('click', enterPosterMode);
 btnPosterBack.addEventListener('click', exitPosterMode);
 btnPosterShuffle.addEventListener('click', shufflePoster);
 btnPosterToggleNames.addEventListener('click', togglePosterNames);

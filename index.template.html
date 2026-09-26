@@ -18,6 +18,26 @@
         <button class="chooser-btn" data-place="ourense">Ourense</button>
         <button class="chooser-btn" data-place="bruselas">Bruselas</button>
       </div>
+
+      <div id="chooser-language-section">
+        <h2 id="chooser-language-heading">Idiomas de los nombres</h2>
+        <div class="language-selectors">
+          <label for="chooser-primary-language">Principal</label>
+          <select id="chooser-primary-language" class="primary-language-select">
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+            <option value="ca">Català</option>
+          </select>
+          <label for="chooser-secondary-language">Secundario</label>
+          <select id="chooser-secondary-language" class="secondary-language-select">
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+            <option value="ca">Català</option>
+          </select>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -30,6 +50,12 @@
     <button id="menu-btn" aria-label="Abrir menú" aria-expanded="false" aria-controls="menu-panel">
       <span class="menu-icon">&#9776;</span>
     </button>
+
+    <!-- View mode: card ("Ficha") vs fullscreen poster, promoted as equal options -->
+    <div id="view-toggle" role="group" aria-label="Modo de vista">
+      <button id="btn-view-card" class="view-toggle-btn active" aria-pressed="true">Ficha</button>
+      <button id="btn-view-poster" class="view-toggle-btn" aria-pressed="false">Póster</button>
+    </div>
 
     <!-- Main card -->
     <main id="card-wrap" aria-live="polite" aria-label="Ficha de ave">
@@ -90,16 +116,16 @@
 
       <section aria-labelledby="language-heading">
         <h2 id="language-heading">Idiomas de los nombres</h2>
-        <div id="language-selectors">
+        <div class="language-selectors">
           <label for="primary-language">Principal</label>
-          <select id="primary-language">
+          <select id="primary-language" class="primary-language-select">
             <option value="es">Español</option>
             <option value="fr">Français</option>
             <option value="it">Italiano</option>
             <option value="ca">Català</option>
           </select>
           <label for="secondary-language">Secundario</label>
-          <select id="secondary-language">
+          <select id="secondary-language" class="secondary-language-select">
             <option value="es">Español</option>
             <option value="fr">Français</option>
             <option value="it">Italiano</option>
