@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# bake.sh — merge places.json + birds/*/metadata.json into one JSON blob and
+# inline it into index.template.html, producing index.html.
+#
+# No fetch() at runtime means the page works straight from file://, no local
+# server needed. index.html is generated — edit index.template.html instead.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+command -v jq >/dev/null || { echo "FATAL: jq is required (brew install jq / apt install jq)" >&2; exit 1; }
+
+TMP_SPECIES="$(mktemp)"
+TMP_CATALOG="$(mktemp)"
+trap 'rm -f "$TMP_SPECIES" "$TMP_CATALOG"' EXIT
+
+# One object per species, keyed by scientific_name, in the shape app.js expects.
+jq -s '
+  map(. as $m | {($m.scientific_name): {
+    scientific_name: $m.scientific_name,
+    name_es: $m.name_es,
+    name_fr: $m.name_fr,
+    poster_image: $m.poster_image,
+    images: ($m.images | map({file, alt_es: (.alt_es // $m.name_es), sex_age: (.sex_age // null)})),
+    attribution: ($m.images | map({file, author, source_url, license, license_url}))
+  }}) | add
+' birds/*/metadata.json > "$TMP_SPECIES"
+
+jq -s '{generated: (now | todate), places: .[0].places, species: .[1]}' \
+  places.json "$TMP_SPECIES" > "$TMP_CATALOG"
+
+awk -v datafile="$TMP_CATALOG" '
+  /<!--CATALOG_DATA-->/ {
+    print "<script type=\"application/json\" id=\"catalog-data\">"
+    while ((getline line < datafile) > 0) print line
+    print "</script>"
+    next
+  }
+  { print }
+' index.template.html > index.html
+
+species_count=$(jq 'length' "$TMP_SPECIES")
+places_count=$(jq '.places | length' places.json)
+echo "index.html written: $species_count species, $places_count places"

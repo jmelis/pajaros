@@ -6,23 +6,23 @@ Catálogo de identificación de aves para paseos familiares en **Alicante**, **O
 
 ## Uso local
 
-Es HTML/CSS/JS estático, sin build ni dependencias. `catalog.json` ya viene generado y comiteado, así que basta con servir el directorio con cualquier servidor estático:
-
-```bash
-python3 -m http.server 8080   # o: npx serve . -l 8080, o cualquier otro
-```
-
-Abre `http://localhost:8080`.
+`index.html` lleva el catálogo entero horneado dentro (nada de `fetch`), así que puedes abrirlo directamente desde el Finder/Explorador — **sin servidor, sin Node, sin nada**.
 
 ## Editar el catálogo
 
-Esto sí requiere [Node.js](https://nodejs.org/) ≥ 18 (solo para estos scripts de mantenimiento — no hace falta `npm install`, no hay dependencias):
+`index.html` es un artefacto generado — no lo edites a mano. La plantilla es `index.template.html`; `scripts/bake.sh` combina `places.json` + `birds/*/metadata.json` en él. Necesita [`jq`](https://jqlang.org/) (`brew install jq` / `apt install jq`), nada más.
 
-- **Especie nueva:** crea `birds/<Genus species>/metadata.json` (copia el de otra especie), añádela a `places.json`, y ejecuta `node scripts/fetch-images.js "<Genus species>"` para descargar 3 fotos con licencia libre y su atribución desde Wikimedia.
+- **Especie nueva:** crea `birds/<Genus species>/metadata.json` (copia el de otra especie), añádela a `places.json`, y ejecuta `python3 scripts/fetch_images.py "<Genus species>"` para descargar 3 fotos con licencia libre y su atribución desde Wikimedia (solo stdlib, sin `pip install`).
 - **Imagen nueva en una especie existente:** copia el archivo a `birds/<Genus species>/` y añade su entrada en `images[]` de `metadata.json` (`file`, `author`, `source_url`, `license`, `license_url`).
-- **Lugar nuevo:** añade la entrada en `places.json` (`name_es`, `name_fr`, 20 `species`) y un botón en `index.html` (`#place-buttons`).
+- **Lugar nuevo:** añade la entrada en `places.json` (`name_es`, `name_fr`, 20 `species`) y un botón en `index.template.html` (`#place-buttons`).
+- **Cambio de interfaz:** edita `index.template.html`, `src/app.js` o `src/style.css`, nunca `index.html` directamente.
 
-Después de cualquier cambio: `node scripts/validate.js` (comprueba integridad y atribución) y `node scripts/build-catalog.js` (regenera `catalog.json`, que hay que comitear).
+Después de cualquier cambio:
+
+```bash
+bash scripts/validate.sh   # integridad y atribución del catálogo
+bash scripts/bake.sh       # regenera index.html — comitéalo
+```
 
 ## Imprimir
 
@@ -32,20 +32,21 @@ Menú (☰) → **Imprimir esta guía** → diálogo de impresión del navegador
 
 ```
 birds/<Genus species>/metadata.json, principal.jpg, foto2.jpg, foto3.jpg
-places.json             # 3 lugares × 20 especies
-catalog.json            # generado, no editar a mano
+places.json                # 3 lugares × 20 especies
 
-index.html, src/app.js, src/style.css, 404.html   # la web
+index.template.html        # plantilla — edítala a ella, no a index.html
+index.html                 # generado por bake.sh, con el catálogo ya horneado dentro
+src/app.js, src/style.css, 404.html
 
 scripts/
-  validate.js           # integridad del catálogo
-  build-catalog.js      # genera catalog.json
-  fetch-images.js       # descarga fotos + atribución desde Wikimedia
+  bake.sh                  # places.json + birds/ → index.html
+  validate.sh              # integridad del catálogo (bash + jq)
+  fetch_images.py          # descarga fotos + atribución desde Wikimedia (Python stdlib)
 
 docs/DESIGN.md, docs/IMPLEMENTATION_PLAN.md
 ```
 
-CI (`.github/workflows/ci.yml`) valida, construye y publica en GitHub Pages en cada push a `main`.
+CI (`.github/workflows/ci.yml`) valida, hornea y publica en GitHub Pages en cada push a `main`.
 
 ## Licencias de imágenes
 

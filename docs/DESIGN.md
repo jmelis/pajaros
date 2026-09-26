@@ -129,18 +129,18 @@ Mirlo común, Gorrión común, Paloma bravía/urbana, Herrerillo común, Carbone
 ### 5.1 Tecnología
 
 - HTML + CSS + JavaScript vanilla, sin frameworks ni bundlers.
-- Completamente estática, funciona en GitHub Pages sin backend.
-- Un único punto de entrada: `index.html` con lógica en `src/app.js`.
-- Los datos se cargan desde `catalog.json` generado en tiempo de compilación a partir de `birds/` y `places.json`.
+- Completamente estática, funciona en GitHub Pages sin backend — y también abriendo `index.html` directamente desde disco (`file://`), sin servidor.
+- `index.template.html` es la plantilla editable; `scripts/bake.sh` combina `places.json` + `birds/*/metadata.json` y los inyecta como JSON inline (`<script type="application/json" id="catalog-data">`) en `index.html`. `src/app.js` lo lee con `JSON.parse`, sin `fetch` — así no choca con las restricciones de CORS de `file://`.
+- `index.html` es un artefacto generado (no se edita a mano); `index.template.html` sí.
 
 ### 5.2 Estructura de archivos web
 
 ```
-index.html
+index.template.html   # plantilla — editar aquí
+index.html            # generado por scripts/bake.sh
 src/
   app.js
   style.css
-catalog.json          # generado, no editar a mano
 ```
 
 ### 5.3 Interfaz
@@ -161,7 +161,7 @@ catalog.json          # generado, no editar a mano
 - `/pajaros/ourense/`
 - `/pajaros/bruselas/`
 
-Implementadas con `location.pathname` (sin hash) usando el prefijo de repo GitHub Pages. El `404.html` redirige al `index.html` con el path preservado (técnica estándar para GitHub Pages SPA).
+Implementadas con `location.pathname` (sin hash) usando el prefijo de repo GitHub Pages. El `404.html` redirige al `index.html` con el path preservado (técnica estándar para GitHub Pages SPA). Bajo `file://` este enrutado se desactiva (no tiene sentido ahí): siempre arranca en Alicante y no toca `history.pushState`.
 
 ### 5.4 Gestos y controles
 
@@ -192,13 +192,13 @@ Implementadas con `location.pathname` (sin hash) usando el prefijo de repo GitHu
 
 - Precarga las imágenes del pájaro anterior y siguiente.
 - Al cambiar de ficha, se cancela cualquier carga pendiente de la ficha anterior (limpieza de `src` antes de asignar el nuevo).
-- `catalog.json` incluye todas las fichas; las imágenes se cargan bajo demanda.
+- El catálogo entero va horneado en `index.html`; las imágenes se cargan bajo demanda.
 
 ## 6. Guías A4 para imprimir
 
 ### 6.1 Generación
 
-- Sin proceso de build aparte: `src/app.js` construye un `#print-sheet` oculto a partir de `catalog.json`, con el mismo HTML/CSS que se ve en pantalla.
+- `src/app.js` construye un `#print-sheet` oculto a partir del catálogo horneado en `index.html`, con el mismo HTML/CSS que se ve en pantalla.
 - Una hoja de estilos `@media print` en `src/style.css` define la maquetación A4 y oculta la interfaz normal (tarjeta, menú) al imprimir.
 - El botón "Imprimir esta guía" del menú llama a `window.print()`; el usuario elige "Guardar como PDF" o imprime directamente desde el navegador. No hace falta Node, Chrome headless ni ningún paso de CI para generar el PDF.
 
@@ -221,7 +221,7 @@ Implementadas con `location.pathname` (sin hash) usando el prefijo de repo GitHu
 
 ## 7. Validación y CI
 
-### 7.1 Script de validación (`scripts/validate.js`)
+### 7.1 Script de validación (`scripts/validate.sh`, bash + jq)
 
 Comprobaciones:
 - Exactamente 20 especies distintas por lugar en `places.json`.
@@ -236,15 +236,16 @@ Comprobaciones:
 ### 7.2 GitHub Actions (`.github/workflows/ci.yml`)
 
 - `on: push, pull_request`
-- Jobs: validate → build-web → deploy (Pages, solo en `main`).
+- Jobs: validate → build-web (hornea `index.html`) → deploy (Pages, solo en `main`).
 
 ## 8. Decisiones de diseño registradas
 
 | Decisión | Razón |
 |----------|-------|
 | Vanilla JS sin framework | Simplicidad, sin dependencias de npm para la web; evita rot de dependencias |
-| Impresión vía `@media print` (sin Puppeteer) | Reutiliza el mismo HTML/CSS/catalog.json de la web; cero dependencias de Node en runtime; el usuario controla el PDF final con el diálogo de impresión de su navegador |
-| catalog.json generado | Separa datos editables del artefacto web; permite validar antes de compilar |
+| Impresión vía `@media print` (sin Puppeteer) | Reutiliza el mismo HTML/CSS/catálogo de la web; cero dependencias de Node en runtime; el usuario controla el PDF final con el diálogo de impresión de su navegador |
+| Catálogo horneado en `index.html` (sin `fetch`) | Cero dependencias de build para *ver* la web: abre `index.html` desde disco y funciona, sin servidor. `fetch()` de JSON local está bloqueado por CORS bajo `file://`; datos inline lo evitan del todo |
+| Scripts de mantenimiento en bash+jq / Python stdlib (sin Node) | `python3` viene preinstalado en macOS/Linux; `jq` es una única dependencia externa minúscula (viene preinstalada en los runners de GitHub Actions). Cero `npm install`, cero `node_modules`, cero lockfile |
 | Nombres científicos como IDs | Estables, unívocos, no requieren UUID artificial |
 | 404.html redirect SPA | Técnica estándar y documentada para GitHub Pages sin servidor |
 | CC BY / CC BY-SA / CC0 | Licencias compatibles con repositorio público, web y PDF |

@@ -2,16 +2,20 @@
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
+// Opened straight from disk (file://) rather than served over http(s): there's
+// no meaningful path-prefix routing there, and paths must stay relative.
+const IS_FILE = location.protocol === 'file:';
+
 // GitHub Pages deploys under /pajaros/ — adjust BASE_PATH for local dev if needed
 const BASE_PATH = (() => {
+  if (IS_FILE) return '';
   // Detect GitHub Pages repo prefix from pathname
   const m = location.pathname.match(/^(\/[^/]+)\//);
   if (m && m[1] !== '') return m[1];
   return '';
 })();
 
-const CATALOG_URL = `${BASE_PATH}/catalog.json`;
-const BIRDS_BASE = `${BASE_PATH}/birds`;
+const BIRDS_BASE = IS_FILE ? 'birds' : `${BASE_PATH}/birds`;
 
 // Swipe thresholds
 const SWIPE_MIN_PX = 50;       // minimum displacement to register
@@ -217,6 +221,7 @@ function detectPlaceFromUrl() {
 }
 
 function updateUrl(place) {
+  if (IS_FILE) return; // pushState to an absolute path breaks file:// navigation
   const newPath = `${BASE_PATH}/${place}/`;
   if (location.pathname !== newPath) {
     history.pushState({ place }, '', newPath);
@@ -455,11 +460,11 @@ window.addEventListener('popstate', e => {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
-async function init() {
+function init() {
   try {
-    const res = await fetch(CATALOG_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    catalog = await res.json();
+    const dataEl = document.getElementById('catalog-data');
+    if (!dataEl) throw new Error('catalog-data script tag not found — run scripts/bake.sh');
+    catalog = JSON.parse(dataEl.textContent);
 
     // Detect place from URL
     const placeFromUrl = detectPlaceFromUrl();
