@@ -62,16 +62,12 @@ const stageEl              = document.getElementById('stage');
 const btnPosterMode        = document.getElementById('btn-poster-mode');
 const posterView           = document.getElementById('poster-view');
 const posterPlaceName      = document.getElementById('poster-place-name');
-const posterGridWrap       = document.getElementById('poster-grid-wrap');
 const posterGrid           = document.getElementById('poster-grid');
 const btnPosterBack        = document.getElementById('btn-poster-back');
 const btnPosterShuffle     = document.getElementById('btn-poster-shuffle');
 const btnPosterToggleNames = document.getElementById('btn-poster-toggle-names');
 const posterToggleIcon     = document.getElementById('poster-toggle-icon');
 const posterToggleLabel    = document.getElementById('poster-toggle-label');
-const btnPosterPrev        = document.getElementById('btn-poster-prev');
-const btnPosterNext        = document.getElementById('btn-poster-next');
-const posterPageIndicator  = document.getElementById('poster-page-indicator');
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
@@ -378,11 +374,7 @@ document.addEventListener('keydown', e => {
   if (menuPanel && !menuPanel.hasAttribute('hidden')) return; // menu open
 
   if (posterMode) {
-    switch (e.key) {
-      case 'ArrowRight': e.preventDefault(); goPosterNextPage(); break;
-      case 'ArrowLeft':  e.preventDefault(); goPosterPrevPage(); break;
-      case 'Escape':     e.preventDefault(); exitPosterMode(); break;
-    }
+    if (e.key === 'Escape') { e.preventDefault(); exitPosterMode(); }
     return;
   }
 
@@ -536,15 +528,14 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// ─── Poster mode (fullscreen bin-packed collage, random order, paginated) ──────
+// ─── Poster mode (fullscreen bin-packed collage, random order, every bird at once) ──
 // Reuses gridSpanClass/rotationDeg/escHtml/imageUrl from the print sheet above.
 // A names on/off toggle turns it into a quiz: with names off, tapping a bird
-// reveals (or re-hides) just that bird's name.
+// reveals (or re-hides) just that bird's name. Starts with names hidden.
 
 let posterMode = false;
-let posterShowNames = true;
+let posterShowNames = false;
 let posterOrder = [];
-let posterPage = 0;
 
 function shuffleArray(arr) {
   const a = arr.slice();
@@ -555,15 +546,8 @@ function shuffleArray(arr) {
   return a;
 }
 
-function posterPageCount() {
-  return Math.max(1, Math.ceil(posterOrder.length / BIRDS_PER_PAGE));
-}
-
-function renderPosterPage() {
-  const start = posterPage * BIRDS_PER_PAGE;
-  const keys = posterOrder.slice(start, start + BIRDS_PER_PAGE);
-
-  posterGrid.innerHTML = keys.map(key => {
+function renderPoster() {
+  posterGrid.innerHTML = posterOrder.map(key => {
     const sp = catalog.species[key];
     const hasCutout = Boolean(sp.poster_cutout);
     const imgSrc = hasCutout ? imageUrl(sp, sp.poster_cutout) : imageUrl(sp, sp.poster_image);
@@ -581,27 +565,11 @@ function renderPosterPage() {
       </div>
     `;
   }).join('');
-
-  const pageCount = posterPageCount();
-  posterPageIndicator.textContent = `${posterPage + 1} / ${pageCount}`;
-  btnPosterPrev.disabled = pageCount <= 1;
-  btnPosterNext.disabled = pageCount <= 1;
 }
 
 function shufflePoster() {
   posterOrder = shuffleArray(getSpeciesList());
-  posterPage = 0;
-  renderPosterPage();
-}
-
-function goPosterNextPage() {
-  posterPage = (posterPage + 1) % posterPageCount();
-  renderPosterPage();
-}
-
-function goPosterPrevPage() {
-  posterPage = (posterPage - 1 + posterPageCount()) % posterPageCount();
-  renderPosterPage();
+  renderPoster();
 }
 
 function updatePosterToggleNamesUI() {
@@ -653,33 +621,6 @@ btnPosterMode.addEventListener('click', enterPosterMode);
 btnPosterBack.addEventListener('click', exitPosterMode);
 btnPosterShuffle.addEventListener('click', shufflePoster);
 btnPosterToggleNames.addEventListener('click', togglePosterNames);
-btnPosterPrev.addEventListener('click', goPosterPrevPage);
-btnPosterNext.addEventListener('click', goPosterNextPage);
-
-// Swipe between poster pages (mirrors the card swipe handling above, horizontal only)
-let posterTouchStartX = 0;
-let posterTouchStartY = 0;
-let posterTouchActive = false;
-
-posterGridWrap.addEventListener('touchstart', e => {
-  if (e.touches.length !== 1) return;
-  posterTouchStartX = e.touches[0].clientX;
-  posterTouchStartY = e.touches[0].clientY;
-  posterTouchActive = true;
-}, { passive: true });
-
-posterGridWrap.addEventListener('touchend', e => {
-  if (!posterTouchActive) return;
-  posterTouchActive = false;
-  const dx = e.changedTouches[0].clientX - posterTouchStartX;
-  const dy = e.changedTouches[0].clientY - posterTouchStartY;
-  if (Math.abs(dx) < SWIPE_MIN_PX) return;
-  if (Math.abs(dx) < Math.abs(dy) * SWIPE_RATIO) return; // too diagonal
-  if (dx < 0) goPosterNextPage();
-  else goPosterPrevPage();
-}, { passive: true });
-
-posterGridWrap.addEventListener('touchcancel', () => { posterTouchActive = false; }, { passive: true });
 
 // ─── Browser back/forward ─────────────────────────────────────────────────────
 

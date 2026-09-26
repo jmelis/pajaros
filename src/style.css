@@ -631,8 +631,9 @@ html, body {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(12, 1fr);
+  grid-auto-rows: 9vh;
   grid-auto-flow: dense;
+  align-content: start;
   gap: 1.4vh 1vw;
   overflow-y: auto;
 }
