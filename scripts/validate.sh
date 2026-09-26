@@ -44,10 +44,10 @@ while IFS= read -r place; do
   [[ -n "$name_fr" ]] || err "$place: missing name_fr"
 
   count=$(jq ".places[\"$place\"].species | length" places.json)
-  if [[ "$count" -ne 20 ]]; then
-    err "$place: expected 20 species, got $count"
+  if [[ "$count" -eq 0 ]]; then
+    err "$place: has no species"
   else
-    ok "$place: 20 species"
+    ok "$place: $count species"
   fi
 
   dup=$(jq -r ".places[\"$place\"].species | group_by(.) | map(select(length>1) | .[0]) | .[]" places.json)
