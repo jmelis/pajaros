@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>pajaros — dev test page</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+  fieldset { margin-bottom: 1.5rem; }
+  label { margin-right: 1rem; }
+  input[type=number] { width: 8rem; }
+  #map { height: 400px; margin-bottom: 1rem; border-radius: 8px; }
+  .family-heading { margin: 1.5rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 2px solid #ddd; font-size: 1rem; color: #444; }
+  .family-heading:first-child { margin-top: 0.5rem; }
+  .family-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem; }
+  .card { text-align: center; display: block; text-decoration: none; color: inherit; }
+  .card:hover .com { text-decoration: underline; }
+  .card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: #eee; }
+  .card .com { font-weight: bold; }
+  .card .sci { font-style: italic; color: #666; font-size: 0.85em; }
+  .card .nearby { color: #888; font-size: 0.8em; }
+  #status { color: #666; }
+  .popup-btn { margin-top: 0.4rem; }
+  #modeToggle { margin: 1rem 0 0.5rem; }
+  #modeToggle label { margin-right: 1.5rem; font-weight: normal; }
+</style>
+</head>
+<body>
+<h1>pajaros — dev test page</h1>
+
+<fieldset>
+  <legend>1. Location</legend>
+  <button id="useLocation">📍 Use my location</button>
+  <small>(requires HTTPS or localhost — will fail over plain http from another device)</small>
+  <br><br>
+  <label>lat <input id="lat" type="number" step="any" value="50.8503"></label>
+  <label>lng <input id="lng" type="number" step="any" value="4.3517"></label>
+  <label>lang
+    <select id="lang">
+      <option value="es" selected>es</option>
+      <option value="fr">fr</option>
+      <option value="en">en</option>
+    </select>
+  </label>
+  <button id="findHotspots">Find hotspots</button>
+</fieldset>
+
+<button id="searchHere" style="margin-bottom: 0.5rem;">🔍 Search this area of the map</button>
+<div id="map"></div>
+
+<div id="modeToggle">
+  <label><input type="radio" name="mode" value="category" checked> By category</label>
+  <label><input type="radio" name="mode" value="popularity"> By popularity (nearby)</label>
+</div>
+<p id="status">Click a hotspot marker on the map to load its species.</p>
+<div id="groups"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+
+function setStatus(msg) { $("status").textContent = msg; }
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+// Generic greyscale bird silhouette shown while a species' real photo is
+// still being fetched (or if it never becomes available).
+const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" fill="#e8e8e8"/>
+  <g fill="#b5b5b5">
+    <ellipse cx="45" cy="60" rx="28" ry="20"/>
+    <circle cx="72" cy="42" r="14"/>
+    <polygon points="84,42 96,38 84,48"/>
+    <polygon points="20,55 4,50 20,68"/>
+    <ellipse cx="40" cy="50" rx="14" ry="9" transform="rotate(-20 40 50)"/>
+  </g>
+  <circle cx="76" cy="38" r="2" fill="#e8e8e8"/>
+</svg>`;
+const PLACEHOLDER_URL = "data:image/svg+xml," + encodeURIComponent(PLACEHOLDER_SVG);
+
+// Images are fetched server-side in the background (see /api/hotspots/.../species),
+// so a card's imageUrl often 404s at first. Preload off-DOM and only swap the
+// visible <img> once it actually loads, retrying for a couple of minutes —
+// long enough to cover a big hotspot's background-fetch queue — before
+// giving up and leaving the placeholder in place.
+function preloadAndSwap(imgEl, url, attempt = 0) {
+  const MAX_ATTEMPTS = 40;
+  const RETRY_MS = 3000;
+  const probe = new Image();
+  probe.onload = () => { imgEl.src = url; };
+  probe.onerror = () => {
+    if (attempt < MAX_ATTEMPTS) setTimeout(() => preloadAndSwap(imgEl, url, attempt + 1), RETRY_MS);
+  };
+  probe.src = url;
+}
+
+const map = L.map("map").setView([parseFloat($("lat").value), parseFloat($("lng").value)], 12);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+}).addTo(map);
+
+let userMarker = null;
+let hotspotMarkers = [];
+
+function clearHotspotMarkers() {
+  for (const m of hotspotMarkers) map.removeLayer(m);
+  hotspotMarkers = [];
+}
+
+function loadSpeciesButton(h) {
+  return `<button class="popup-btn load-species-btn" data-locid="${h.locId}" data-locname="${escapeHtml(h.locName)}">Load species</button>`;
+}
+
+function popupHTML(h) {
+  return `
+    <strong>${escapeHtml(h.locName)}</strong><br>
+    ${h.numChecklistsAllTime ?? 0} checklists &middot; ${h.numSpeciesAllTime ?? 0} species<br>
+    ${loadSpeciesButton(h)}
+  `;
+}
+
+// Deep-linked hotspots come from /api/hotspots/{locId} (single-hotspot info),
+// which doesn't carry the checklist/species-count stats the nearby-search
+// endpoint does — so its popup skips that line rather than showing zeroes.
+function popupHTMLNoStats(h) {
+  return `<strong>${escapeHtml(h.locName)}</strong><br>${loadSpeciesButton(h)}`;
+}
+
+async function findHotspots() {
+  const lat = parseFloat($("lat").value), lng = parseFloat($("lng").value);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) { setStatus("Enter valid lat/lng."); return; }
+
+  setStatus("Loading hotspots...");
+  const res = await fetch(`/api/hotspots?lat=${lat}&lng=${lng}`);
+  if (!res.ok) { setStatus(`Error: ${res.status}`); return; }
+  const hotspots = await res.json();
+
+  clearHotspotMarkers();
+  if (userMarker) map.removeLayer(userMarker);
+  userMarker = L.marker([lat, lng]).addTo(map).bindPopup("You are here");
+
+  const bounds = L.latLngBounds([[lat, lng]]);
+  for (const h of hotspots) {
+    const marker = L.circleMarker([h.lat, h.lng], {
+      radius: 6 + Math.min(10, Math.sqrt(h.numChecklistsAllTime || 0)),
+      color: "#2a7d4f",
+      fillColor: "#2a7d4f",
+      fillOpacity: 0.6,
+    }).addTo(map).bindPopup(popupHTML(h));
+    hotspotMarkers.push(marker);
+    bounds.extend([h.lat, h.lng]);
+  }
+  if (hotspots.length > 0) map.fitBounds(bounds, { padding: [30, 30] });
+  setStatus(`${hotspots.length} hotspots found — click one on the map.`);
+}
+
+// Popup content is injected by Leaflet outside our control, so use event
+// delegation instead of binding a listener per marker.
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("load-species-btn")) {
+    loadSpecies(e.target.dataset.locid, e.target.dataset.locname);
+  }
+});
+
+function setURLParams(params) {
+  const url = new URL(window.location);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  history.replaceState({}, "", url);
+}
+
+function speciesCard(sp) {
+  const card = document.createElement("a");
+  card.className = "card";
+  card.href = `https://ebird.org/species/${encodeURIComponent(sp.speciesCode)}`;
+  card.target = "_blank";
+  card.rel = "noopener noreferrer";
+  card.innerHTML = `
+    <img src="${PLACEHOLDER_URL}" alt="${escapeHtml(sp.comName)}">
+    <div class="com">${escapeHtml(sp.comName)}</div>
+    <div class="sci">${escapeHtml(sp.sciName)}</div>
+    ${sp.nearbyCount != null ? `<div class="nearby">${sp.nearbyCount} nearby reports</div>` : ""}
+  `;
+  if (sp.imageUrl) preloadAndSwap(card.querySelector("img"), sp.imageUrl);
+  return card;
+}
+
+let currentHotspot = null; // { locId, locName } — so the mode toggle can re-fetch
+
+function currentMode() {
+  return document.querySelector('input[name="mode"]:checked').value;
+}
+
+async function loadSpecies(locId, locName) {
+  currentHotspot = { locId, locName };
+  const lang = $("lang").value;
+  const mode = currentMode();
+  setURLParams({ locId, lang, mode });
+  const groups = $("groups");
+  groups.innerHTML = "";
+
+  if (mode === "popularity") {
+    setStatus(`Loading species for ${locName} (checking nearby report counts, first load can take a few seconds)...`);
+    const res = await fetch(`/api/hotspots/${locId}/species?lang=${lang}&mode=popularity`);
+    if (!res.ok) { setStatus(`Error: ${res.status}`); return; }
+    const species = await res.json();
+    const grid = document.createElement("div");
+    grid.className = "family-grid";
+    groups.appendChild(grid);
+    for (const sp of species) grid.appendChild(speciesCard(sp));
+    setStatus(`${species.length} species at ${locName}, most reported nearby first.`);
+    return;
+  }
+
+  setStatus(`Loading species for ${locName} (fetching images on first use can take a few seconds)...`);
+  const res = await fetch(`/api/hotspots/${locId}/species?lang=${lang}&mode=category`);
+  if (!res.ok) { setStatus(`Error: ${res.status}`); return; }
+  const species = await res.json();
+
+  // Species arrive already grouped by family (server sends eBird's
+  // taxonomic order), so a family heading just goes up whenever it changes.
+  let currentFamily = null;
+  let currentGrid = null;
+  for (const sp of species) {
+    const family = sp.family || sp.order || "Other";
+    if (family !== currentFamily) {
+      currentFamily = family;
+      const heading = document.createElement("h3");
+      heading.className = "family-heading";
+      heading.textContent = family;
+      groups.appendChild(heading);
+      currentGrid = document.createElement("div");
+      currentGrid.className = "family-grid";
+      groups.appendChild(currentGrid);
+    }
+    currentGrid.appendChild(speciesCard(sp));
+  }
+  setStatus(`${species.length} species at ${locName}, grouped by family.`);
+}
+
+for (const radio of document.querySelectorAll('input[name="mode"]')) {
+  radio.addEventListener("change", () => {
+    if (currentHotspot) loadSpecies(currentHotspot.locId, currentHotspot.locName);
+  });
+}
+
+$("findHotspots").addEventListener("click", findHotspots);
+
+$("searchHere").addEventListener("click", () => {
+  const center = map.getCenter();
+  $("lat").value = center.lat.toFixed(6);
+  $("lng").value = center.lng.toFixed(6);
+  findHotspots();
+});
+
+$("useLocation").addEventListener("click", () => {
+  if (!navigator.geolocation) { setStatus("Geolocation not supported by this browser."); return; }
+  setStatus("Requesting location permission...");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      $("lat").value = pos.coords.latitude.toFixed(6);
+      $("lng").value = pos.coords.longitude.toFixed(6);
+      map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+      findHotspots();
+    },
+    (err) => {
+      setStatus(`Location error: ${err.message} — geolocation needs HTTPS or localhost.`);
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
+
+// Support linking straight to a hotspot: /?locId=L42808575[&lang=es]
+async function init() {
+  const params = new URLSearchParams(window.location.search);
+  const locId = params.get("locId");
+  if (params.get("lang")) $("lang").value = params.get("lang");
+  if (params.get("mode")) {
+    const radio = document.querySelector(`input[name="mode"][value="${params.get("mode")}"]`);
+    if (radio) radio.checked = true;
+  }
+
+  if (locId) {
+    setStatus(`Loading hotspot ${locId}...`);
+    const res = await fetch(`/api/hotspots/${locId}`);
+    if (res.ok) {
+      const h = await res.json();
+      $("lat").value = h.lat.toFixed(6);
+      $("lng").value = h.lng.toFixed(6);
+      map.setView([h.lat, h.lng], 14);
+      L.circleMarker([h.lat, h.lng], { radius: 8, color: "#c33", fillColor: "#c33", fillOpacity: 0.8 })
+        .addTo(map).bindPopup(popupHTMLNoStats(h)).openPopup();
+      await loadSpecies(locId, h.locName);
+      return;
+    }
+    setStatus(`Hotspot ${locId} not found — showing default location instead.`);
+  }
+
+  // No (valid) deep link — load the default location's hotspots so the map
+  // isn't empty.
+  await findHotspots();
+}
+
+init();
+</script>
+</body>
+</html>
