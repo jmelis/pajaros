@@ -2,6 +2,19 @@
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
+// 404.html implements the GitHub Pages SPA-redirect trick: a deep link or a
+// plain page refresh on e.g. /pajaros/bruselas/ 404s there, which forwards
+// the real path in `?p=` and drops the trailing segment. Restore it before
+// any routing below runs, so a refresh or a shared link lands on the right
+// place instead of falling back to the chooser.
+(function restorePathFromRedirect() {
+  const params = new URLSearchParams(location.search);
+  if (!params.has('p')) return;
+  const restoredPath = location.pathname + params.get('p');
+  const q = params.get('q');
+  history.replaceState(null, '', restoredPath + (q ? `?${q}` : '') + location.hash);
+})();
+
 // Opened straight from disk (file://) rather than served over http(s): there's
 // no meaningful path-prefix routing there, and paths must stay relative.
 const IS_FILE = location.protocol === 'file:';
@@ -24,7 +37,7 @@ const SWIPE_RATIO = 2.0;       // dominant/secondary axis ratio to avoid diagona
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let catalog = null;
-let currentPlace = 'alicante';
+let currentPlace = null;
 let currentBirdIndex = 0;
 let currentImageIndex = 0;
 let isTransitioning = false;
@@ -59,6 +72,8 @@ const btnPrint    = document.getElementById('btn-print');
 const printSheet  = document.getElementById('print-sheet');
 
 const stageEl              = document.getElementById('stage');
+const placeChooser         = document.getElementById('place-chooser');
+const chooserBtns          = document.querySelectorAll('.chooser-btn');
 const btnPosterMode        = document.getElementById('btn-poster-mode');
 const posterView           = document.getElementById('poster-view');
 const posterPlaceName      = document.getElementById('poster-place-name');
@@ -120,10 +135,11 @@ function render() {
   nameEs.textContent = sp.name_es;
   nameFr.textContent = sp.name_fr;
 
-  // Counter
+  // Counter (also shows the current place, since a session can start at any place)
   const list = getSpeciesList();
-  birdCounter.textContent = `${currentBirdIndex + 1} / ${list.length}`;
-  birdCounter.setAttribute('aria-label', `Ave ${currentBirdIndex + 1} de ${list.length}`);
+  const placeName = catalog.places[currentPlace].name_es;
+  birdCounter.textContent = `${placeName} · ${currentBirdIndex + 1} / ${list.length}`;
+  birdCounter.setAttribute('aria-label', `${placeName}, ave ${currentBirdIndex + 1} de ${list.length}`);
 
   // Image dots
   imgDots.innerHTML = '';
@@ -264,15 +280,28 @@ function goPrevImage() {
   render();
 }
 
-function goToPlace(place) {
+// Shared by the initial place chooser, the menu's place switcher, and
+// back/forward navigation — anywhere we land on a place and need to render it.
+function enterPlace(place) {
   if (!catalog.places[place]) return;
   currentPlace = place;
   currentBirdIndex = 0;
   currentImageIndex = 0;
   updateUrl(place);
+  placeChooser.hidden = true;
+  stageEl.hidden = false;
   render();
   buildPrintSheet();
+}
+
+function goToPlace(place) {
+  enterPlace(place);
   closeMenu();
+}
+
+function showChooser() {
+  stageEl.hidden = true;
+  placeChooser.hidden = false;
 }
 
 // ─── URL routing ──────────────────────────────────────────────────────────────
@@ -438,6 +467,10 @@ menuPanel.addEventListener('keydown', e => {
 
 placeBtns.forEach(btn => {
   btn.addEventListener('click', () => goToPlace(btn.dataset.place));
+});
+
+chooserBtns.forEach(btn => {
+  btn.addEventListener('click', () => enterPlace(btn.dataset.place));
 });
 
 // ─── Print sheet (A4 poster collage, replaces the old Puppeteer PDF pipeline) ─
@@ -625,13 +658,18 @@ btnPosterToggleNames.addEventListener('click', togglePosterNames);
 // ─── Browser back/forward ─────────────────────────────────────────────────────
 
 window.addEventListener('popstate', e => {
-  const place = (e.state && e.state.place) || detectPlaceFromUrl() || 'alicante';
-  if (catalog && catalog.places[place]) {
+  if (!catalog) return;
+  const place = (e.state && e.state.place) || detectPlaceFromUrl();
+  if (place && catalog.places[place]) {
     currentPlace = place;
     currentBirdIndex = 0;
     currentImageIndex = 0;
+    placeChooser.hidden = true;
+    stageEl.hidden = false;
     render();
     buildPrintSheet();
+  } else {
+    showChooser();
   }
 });
 
@@ -643,19 +681,18 @@ function init() {
     if (!dataEl) throw new Error('catalog-data script tag not found — run scripts/bake.sh');
     catalog = JSON.parse(dataEl.textContent);
 
-    // Detect place from URL
+    // Only skip the chooser if the URL already names a place (a shared link,
+    // a bookmark, or coming back via browser history).
     const placeFromUrl = detectPlaceFromUrl();
     if (placeFromUrl && catalog.places[placeFromUrl]) {
-      currentPlace = placeFromUrl;
+      enterPlace(placeFromUrl);
+    } else {
+      showChooser();
     }
-
-    // Set initial URL state
-    updateUrl(currentPlace);
-
-    render();
-    buildPrintSheet();
   } catch (err) {
     console.error('Failed to load catalog:', err);
+    placeChooser.hidden = true;
+    stageEl.hidden = false;
     nameEs.textContent = 'Error al cargar el catálogo';
     nameLatin.textContent = err.message;
   }

@@ -55,6 +55,22 @@ awk -v datafile="$TMP_CATALOG" '
   { print }
 ' index.template.html > index.html
 
+# Cache-bust src/app.js and src/style.css with a content hash, so browsers
+# (and GitHub Pages' CDN) pick up changes immediately instead of serving a
+# stale cached copy — a plain filename URL has no way to signal "this changed".
+file_hash() {
+  if command -v shasum >/dev/null; then shasum -a 256 "$1" | cut -c1-10
+  else sha256sum "$1" | cut -c1-10
+  fi
+}
+JS_HASH="$(file_hash src/app.js)"
+CSS_HASH="$(file_hash src/style.css)"
+sed -i.bak \
+  -e "s|src/app\.js\"|src/app.js?v=${JS_HASH}\"|" \
+  -e "s|src/style\.css\"|src/style.css?v=${CSS_HASH}\"|" \
+  index.html
+rm -f index.html.bak
+
 species_count=$(jq 'length' "$TMP_SPECIES")
 places_count=$(jq '.places | length' places.json)
 echo "index.html written: $species_count species, $places_count places"

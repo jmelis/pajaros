@@ -8,9 +8,22 @@
   <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
+  <!-- Place chooser: shown first, before any place has been picked -->
+  <div id="place-chooser" hidden>
+    <div id="chooser-content">
+      <h1 id="chooser-title">Guía de Aves</h1>
+      <p id="chooser-sub">¿Qué lugar quieres ver?</p>
+      <div id="chooser-buttons" role="group" aria-label="Seleccionar lugar">
+        <button class="chooser-btn" data-place="alicante">Alicante</button>
+        <button class="chooser-btn" data-place="ourense">Ourense</button>
+        <button class="chooser-btn" data-place="bruselas">Bruselas</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Stage: light backdrop the card floats on -->
-  <div id="stage">
-    <!-- Bird counter -->
+  <div id="stage" hidden>
+    <!-- Bird counter (also shows the current place) -->
     <div id="bird-counter" aria-label=""></div>
 
     <!-- Menu button -->

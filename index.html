@@ -5,12 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#f6f3ec">
   <title>Guía de Aves</title>
-  <link rel="stylesheet" href="src/style.css">
+  <link rel="stylesheet" href="src/style.css?v=8b24ef8b3e">
 </head>
 <body>
+  <!-- Place chooser: shown first, before any place has been picked -->
+  <div id="place-chooser" hidden>
+    <div id="chooser-content">
+      <h1 id="chooser-title">Guía de Aves</h1>
+      <p id="chooser-sub">¿Qué lugar quieres ver?</p>
+      <div id="chooser-buttons" role="group" aria-label="Seleccionar lugar">
+        <button class="chooser-btn" data-place="alicante">Alicante</button>
+        <button class="chooser-btn" data-place="ourense">Ourense</button>
+        <button class="chooser-btn" data-place="bruselas">Bruselas</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Stage: light backdrop the card floats on -->
-  <div id="stage">
-    <!-- Bird counter -->
+  <div id="stage" hidden>
+    <!-- Bird counter (also shows the current place) -->
     <div id="bird-counter" aria-label=""></div>
 
     <!-- Menu button -->
@@ -131,7 +144,7 @@
        Inlined (rather than fetched) so the page works straight from file://, no server needed. -->
 <script type="application/json" id="catalog-data">
 {
-  "generated": "2026-09-26T09:09:33Z",
+  "generated": "2026-09-26T10:01:46Z",
   "places": {
     "alicante": {
       "name_es": "Alicante",
@@ -196,6 +209,7 @@
         "Turdus merula",
         "Psittacula krameri",
         "Pica pica",
+        "Garrulus glandarius",
         "Columba livia",
         "Erithacus rubecula",
         "Anas platyrhynchos",
@@ -4670,6 +4684,6 @@
 }
 </script>
 
-  <script src="src/app.js"></script>
+  <script src="src/app.js?v=0519e08389"></script>
 </body>
 </html>
