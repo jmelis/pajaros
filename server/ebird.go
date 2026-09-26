@@ -29,6 +29,7 @@ func (c *EbirdClient) get(path string, query url.Values, out any) error {
 		return err
 	}
 	req.Header.Set("X-eBirdApiToken", c.apiKey)
+	req.Header.Set("User-Agent", pajarosUA)
 
 	resp, err := doThrottled(ebirdLimiter, req)
 	if err != nil {

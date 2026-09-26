@@ -34,6 +34,7 @@ func gbifGetJSON(query url.Values, out any) error {
 	if err != nil {
 		return err
 	}
+	req.Header.Set("User-Agent", pajarosUA)
 	resp, err := doThrottled(gbifLimiter, req)
 	if err != nil {
 		return err

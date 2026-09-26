@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 )
@@ -15,10 +16,25 @@ import (
 var embeddedStatic embed.FS
 
 type Server struct {
-	ebird *EbirdClient
-	cache *ImageCache
-	gbif  *GBIFCache
+	ebird      *EbirdClient
+	ebirdCache *EbirdCache
+	cache      *ImageCache
+	gbif       *GBIFCache
 }
+
+// validLocID matches eBird's hotspot location ID format (e.g. "L99381"). It
+// gates every use of the {locId} path value, both to reject junk before
+// spending an upstream call on it and because that value is also used
+// verbatim in cache file paths (see ebird_cache.go) — without this, a
+// crafted locId could walk out of the cache directory.
+var validLocID = regexp.MustCompile(`^L\d+$`).MatchString
+
+// validLang is the fixed set of bird-name languages the frontend offers
+// (see static/index.html's #lang select). Enforcing an allow-list, rather
+// than accepting any query value, closes a cache-bypass path: lang is part
+// of the species cache key, so an attacker sending a new lang value on every
+// request would otherwise force a fresh eBird fetch every time.
+var validLang = map[string]bool{"es": true, "fr": true, "en": true}
 
 type SpeciesCard struct {
 	SpeciesCode string `json:"speciesCode"`
@@ -59,11 +75,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("cache dir %q: %v", cacheDir, err)
 	}
+	ebirdClient := NewEbirdClient(apiKey)
+	ebirdCache, err := NewEbirdCache(ebirdClient, cacheDir)
+	if err != nil {
+		log.Fatalf("cache dir %q: %v", cacheDir, err)
+	}
 
 	srv := &Server{
-		ebird: NewEbirdClient(apiKey),
-		cache: cache,
-		gbif:  gbifCache,
+		ebird:      ebirdClient,
+		ebirdCache: ebirdCache,
+		cache:      cache,
+		gbif:       gbifCache,
 	}
 
 	staticFS, err := fs.Sub(embeddedStatic, "static")
@@ -71,10 +93,20 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Per-IP limits, independent of the global upstream limiters in
+	// ratelimit.go: those cap our total outbound rate across every client,
+	// these cap how much of that shared budget one IP can burn through.
+	// Detail views (info + species) are the ones that can fan out to eBird
+	// (and, via popularity mode, GBIF) on a cache miss, so they get the
+	// tighter limit; the hotspot search is a single eBird call per request
+	// regardless of how many hotspots come back, so it gets a looser one.
+	hotspotDetailLimiter := newIPRateLimiter(20, 10) // burst 20, 10/min sustained
+	hotspotSearchLimiter := newIPRateLimiter(20, 20) // burst 20, 20/min sustained
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/hotspots", srv.handleNearbyHotspots)
-	mux.HandleFunc("GET /api/hotspots/{locId}", srv.handleHotspotInfo)
-	mux.HandleFunc("GET /api/hotspots/{locId}/species", srv.handleHotspotSpecies)
+	mux.HandleFunc("GET /api/hotspots", hotspotSearchLimiter.middleware(srv.handleNearbyHotspots))
+	mux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(srv.handleHotspotInfo))
+	mux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(srv.handleHotspotSpecies))
 	mux.Handle("GET /images/", http.StripPrefix("/images/", http.FileServer(http.Dir(cacheDir))))
 	mux.Handle("GET /", http.FileServerFS(staticFS))
 
@@ -108,7 +140,11 @@ func (s *Server) handleNearbyHotspots(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHotspotInfo(w http.ResponseWriter, r *http.Request) {
 	locID := r.PathValue("locId")
-	hotspot, err := s.ebird.HotspotInfo(locID)
+	if !validLocID(locID) {
+		http.Error(w, "invalid locId", http.StatusBadRequest)
+		return
+	}
+	hotspot, err := s.ebirdCache.HotspotInfo(locID)
 	if err != nil {
 		log.Printf("HotspotInfo(%s): %v", locID, err)
 		http.Error(w, "failed to fetch hotspot from eBird", http.StatusBadGateway)
@@ -119,25 +155,27 @@ func (s *Server) handleHotspotInfo(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 	locID := r.PathValue("locId")
+	if !validLocID(locID) {
+		http.Error(w, "invalid locId", http.StatusBadRequest)
+		return
+	}
 	lang := r.URL.Query().Get("lang")
 	if lang == "" {
 		lang = "es"
+	}
+	if !validLang[lang] {
+		http.Error(w, "unsupported lang", http.StatusBadRequest)
+		return
 	}
 	mode := r.URL.Query().Get("mode")
 	if mode == "" {
 		mode = "category"
 	}
 
-	codes, err := s.ebird.SpeciesList(locID)
+	codes, taxa, err := s.ebirdCache.Species(locID, lang)
 	if err != nil {
-		log.Printf("SpeciesList(%s): %v", locID, err)
-		http.Error(w, "failed to fetch species list from eBird", http.StatusBadGateway)
-		return
-	}
-	taxa, err := s.ebird.Taxonomy(codes, lang)
-	if err != nil {
-		log.Printf("Taxonomy(%v, %s): %v", codes, lang, err)
-		http.Error(w, "failed to resolve species names from eBird", http.StatusBadGateway)
+		log.Printf("Species(%s, %s): %v", locID, lang, err)
+		http.Error(w, "failed to fetch species from eBird", http.StatusBadGateway)
 		return
 	}
 
@@ -161,7 +199,7 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if mode == "popularity" {
-		hotspot, err := s.ebird.HotspotInfo(locID)
+		hotspot, err := s.ebirdCache.HotspotInfo(locID)
 		if err != nil {
 			log.Printf("HotspotInfo(%s): %v", locID, err)
 			http.Error(w, "failed to fetch hotspot location from eBird", http.StatusBadGateway)

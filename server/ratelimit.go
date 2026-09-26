@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+// pajarosUA identifies this project (and gives a contact point) to every
+// upstream API it talks to. eBird and GBIF don't require it the way
+// Wikimedia's User-Agent policy does, but sending one is good etiquette and
+// gives them something to reach out to before they'd need to just block us.
+const pajarosUA = "PajarosServer/0.1 (+https://github.com/jmelis/pajaros; contact: j.melis@gmail.com)"
+
 // wikimediaLimiter caps the *aggregate* outbound rate to Wikipedia/Commons
 // across all goroutines and all species — the per-species image-fetch
 // concurrency (imageFetchConcurrency) controls pipelining, this controls how
@@ -22,8 +28,7 @@ var wikimediaLimiter = newRateLimiter(rpsFromEnv("WIKIMEDIA_RPS", 8))
 
 // ebirdLimiter is separate from wikimediaLimiter — eBird issues API keys
 // specifically for programmatic access like this, so it can run faster, but
-// the year-ranking feature drives up to 365 sequential calls per hotspot
-// (see ranking.go) and deserves its own pacing rather than none at all.
+// it still deserves its own pacing rather than none at all.
 var ebirdLimiter = newRateLimiter(rpsFromEnv("EBIRD_RPS", 15))
 
 // gbifLimiter is generous by default — GBIF is a public, no-auth, widely
