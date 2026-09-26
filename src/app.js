@@ -51,7 +51,6 @@ const menuPanel   = document.getElementById('menu-panel');
 const menuClose   = document.getElementById('menu-close');
 const menuOverlay = document.getElementById('menu-overlay');
 const placeBtns   = document.querySelectorAll('.place-btn');
-const creditsList = document.getElementById('credits-list');
 const btnPrint    = document.getElementById('btn-print');
 const printSheet  = document.getElementById('print-sheet');
 
@@ -389,25 +388,6 @@ placeBtns.forEach(btn => {
   btn.addEventListener('click', () => goToPlace(btn.dataset.place));
 });
 
-// ─── Credits ──────────────────────────────────────────────────────────────────
-
-function buildCredits() {
-  const items = [];
-  for (const [key, sp] of Object.entries(catalog.species)) {
-    for (const attr of sp.attribution) {
-      items.push({ bird: sp.name_es, ...attr });
-    }
-  }
-
-  creditsList.innerHTML = items.map(item => `
-    <div class="credit-item">
-      <span class="credit-bird">${escHtml(item.bird)}</span> — ${escHtml(item.file)}<br>
-      ${escHtml(item.author)} ·
-      <a href="${escHtml(item.source_url)}" target="_blank" rel="noopener license">${escHtml(item.license)}</a>
-    </div>
-  `).join('');
-}
-
 // ─── Print sheet (A4, replaces the old Puppeteer PDF pipeline) ───────────────
 
 const BIRDS_PER_PAGE = 5;
@@ -495,7 +475,6 @@ function init() {
     // Set initial URL state
     updateUrl(currentPlace);
 
-    buildCredits();
     render();
     buildPrintSheet();
   } catch (err) {

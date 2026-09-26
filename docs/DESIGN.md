@@ -122,8 +122,8 @@ Mirlo común, Gorrión común, Paloma bravía/urbana, Herrerillo común, Carbone
 
 ### 4.4 Atribución
 
-- Campos `author`, `source_url`, `license`, `license_url` en cada entrada de `images`.
-- Solo en la web (menú → Créditos). La guía impresa no lleva créditos, por decisión explícita — es un objeto físico para una niña de 7 años, no un documento legal; la atribución completa vive en la web, siempre accesible.
+- Campos `author`, `source_url`, `license`, `license_url` en cada entrada de `images`, conservados en `metadata.json` por si hicieran falta.
+- No se muestran en ningún sitio (ni web ni guía impresa), por decisión explícita: proyecto familiar no comercial, no un documento de atribución. Las licencias CC BY/CC BY-SA de las fotos piden atribución igualmente aunque el uso sea personal — se ha asumido conscientemente ese riesgo.
 
 ## 5. Aplicación web
 
@@ -155,7 +155,6 @@ src/
 - Selector de lugar (Alicante / Ourense / Bruselas).
 - Instrucciones de gestos.
 - Botón "Imprimir esta guía".
-- Créditos.
 
 **URLs por lugar:**
 - `/pajaros/alicante/`
@@ -206,7 +205,7 @@ Implementadas con `location.pathname` (sin hash) usando el prefijo de repo GitHu
 ### 6.2 Maquetación
 
 - Formato A4 vertical (210 × 297 mm), vía `@page { size: A4 }`.
-- 4 láminas por lugar, 5 aves por lámina (`page-break-after` entre láminas). Sin página de créditos — ver §4.4.
+- 4 láminas por lugar, 5 aves por lámina (`page-break-after` entre láminas). Sin créditos — ver §4.4.
 - Cada fila de ave: imagen a la izquierda (≈ 40 % del ancho), nombres a la derecha (español y francés al mismo tamaño, latín pequeño debajo).
 - Si existe `poster-cutout.png` para la especie, se usa esa versión (sin fondo, flotando directamente sobre la página); si no, la foto normal en una caja con esquinas redondeadas. Estilo tipo "póster de aves de jardín" en vez de fila de fichas.
 - Cabecera: lugar + número de lámina.
@@ -251,4 +250,4 @@ Comprobaciones:
 | 404.html redirect SPA | Técnica estándar y documentada para GitHub Pages sin servidor |
 | CC BY / CC BY-SA / CC0 | Licencias compatibles con repositorio público, web y PDF |
 | Cutouts (`rembg`) solo para el póster, generados aparte | La web sigue usando las fotos normales; solo la guía impresa necesita el ave "flotando" sin caja. Mantiene ese único paso pesado (modelo de ~1GB) fuera del resto del toolchain |
-| Sin créditos en el PDF impreso | Es un objeto físico para un paseo familiar, no un documento de atribución; los créditos completos siguen siempre disponibles en la web |
+| Sin créditos visibles (ni web ni PDF) | Proyecto familiar no comercial; los datos de atribución se conservan en `metadata.json` pero no se muestran en ningún sitio — riesgo de incumplimiento de CC BY/CC BY-SA asumido conscientemente |

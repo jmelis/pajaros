@@ -483,32 +483,6 @@ html, body {
   border-color: var(--text);
 }
 
-/* ─── Credits ───────────────────────────────────────────────────────────── */
-#credits-list {
-  font-size: 11px;
-  color: var(--text-faint);
-  line-height: 1.6;
-}
-
-#credits-list .credit-item {
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
-}
-
-#credits-list .credit-item:last-child {
-  border-bottom: none;
-}
-
-#credits-list .credit-bird {
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-#credits-list a {
-  color: var(--accent);
-}
-
 /* ─── Print sheet (hidden on screen, shown by @media print below) ──────── */
 #print-sheet {
   display: none;

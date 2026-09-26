@@ -57,4 +57,4 @@ CI (`.github/workflows/ci.yml`) valida, hornea y publica en GitHub Pages en cada
 
 ## Licencias de imágenes
 
-Todas con licencia libre (CC BY, CC BY-SA, CC0 o dominio público). Créditos en `metadata.json` de cada especie y en la web (menú → Créditos); la guía impresa no los incluye, por diseño.
+Todas con licencia libre (CC BY, CC BY-SA, CC0 o dominio público). Los datos de atribución (`author`, `source_url`, `license`, `license_url`) siguen en `metadata.json` de cada especie, pero no se muestran en la web ni en la guía impresa — proyecto familiar no comercial, sin intención de redistribución más allá de este uso.
