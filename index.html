@@ -3,44 +3,55 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#1a1a2e">
+  <meta name="theme-color" content="#f6f3ec">
   <title>Guía de Aves</title>
   <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
-  <!-- Main card area -->
-  <main id="card" aria-live="polite" aria-label="Ficha de ave">
-    <div id="img-container" role="img" aria-label="">
-      <img id="bird-img" src="" alt="" draggable="false">
-      <div id="img-loading" class="img-overlay" aria-hidden="true">
-        <div class="spinner"></div>
-      </div>
-    </div>
-    <div id="bird-info">
-      <p id="name-latin" lang="la"></p>
-      <p id="name-es" lang="es"></p>
-      <p id="name-fr" lang="fr"></p>
-    </div>
-
-    <!-- Navigation controls -->
-    <nav id="nav-controls" aria-label="Navegación entre aves">
-      <button id="btn-prev" class="nav-btn nav-h" aria-label="Ave anterior">&#8249;</button>
-      <button id="btn-next" class="nav-btn nav-h" aria-label="Ave siguiente">&#8250;</button>
-      <button id="btn-img-prev" class="nav-btn nav-v" aria-label="Imagen anterior">&#8963;</button>
-      <button id="btn-img-next" class="nav-btn nav-v" aria-label="Imagen siguiente">&#8964;</button>
-    </nav>
-
-    <!-- Image dots indicator -->
-    <div id="img-dots" aria-hidden="true"></div>
-
+  <!-- Stage: light backdrop the card floats on -->
+  <div id="stage">
     <!-- Bird counter -->
     <div id="bird-counter" aria-label=""></div>
-  </main>
 
-  <!-- Menu button -->
-  <button id="menu-btn" aria-label="Abrir menú" aria-expanded="false" aria-controls="menu-panel">
-    <span class="menu-icon">&#9776;</span>
-  </button>
+    <!-- Menu button -->
+    <button id="menu-btn" aria-label="Abrir menú" aria-expanded="false" aria-controls="menu-panel">
+      <span class="menu-icon">&#9776;</span>
+    </button>
+
+    <!-- Main card -->
+    <main id="card-wrap" aria-live="polite" aria-label="Ficha de ave">
+      <div id="card">
+        <div id="img-container" role="img" aria-label="">
+          <img id="bird-img" src="" alt="" draggable="false">
+          <div id="img-loading" class="img-overlay" aria-hidden="true">
+            <div class="spinner"></div>
+          </div>
+
+          <!-- Prev/next bird -->
+          <nav id="nav-controls" aria-label="Navegación entre aves">
+            <button id="btn-prev" class="nav-btn nav-h" aria-label="Ave anterior">&#8249;</button>
+            <button id="btn-next" class="nav-btn nav-h" aria-label="Ave siguiente">&#8250;</button>
+          </nav>
+
+          <!-- More photos of this bird -->
+          <button id="btn-more-photos" class="photos-btn" aria-label="Ver más fotos de esta ave" hidden>
+            <span class="photos-icon" aria-hidden="true">&#128247;</span>
+            <span id="photos-count"></span>
+          </button>
+
+          <!-- Image dots indicator -->
+          <div id="img-dots" aria-hidden="true"></div>
+        </div>
+        <div id="bird-info">
+          <p id="name-latin" lang="la"></p>
+          <div id="names-row">
+            <p id="name-es" lang="es"></p>
+            <p id="name-fr" lang="fr"></p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
 
   <!-- Menu panel -->
   <aside id="menu-panel" role="dialog" aria-label="Menú" aria-modal="true" hidden>
@@ -63,8 +74,7 @@
         <ul class="help-list">
           <li><span class="gesture">← deslizar</span> Ave siguiente</li>
           <li><span class="gesture">→ deslizar</span> Ave anterior</li>
-          <li><span class="gesture">↑ deslizar</span> Imagen siguiente</li>
-          <li><span class="gesture">↓ deslizar</span> Imagen anterior</li>
+          <li><span class="gesture">&#128247; botón</span> Más fotos de esta ave</li>
         </ul>
         <p class="help-note">También puedes usar las flechas del teclado o los botones de la pantalla.</p>
       </section>
@@ -92,7 +102,7 @@
        Inlined (rather than fetched) so the page works straight from file://, no server needed. -->
 <script type="application/json" id="catalog-data">
 {
-  "generated": "2026-09-26T04:49:48Z",
+  "generated": "2026-09-26T04:56:20Z",
   "places": {
     "alicante": {
       "name_es": "Alicante",

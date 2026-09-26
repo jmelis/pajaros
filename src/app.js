@@ -41,10 +41,10 @@ const nameFr       = document.getElementById('name-fr');
 const imgDots      = document.getElementById('img-dots');
 const birdCounter  = document.getElementById('bird-counter');
 
-const btnPrev    = document.getElementById('btn-prev');
-const btnNext    = document.getElementById('btn-next');
-const btnImgPrev = document.getElementById('btn-img-prev');
-const btnImgNext = document.getElementById('btn-img-next');
+const btnPrev       = document.getElementById('btn-prev');
+const btnNext       = document.getElementById('btn-next');
+const btnMorePhotos = document.getElementById('btn-more-photos');
+const photosCount   = document.getElementById('photos-count');
 
 const menuBtn     = document.getElementById('menu-btn');
 const menuPanel   = document.getElementById('menu-panel');
@@ -121,10 +121,12 @@ function render() {
     });
   }
 
-  // Show/hide vertical nav buttons
+  // More-photos button: only shown (and only useful) when there's more than one image
   const hasMultipleImages = imgList.length > 1;
-  btnImgPrev.classList.toggle('hidden', !hasMultipleImages);
-  btnImgNext.classList.toggle('hidden', !hasMultipleImages);
+  btnMorePhotos.hidden = !hasMultipleImages;
+  if (hasMultipleImages) {
+    photosCount.textContent = `${currentImageIndex + 1}/${imgList.length}`;
+  }
 
   // Update place button active state
   placeBtns.forEach(btn => {
@@ -171,18 +173,57 @@ function schedulePreload(currentSp) {
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
+// Slides the card out, swaps its content, then slides it back in from the
+// opposite side — a single element "ping-pongs" rather than animating two.
+function animateCardChange(direction, mutate) {
+  if (isTransitioning) return;
+  isTransitioning = true;
+
+  const exitClass = direction === 'next' ? 'shift-left' : 'shift-right';
+  const enterClass = direction === 'next' ? 'shift-right' : 'shift-left';
+
+  cardEl.addEventListener('transitionend', function onExitEnd(e) {
+    if (e.target !== cardEl) return;
+    cardEl.removeEventListener('transitionend', onExitEnd);
+
+    mutate();
+
+    cardEl.classList.add('no-anim');
+    cardEl.classList.remove(exitClass);
+    cardEl.classList.add(enterClass);
+    void cardEl.offsetWidth; // force reflow so the next class change transitions
+    cardEl.classList.remove('no-anim');
+
+    requestAnimationFrame(() => {
+      cardEl.classList.remove(enterClass);
+    });
+
+    cardEl.addEventListener('transitionend', function onEnterEnd(e2) {
+      if (e2.target !== cardEl) return;
+      cardEl.removeEventListener('transitionend', onEnterEnd);
+      isTransitioning = false;
+    });
+  });
+
+  cardEl.classList.add(exitClass);
+}
+
 function goNextBird() {
-  const list = getSpeciesList();
-  currentBirdIndex = (currentBirdIndex + 1) % list.length;
-  currentImageIndex = 0;
-  render();
+  animateCardChange('next', () => {
+    const list = getSpeciesList();
+    currentBirdIndex = (currentBirdIndex + 1) % list.length;
+    currentImageIndex = 0;
+    render();
+  });
 }
 
 function goPrevBird() {
-  const list = getSpeciesList();
-  currentBirdIndex = (currentBirdIndex - 1 + list.length) % list.length;
-  currentImageIndex = 0;
-  render();
+  animateCardChange('prev', () => {
+    const list = getSpeciesList();
+    currentBirdIndex = (currentBirdIndex - 1 + list.length) % list.length;
+    currentImageIndex = 0;
+    render();
+  });
 }
 
 function goNextImage() {
@@ -236,6 +277,7 @@ let touchActive = false;
 
 imgContainer.addEventListener('touchstart', e => {
   if (e.touches.length !== 1) return;
+  if (e.target.closest('button')) return; // let overlay buttons (prev/next, more photos) work as plain buttons
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
   touchActive = true;
@@ -283,6 +325,7 @@ let pointerActive = false;
 
 imgContainer.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch') return; // handled by touch events
+  if (e.target.closest('button')) return; // let overlay buttons (prev/next, more photos) work as plain buttons
   pointerStartX = e.clientX;
   pointerStartY = e.clientY;
   pointerActive = true;
@@ -316,8 +359,7 @@ document.addEventListener('keydown', e => {
 
 btnNext.addEventListener('click', goNextBird);
 btnPrev.addEventListener('click', goPrevBird);
-btnImgNext.addEventListener('click', goNextImage);
-btnImgPrev.addEventListener('click', goPrevImage);
+btnMorePhotos.addEventListener('click', goNextImage);
 
 // ─── Menu ─────────────────────────────────────────────────────────────────────
 

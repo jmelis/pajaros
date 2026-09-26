@@ -1,3 +1,15 @@
+/* ─── Palette (light theme) ────────────────────────────────────────────── */
+:root {
+  --bg: #f3efe4;
+  --card-bg: #ffffff;
+  --text: #23232b;
+  --text-muted: #6f6f7a;
+  --text-faint: #9a9aa3;
+  --accent: #2c5f8a;
+  --accent-soft: #eaf1f7;
+  --shadow: 0 14px 34px rgba(30, 28, 20, 0.14), 0 2px 8px rgba(30, 28, 20, 0.08);
+}
+
 /* ─── Reset & base ──────────────────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -8,34 +20,62 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  background: #1a1a2e;
-  color: #f0f0f0;
+  background: var(--bg);
+  color: var(--text);
   font-family: system-ui, -apple-system, sans-serif;
   -webkit-tap-highlight-color: transparent;
   touch-action: none; /* managed by app.js */
 }
 
-/* ─── Main card ─────────────────────────────────────────────────────────── */
-#card {
+/* ─── Stage: the light backdrop the card floats on ─────────────────────── */
+#stage {
   position: fixed;
   inset: 0;
+  padding: 14px;
+  padding-top: max(14px, env(safe-area-inset-top));
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  display: flex;
+}
+
+#card-wrap {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* ─── Main card ─────────────────────────────────────────────────────────── */
+#card {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--card-bg);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
   user-select: none;
+  transition: transform 0.24s cubic-bezier(.22,.61,.36,1), opacity 0.24s ease;
 }
+
+#card.shift-left  { transform: translateX(-28px) scale(0.97); opacity: 0; }
+#card.shift-right { transform: translateX(28px) scale(0.97); opacity: 0; }
+#card.no-anim     { transition: none; }
 
 /* ─── Image container ───────────────────────────────────────────────────── */
 #img-container {
   position: relative;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
-  background: #000;
+  background: var(--accent-soft);
 }
 
 #bird-img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   display: block;
   transition: opacity 0.2s ease;
 }
@@ -54,10 +94,10 @@ html, body {
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(255,255,255,0.2);
-  border-top-color: #fff;
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(44, 95, 138, 0.15);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -75,38 +115,44 @@ html, body {
   opacity: 1;
 }
 
-/* ─── Bird info ─────────────────────────────────────────────────────────── */
+/* ─── Bird info (below the image, part of the card body) ───────────────── */
 #bird-info {
-  padding: 12px 16px 8px;
-  background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.85) 30%);
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  pointer-events: none;
+  padding: 14px 18px 18px;
+  background: var(--card-bg);
 }
 
 #name-latin {
-  font-size: clamp(14px, 3.5vw, 18px);
+  font-size: clamp(12px, 3vw, 14px);
   font-style: italic;
-  color: rgba(255,255,255,0.75);
-  margin-bottom: 2px;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+
+#names-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 2px;
+}
+
+#name-es, #name-fr {
+  font-size: clamp(19px, 5vw, 25px);
+  line-height: 1.15;
 }
 
 #name-es {
-  font-size: clamp(22px, 6vw, 32px);
   font-weight: 700;
-  line-height: 1.1;
-  color: #fff;
+  color: var(--text);
 }
 
 #name-fr {
-  font-size: clamp(14px, 3.5vw, 18px);
-  color: rgba(255,255,255,0.8);
-  margin-top: 2px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text-muted);
 }
 
-/* ─── Navigation buttons ────────────────────────────────────────────────── */
+/* ─── Navigation buttons (prev/next bird, over the image) ───────────────── */
 #nav-controls {
   position: absolute;
   inset: 0;
@@ -115,69 +161,98 @@ html, body {
 
 .nav-btn {
   position: absolute;
-  background: rgba(0,0,0,0.35);
-  color: #fff;
+  background: rgba(255,255,255,0.85);
+  color: var(--text);
   border: none;
   cursor: pointer;
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
   pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  transition: background 0.15s;
+  width: 42px;
+  height: 42px;
+  box-shadow: 0 2px 8px rgba(30,28,20,0.18);
+  transition: background 0.15s, transform 0.1s;
+  backdrop-filter: blur(4px);
 }
 
 .nav-btn:hover,
 .nav-btn:focus-visible {
-  background: rgba(0,0,0,0.6);
-  outline: 2px solid #fff;
+  background: #fff;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 .nav-btn:active {
-  background: rgba(255,255,255,0.25);
+  transform: scale(0.92);
 }
 
 #btn-prev {
-  left: 8px;
+  left: 10px;
   top: 50%;
   transform: translateY(-50%);
 }
 
 #btn-next {
-  right: 8px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
-}
-
-#btn-img-prev {
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-#btn-img-next {
-  /* placed above bird info area */
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
 }
 
 .nav-btn.hidden {
   display: none;
 }
 
+/* ─── More-photos button (inside the card, over the image) ─────────────── */
+.photos-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  background: rgba(255,255,255,0.9);
+  color: var(--text);
+  border: none;
+  border-radius: 999px;
+  padding: 7px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(30,28,20,0.18);
+  transition: background 0.15s, transform 0.1s;
+}
+
+.photos-btn:hover,
+.photos-btn:focus-visible {
+  background: #fff;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.photos-btn:active {
+  transform: scale(0.95);
+}
+
+.photos-btn[hidden] {
+  display: none;
+}
+
+.photos-icon {
+  font-size: 15px;
+}
+
 /* ─── Image dots ────────────────────────────────────────────────────────── */
 #img-dots {
   position: absolute;
-  top: 10px;
-  right: 12px;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 5px;
 }
 
@@ -185,7 +260,8 @@ html, body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.55);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
   transition: background 0.15s;
 }
 
@@ -195,41 +271,45 @@ html, body {
 
 /* ─── Bird counter ──────────────────────────────────────────────────────── */
 #bird-counter {
-  position: absolute;
-  top: 10px;
-  left: 12px;
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  left: 14px;
+  z-index: 100;
   font-size: 12px;
-  color: rgba(255,255,255,0.6);
-  background: rgba(0,0,0,0.4);
-  padding: 2px 8px;
-  border-radius: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--card-bg);
+  padding: 5px 11px;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
   pointer-events: none;
 }
 
 /* ─── Menu button ───────────────────────────────────────────────────────── */
 #menu-btn {
   position: fixed;
-  top: 12px;
-  right: 60px;
+  top: max(14px, env(safe-area-inset-top));
+  right: 14px;
   z-index: 100;
-  background: rgba(0,0,0,0.5);
-  color: #fff;
+  background: var(--card-bg);
+  color: var(--text);
   border: none;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: var(--shadow);
   transition: background 0.15s;
 }
 
 #menu-btn:hover,
 #menu-btn:focus-visible {
-  background: rgba(0,0,0,0.75);
-  outline: 2px solid #fff;
+  background: var(--accent-soft);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -256,7 +336,7 @@ html, body {
   right: 0;
   width: min(340px, 90vw);
   height: 100%;
-  background: #16213e;
+  background: var(--card-bg);
   z-index: 300;
   overflow-y: auto;
   transform: translateX(100%);
@@ -264,6 +344,7 @@ html, body {
   padding: 20px;
   overscroll-behavior: contain;
   touch-action: pan-y;
+  box-shadow: -8px 0 30px rgba(30,28,20,0.14);
 }
 
 #menu-panel:not([hidden]) {
@@ -283,7 +364,7 @@ html, body {
   right: 16px;
   background: none;
   border: none;
-  color: #aaa;
+  color: var(--text-faint);
   font-size: 20px;
   cursor: pointer;
   padding: 4px;
@@ -292,8 +373,8 @@ html, body {
 
 #menu-close:hover,
 #menu-close:focus-visible {
-  color: #fff;
-  outline: 2px solid #fff;
+  color: var(--text);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -301,7 +382,7 @@ html, body {
   font-size: 22px;
   font-weight: 700;
   margin-bottom: 24px;
-  color: #e8e8f0;
+  color: var(--text);
 }
 
 #menu-content h2 {
@@ -309,7 +390,7 @@ html, body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #8888aa;
+  color: var(--text-faint);
   margin-bottom: 10px;
   margin-top: 28px;
 }
@@ -322,12 +403,13 @@ html, body {
 }
 
 .place-btn {
-  background: #0f3460;
-  color: #fff;
+  background: var(--accent-soft);
+  color: var(--accent);
   border: 2px solid transparent;
   border-radius: 8px;
   padding: 12px 16px;
   font-size: 16px;
+  font-weight: 600;
   cursor: pointer;
   text-align: left;
   transition: background 0.15s, border-color 0.15s;
@@ -335,14 +417,15 @@ html, body {
 
 .place-btn:hover,
 .place-btn:focus-visible {
-  background: #1a4a7a;
+  background: #dfeaf3;
   outline: none;
-  border-color: #fff;
+  border-color: var(--accent);
 }
 
 .place-btn.active {
-  border-color: #4a9eff;
-  background: #0f3460;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
 }
 
 /* ─── Help list ─────────────────────────────────────────────────────────── */
@@ -358,11 +441,12 @@ html, body {
   align-items: center;
   gap: 10px;
   font-size: 14px;
-  color: #ccc;
+  color: var(--text-muted);
 }
 
 .gesture {
-  background: rgba(255,255,255,0.1);
+  background: var(--accent-soft);
+  color: var(--accent);
   border-radius: 6px;
   padding: 4px 8px;
   font-family: monospace;
@@ -373,19 +457,20 @@ html, body {
 
 .help-note {
   font-size: 12px;
-  color: #888;
+  color: var(--text-faint);
   margin-top: 10px;
   line-height: 1.5;
 }
 
 /* ─── Print button ──────────────────────────────────────────────────────── */
 .print-btn {
-  background: #0f3460;
+  background: var(--accent);
   color: #fff;
   border: 2px solid transparent;
   border-radius: 8px;
   padding: 12px 16px;
   font-size: 16px;
+  font-weight: 600;
   cursor: pointer;
   width: 100%;
   transition: background 0.15s, border-color 0.15s;
@@ -393,22 +478,22 @@ html, body {
 
 .print-btn:hover,
 .print-btn:focus-visible {
-  background: #1a4a7a;
+  background: #234c70;
   outline: none;
-  border-color: #fff;
+  border-color: var(--text);
 }
 
 /* ─── Credits ───────────────────────────────────────────────────────────── */
 #credits-list {
   font-size: 11px;
-  color: #888;
+  color: var(--text-faint);
   line-height: 1.6;
 }
 
 #credits-list .credit-item {
   margin-bottom: 8px;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
 }
 
 #credits-list .credit-item:last-child {
@@ -417,11 +502,11 @@ html, body {
 
 #credits-list .credit-bird {
   font-weight: 600;
-  color: #aaa;
+  color: var(--text-muted);
 }
 
 #credits-list a {
-  color: #5a8eff;
+  color: var(--accent);
 }
 
 /* ─── Print sheet (hidden on screen, shown by @media print below) ──────── */
@@ -443,7 +528,7 @@ html, body {
     color: #111;
   }
 
-  #card, #menu-btn, #menu-overlay, #menu-panel {
+  #stage, #menu-overlay, #menu-panel {
     display: none !important;
   }
 
@@ -587,10 +672,10 @@ html, body {
 /* ─── Landscape adjustments ─────────────────────────────────────────────── */
 @media (orientation: landscape) and (max-height: 500px) {
   #bird-info {
-    padding: 8px 16px 6px;
+    padding: 8px 16px 10px;
   }
 
-  #name-es {
-    font-size: clamp(18px, 5vh, 26px);
+  #name-es, #name-fr {
+    font-size: clamp(16px, 5vh, 22px);
   }
 }
