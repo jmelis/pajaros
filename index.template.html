@@ -64,8 +64,8 @@
         <div id="bird-info">
           <p id="name-latin" lang="la"></p>
           <div id="names-row">
-            <p id="name-es" lang="es"></p>
-            <p id="name-fr" lang="fr"></p>
+            <p id="name-primary"></p>
+            <p id="name-secondary"></p>
           </div>
         </div>
       </div>
@@ -86,6 +86,27 @@
           <button class="place-btn" data-place="ourense">Ourense</button>
           <button class="place-btn" data-place="bruselas">Bruselas</button>
         </div>
+      </section>
+
+      <section aria-labelledby="language-heading">
+        <h2 id="language-heading">Idiomas de los nombres</h2>
+        <div id="language-selectors">
+          <label for="primary-language">Principal</label>
+          <select id="primary-language">
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+            <option value="ca">Català</option>
+          </select>
+          <label for="secondary-language">Secundario</label>
+          <select id="secondary-language">
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+            <option value="ca">Català</option>
+          </select>
+        </div>
+        <p class="help-note">El nombre científico en latín se muestra siempre.</p>
       </section>
 
       <section aria-labelledby="nav-help-heading">

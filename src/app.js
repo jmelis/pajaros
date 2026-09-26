@@ -34,6 +34,15 @@ const BIRDS_BASE = IS_FILE ? 'birds' : `${BASE_PATH}/birds`;
 const SWIPE_MIN_PX = 50;       // minimum displacement to register
 const SWIPE_RATIO = 2.0;       // dominant/secondary axis ratio to avoid diagonals
 
+const LANGUAGES = {
+  es: 'Español',
+  fr: 'Français',
+  it: 'Italiano',
+  ca: 'Català'
+};
+const DEFAULT_PRIMARY_LANGUAGE = 'es';
+const DEFAULT_SECONDARY_LANGUAGE = 'fr';
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let catalog = null;
@@ -41,6 +50,8 @@ let currentPlace = null;
 let currentBirdIndex = 0;
 let currentImageIndex = 0;
 let isTransitioning = false;
+let primaryLanguage = DEFAULT_PRIMARY_LANGUAGE;
+let secondaryLanguage = DEFAULT_SECONDARY_LANGUAGE;
 
 // ─── DOM references ───────────────────────────────────────────────────────────
 
@@ -49,8 +60,8 @@ const imgEl        = document.getElementById('bird-img');
 const imgContainer = document.getElementById('img-container');
 const imgLoading   = document.getElementById('img-loading');
 const nameLatin    = document.getElementById('name-latin');
-const nameEs       = document.getElementById('name-es');
-const nameFr       = document.getElementById('name-fr');
+const namePrimary  = document.getElementById('name-primary');
+const nameSecondary = document.getElementById('name-secondary');
 const imgDots      = document.getElementById('img-dots');
 const birdCounter  = document.getElementById('bird-counter');
 
@@ -70,6 +81,8 @@ const menuOverlay = document.getElementById('menu-overlay');
 const placeBtns   = document.querySelectorAll('.place-btn');
 const btnPrint    = document.getElementById('btn-print');
 const printSheet  = document.getElementById('print-sheet');
+const primaryLanguageSelect = document.getElementById('primary-language');
+const secondaryLanguageSelect = document.getElementById('secondary-language');
 
 const stageEl              = document.getElementById('stage');
 const placeChooser         = document.getElementById('place-chooser');
@@ -99,6 +112,74 @@ function imageUrl(sp, file) {
   return `${BIRDS_BASE}/${encodeURIComponent(sp.scientific_name)}/${file}`;
 }
 
+function speciesName(sp, language) {
+  return sp[`name_${language}`] || sp.scientific_name;
+}
+
+function readLanguagesFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const requestedPrimary = params.get('primary');
+  const requestedSecondary = params.get('secondary');
+
+  primaryLanguage = Object.hasOwn(LANGUAGES, requestedPrimary)
+    ? requestedPrimary
+    : DEFAULT_PRIMARY_LANGUAGE;
+  secondaryLanguage = Object.hasOwn(LANGUAGES, requestedSecondary)
+    ? requestedSecondary
+    : DEFAULT_SECONDARY_LANGUAGE;
+
+  if (primaryLanguage === secondaryLanguage) {
+    secondaryLanguage = primaryLanguage === DEFAULT_SECONDARY_LANGUAGE
+      ? DEFAULT_PRIMARY_LANGUAGE
+      : DEFAULT_SECONDARY_LANGUAGE;
+  }
+}
+
+function syncLanguageControls() {
+  primaryLanguageSelect.value = primaryLanguage;
+  secondaryLanguageSelect.value = secondaryLanguage;
+  namePrimary.lang = primaryLanguage;
+  nameSecondary.lang = secondaryLanguage;
+}
+
+function languageQueryString() {
+  const params = new URLSearchParams(location.search);
+  params.delete('p');
+  params.delete('q');
+  params.set('primary', primaryLanguage);
+  params.set('secondary', secondaryLanguage);
+  return params.toString();
+}
+
+function replaceLanguageQuery() {
+  if (IS_FILE) return;
+  const query = languageQueryString();
+  history.replaceState(history.state, '', `${location.pathname}?${query}${location.hash}`);
+}
+
+function selectLanguage(role, language) {
+  if (!Object.hasOwn(LANGUAGES, language)) return;
+
+  if (role === 'primary') {
+    if (language === secondaryLanguage) secondaryLanguage = primaryLanguage;
+    primaryLanguage = language;
+  } else {
+    if (language === primaryLanguage) primaryLanguage = secondaryLanguage;
+    secondaryLanguage = language;
+  }
+
+  syncLanguageControls();
+  replaceLanguageQuery();
+  if (currentPlace) {
+    render();
+    buildPrintSheet();
+    if (posterMode) {
+      posterPlaceName.textContent = catalog.places[currentPlace].name_es;
+      renderPoster();
+    }
+  }
+}
+
 // ─── Rendering ───────────────────────────────────────────────────────────────
 
 function render() {
@@ -116,15 +197,15 @@ function render() {
 
   newImg.onload = () => {
     imgEl.src = src;
-    imgEl.alt = imgEntry.alt_es || sp.name_es;
+    imgEl.alt = speciesName(sp, primaryLanguage);
     imgEl.classList.remove('loading');
     imgLoading.classList.remove('visible');
-    imgContainer.setAttribute('aria-label', imgEntry.alt_es || sp.name_es);
+    imgContainer.setAttribute('aria-label', speciesName(sp, primaryLanguage));
   };
 
   newImg.onerror = () => {
     imgEl.src = '';
-    imgEl.alt = sp.name_es;
+    imgEl.alt = speciesName(sp, primaryLanguage);
     imgEl.classList.remove('loading');
     imgLoading.classList.remove('visible');
   };
@@ -132,8 +213,8 @@ function render() {
   newImg.src = src;
 
   nameLatin.textContent = sp.scientific_name;
-  nameEs.textContent = sp.name_es;
-  nameFr.textContent = sp.name_fr;
+  namePrimary.textContent = speciesName(sp, primaryLanguage);
+  nameSecondary.textContent = speciesName(sp, secondaryLanguage);
 
   // Counter (also shows the current place, since a session can start at any place)
   const list = getSpeciesList();
@@ -319,8 +400,11 @@ function detectPlaceFromUrl() {
 function updateUrl(place) {
   if (IS_FILE) return; // pushState to an absolute path breaks file:// navigation
   const newPath = `${BASE_PATH}/${place}/`;
+  const newUrl = `${newPath}?${languageQueryString()}`;
   if (location.pathname !== newPath) {
-    history.pushState({ place }, '', newPath);
+    history.pushState({ place }, '', newUrl);
+  } else {
+    history.replaceState({ place }, '', newUrl);
   }
 }
 
@@ -473,6 +557,9 @@ chooserBtns.forEach(btn => {
   btn.addEventListener('click', () => enterPlace(btn.dataset.place));
 });
 
+primaryLanguageSelect.addEventListener('change', e => selectLanguage('primary', e.target.value));
+secondaryLanguageSelect.addEventListener('change', e => selectLanguage('secondary', e.target.value));
+
 // ─── Print sheet (A4 poster collage, replaces the old Puppeteer PDF pipeline) ─
 
 const BIRDS_PER_PAGE = 10;
@@ -532,12 +619,12 @@ function buildPrintSheet() {
           return `
             <div class="print-bird-cell ${gridSpanClass(sp)}">
               <div class="print-bird-img-wrap">
-                <img src="${imgSrc}" alt="${escHtml(sp.name_es)}" class="${imgClass}" style="${imgStyle}">
+                <img src="${imgSrc}" alt="${escHtml(speciesName(sp, primaryLanguage))}" class="${imgClass}" style="${imgStyle}">
               </div>
               <p class="print-bird-label">
-                <span class="print-name-es">${escHtml(sp.name_es)}</span>
-                <span class="print-name-fr">${escHtml(sp.name_fr)}</span>
                 <span class="print-name-latin">${escHtml(sp.scientific_name)}</span>
+                <span class="print-name-primary" lang="${primaryLanguage}">${escHtml(speciesName(sp, primaryLanguage))}</span>
+                <span class="print-name-secondary" lang="${secondaryLanguage}">${escHtml(speciesName(sp, secondaryLanguage))}</span>
               </p>
             </div>
           `;
@@ -589,11 +676,12 @@ function renderPoster() {
     return `
       <div class="poster-bird-cell ${gridSpanClass(sp)}">
         <div class="poster-bird-img-wrap">
-          <img src="${imgSrc}" alt="${escHtml(sp.name_es)}" class="${imgClass}" style="${imgStyle}">
+          <img src="${imgSrc}" alt="${escHtml(speciesName(sp, primaryLanguage))}" class="${imgClass}" style="${imgStyle}">
         </div>
         <p class="poster-bird-label">
-          <span class="poster-name-es">${escHtml(sp.name_es)}</span>
-          <span class="poster-name-fr">${escHtml(sp.name_fr)}</span>
+          <span class="poster-name-latin">${escHtml(sp.scientific_name)}</span>
+          <span class="poster-name-primary" lang="${primaryLanguage}">${escHtml(speciesName(sp, primaryLanguage))}</span>
+          <span class="poster-name-secondary" lang="${secondaryLanguage}">${escHtml(speciesName(sp, secondaryLanguage))}</span>
         </p>
       </div>
     `;
@@ -659,6 +747,8 @@ btnPosterToggleNames.addEventListener('click', togglePosterNames);
 
 window.addEventListener('popstate', e => {
   if (!catalog) return;
+  readLanguagesFromUrl();
+  syncLanguageControls();
   const place = (e.state && e.state.place) || detectPlaceFromUrl();
   if (place && catalog.places[place]) {
     currentPlace = place;
@@ -680,6 +770,9 @@ function init() {
     const dataEl = document.getElementById('catalog-data');
     if (!dataEl) throw new Error('catalog-data script tag not found — run scripts/bake.sh');
     catalog = JSON.parse(dataEl.textContent);
+    readLanguagesFromUrl();
+    syncLanguageControls();
+    replaceLanguageQuery();
 
     // Only skip the chooser if the URL already names a place (a shared link,
     // a bookmark, or coming back via browser history).
@@ -693,7 +786,7 @@ function init() {
     console.error('Failed to load catalog:', err);
     placeChooser.hidden = true;
     stageEl.hidden = false;
-    nameEs.textContent = 'Error al cargar el catálogo';
+    namePrimary.textContent = 'Error al cargar el catálogo';
     nameLatin.textContent = err.message;
   }
 }
