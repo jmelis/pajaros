@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Corvus corone",
+  "name_es": "Corneja negra",
+  "name_fr": "Corneille noire",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Corvus%20corone",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Corneja negra (imagen provisional)"
+    }
+  ]
+}

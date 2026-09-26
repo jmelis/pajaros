@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Psittacula krameri",
+  "name_es": "Cotorra de Kramer",
+  "name_fr": "Perruche à collier",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Psittacula%20krameri",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Cotorra de Kramer (imagen provisional)"
+    }
+  ]
+}

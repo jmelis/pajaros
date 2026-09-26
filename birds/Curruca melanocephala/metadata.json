@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Curruca melanocephala",
+  "name_es": "Curruca cabecinegra",
+  "name_fr": "Fauvette mélanocéphale",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Curruca%20melanocephala",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Curruca cabecinegra (imagen provisional)"
+    }
+  ]
+}

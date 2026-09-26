@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Fringilla coelebs",
+  "name_es": "Pinzón vulgar",
+  "name_fr": "Pinson des arbres",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Fringilla%20coelebs",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Pinzón vulgar (imagen provisional)"
+    }
+  ]
+}

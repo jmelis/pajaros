@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Sturnus unicolor",
+  "name_es": "Estornino negro",
+  "name_fr": "Étourneau unicolore",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Sturnus%20unicolor",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Estornino negro (imagen provisional)"
+    }
+  ]
+}

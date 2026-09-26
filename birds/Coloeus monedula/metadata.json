@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Coloeus monedula",
+  "name_es": "Grajilla occidental",
+  "name_fr": "Choucas des tours",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Coloeus%20monedula",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Grajilla occidental (imagen provisional)"
+    }
+  ]
+}

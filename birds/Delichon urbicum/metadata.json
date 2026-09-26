@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Delichon urbicum",
+  "name_es": "Avión común",
+  "name_fr": "Hirondelle de fenêtre",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Delichon%20urbicum",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Avión común (imagen provisional)"
+    }
+  ]
+}

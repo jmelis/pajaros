@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Parus major",
+  "name_es": "Carbonero común",
+  "name_fr": "Mésange charbonnière",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Parus%20major",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Carbonero común (imagen provisional)"
+    }
+  ]
+}

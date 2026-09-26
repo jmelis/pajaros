@@ -1,0 +1,16 @@
+{
+  "scientific_name": "Falco tinnunculus",
+  "name_es": "Cernícalo vulgar",
+  "name_fr": "Faucon crécerelle",
+  "poster_image": "principal.jpg",
+  "images": [
+    {
+      "file": "principal.jpg",
+      "author": "Placeholder generated locally (Wikimedia fetch unavailable)",
+      "source_url": "https://commons.wikimedia.org/wiki/Special:MediaSearch?type=image&search=Falco%20tinnunculus",
+      "license": "Unresolved due to network restrictions",
+      "license_url": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "alt_es": "Cernícalo vulgar (imagen provisional)"
+    }
+  ]
+}
