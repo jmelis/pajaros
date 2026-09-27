@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 	"time"
@@ -25,13 +26,19 @@ func TestSessionRejectsTamperedToken(t *testing.T) {
 	s, _ := newCookieSigner("test-secret")
 	token, _ := s.issueSession("google:1", time.Hour)
 
-	// Flip the last character of the HMAC portion.
-	tampered := token[:len(token)-1]
-	if strings.HasSuffix(token, "A") {
-		tampered += "B"
-	} else {
-		tampered += "A"
+	// Flip a bit in the signature bytes (not the base64 text — its last
+	// character's low bits are padding and can be changed without altering
+	// the decoded signature).
+	payloadB64, sigB64, ok := strings.Cut(token, ".")
+	if !ok {
+		t.Fatalf("token %q has no signature separator", token)
 	}
+	sig, err := base64.RawURLEncoding.DecodeString(sigB64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig[0] ^= 0x01
+	tampered := payloadB64 + "." + base64.RawURLEncoding.EncodeToString(sig)
 	if _, ok := s.verifySession(tampered); ok {
 		t.Fatal("verifySession accepted a tampered signature")
 	}

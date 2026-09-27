@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -227,6 +228,69 @@ func TestLogoutClearsSessionCookie(t *testing.T) {
 	}
 	if cleared.MaxAge >= 0 || cleared.Value != "" {
 		t.Errorf("logout cookie not expired: %+v", cleared)
+	}
+}
+
+func TestLogoutMakesNextRequestUnauthenticated(t *testing.T) {
+	a := newTestAuth(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /auth/logout", a.handleLogout)
+	mux.Handle("/", a.require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})))
+	srv := httptest.NewTLSServer(mux)
+	defer srv.Close()
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := srv.Client()
+	client.Jar = jar
+	// Observe redirects rather than following them, so the post-logout 302 is
+	// visible and the test doesn't chase /login.
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	base, _ := url.Parse(srv.URL)
+
+	token, err := a.signer.issueSession("google:1", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jar.SetCookies(base, []*http.Cookie{{Name: sessionCookieName, Value: token, Path: "/"}})
+
+	resp, err := client.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("authenticated request = %d, want 200", resp.StatusCode)
+	}
+
+	logoutReq, err := http.NewRequest(http.MethodPost, srv.URL+"/auth/logout", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logoutResp, err := client.Do(logoutReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logoutResp.Body.Close()
+
+	// The jar dropped the cleared session cookie, so the next request must be
+	// treated as unauthenticated.
+	next, err := client.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	next.Body.Close()
+	if next.StatusCode != http.StatusFound {
+		t.Fatalf("request after logout = %d, want 302", next.StatusCode)
+	}
+	if loc := next.Header.Get("Location"); !strings.HasPrefix(loc, "/login") {
+		t.Fatalf("request after logout redirected to %q, want /login", loc)
 	}
 }
 
