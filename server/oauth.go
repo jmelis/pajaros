@@ -25,7 +25,9 @@ type oauthProvider interface {
 	name() string
 	displayName() string
 	// configured reports whether enough env vars are present to offer this
-	// provider. Unconfigured providers are shown disabled, never fatal.
+	// provider. Only enabled providers reach the login page or routes, so an
+	// unconfigured provider here is a startup error, not a disabled button;
+	// see newAuth.
 	configured() bool
 	// authCodeURL builds the provider's authorization redirect. verifier is
 	// the PKCE code verifier ("" if the provider doesn't support PKCE).
@@ -36,10 +38,17 @@ type oauthProvider interface {
 	verifyIDToken(ctx context.Context, rawIDToken, nonce string) (*idTokenClaims, error)
 }
 
-// oauthEnv is the OAuth configuration read from the environment. Every field
-// is optional: the server must start (and the login gate must stay closed)
-// with none of it set.
+// oauthEnv is the OAuth configuration read from the environment. Credentials
+// are only ever used for a provider whose enable flag is truthy; with neither
+// flag set the server starts with no login gate at all (see newAuth). The
+// server must start with none of it set.
 type oauthEnv struct {
+	// googleEnabled / appleEnabled are the explicit GOOGLE_AUTH_ENABLED /
+	// APPLE_AUTH_ENABLED flags. Credentials being present no longer turns a
+	// provider on by itself; the flag must say so.
+	googleEnabled bool
+	appleEnabled  bool
+
 	// RedirectBase is the externally reachable base URL of this server, e.g.
 	// "https://pajaros.example.com". Callback URLs are derived from it.
 	redirectBase string
@@ -55,6 +64,8 @@ type oauthEnv struct {
 
 func loadOAuthEnv() oauthEnv {
 	return oauthEnv{
+		googleEnabled:      envTruthy(os.Getenv("GOOGLE_AUTH_ENABLED")),
+		appleEnabled:       envTruthy(os.Getenv("APPLE_AUTH_ENABLED")),
 		redirectBase:       os.Getenv("OAUTH_REDIRECT_BASE_URL"),
 		googleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		googleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
@@ -63,6 +74,57 @@ func loadOAuthEnv() oauthEnv {
 		appleKeyID:         os.Getenv("APPLE_KEY_ID"),
 		applePrivateKey:    os.Getenv("APPLE_PRIVATE_KEY"),
 	}
+}
+
+// envTruthy reports whether an environment variable counts as "on". Only a
+// recognized truthy value enables a feature; unset, empty, or anything else
+// (including "false" and "0") leaves it off.
+func envTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+// missingGoogleVars lists the env var names a Google-enabled server still
+// needs. Used to name exactly what's missing in the fatal startup error.
+func (env oauthEnv) missingGoogleVars() []string {
+	var missing []string
+	if env.googleClientID == "" {
+		missing = append(missing, "GOOGLE_CLIENT_ID")
+	}
+	if env.googleClientSecret == "" {
+		missing = append(missing, "GOOGLE_CLIENT_SECRET")
+	}
+	if env.redirectBase == "" {
+		missing = append(missing, "OAUTH_REDIRECT_BASE_URL")
+	}
+	return missing
+}
+
+// missingAppleVars lists the env var names an Apple-enabled server still
+// needs. A malformed APPLE_PRIVATE_KEY is reported separately by
+// newAppleProvider.
+func (env oauthEnv) missingAppleVars() []string {
+	var missing []string
+	if env.appleTeamID == "" {
+		missing = append(missing, "APPLE_TEAM_ID")
+	}
+	if env.appleServicesID == "" {
+		missing = append(missing, "APPLE_SERVICES_ID")
+	}
+	if env.appleKeyID == "" {
+		missing = append(missing, "APPLE_KEY_ID")
+	}
+	if env.applePrivateKey == "" {
+		missing = append(missing, "APPLE_PRIVATE_KEY")
+	}
+	if env.redirectBase == "" {
+		missing = append(missing, "OAUTH_REDIRECT_BASE_URL")
+	}
+	return missing
 }
 
 // -- Google ------------------------------------------------------------------
@@ -273,7 +335,7 @@ func logConfiguredProviders(providers []oauthProvider) {
 		}
 	}
 	if len(enabled) == 0 {
-		log.Printf("no OAuth providers configured — login page will show disabled buttons")
+		log.Printf("no OAuth providers enabled")
 		return
 	}
 	log.Printf("OAuth providers enabled: %s", strings.Join(enabled, ", "))

@@ -29,6 +29,18 @@ const (
 // authenticated user's stable id.
 type userContextKey struct{}
 
+// devAccountID is the single fixed account every request acts as when the
+// server runs with no enabled sign-in provider (open/development mode). It is
+// created at startup so the account-preference routes (/api/me and friends)
+// work without any OAuth credentials.
+const devAccountID = "dev:local"
+
+// devAccountProvider/Subject back devAccountID via UserStore.Upsert.
+const (
+	devAccountProvider = "dev"
+	devAccountSubject  = "local"
+)
+
 // Auth owns the login gate: the session cookie signer, the persisted user
 // store, and the configured OAuth providers.
 type Auth struct {
@@ -39,17 +51,34 @@ type Auth struct {
 	loginTmpl *template.Template
 }
 
+// newAuth builds the login gate from the environment. A provider is included
+// only when its enable flag is truthy and its credentials are complete; an
+// enabled-but-incomplete provider is a fatal configuration error. With no
+// enabled provider the returned Auth runs in open mode (see gate).
 func newAuth(env oauthEnv, users *UserStore, signer *cookieSigner) (*Auth, error) {
-	apple, err := newAppleProvider(env)
-	if err != nil {
-		// Apple's misconfiguration is only fatal for Apple; Google and the
-		// login gate must still work.
-		log.Printf("Sign in with Apple disabled: %v", err)
+	var providers []oauthProvider
+	if env.googleEnabled {
+		p := newGoogleProvider(env)
+		if !p.configured() {
+			return nil, fmt.Errorf(
+				"GOOGLE_AUTH_ENABLED is set but Google sign-in is missing required configuration: %s",
+				strings.Join(env.missingGoogleVars(), ", "))
+		}
+		providers = append(providers, p)
 	}
-	providers := []oauthProvider{
-		newGoogleProvider(env),
-		apple,
+	if env.appleEnabled {
+		p, err := newAppleProvider(env)
+		if err != nil {
+			return nil, fmt.Errorf("APPLE_AUTH_ENABLED is set but Apple sign-in is misconfigured: %w", err)
+		}
+		if !p.configured() {
+			return nil, fmt.Errorf(
+				"APPLE_AUTH_ENABLED is set but Apple sign-in is missing required configuration: %s",
+				strings.Join(env.missingAppleVars(), ", "))
+		}
+		providers = append(providers, p)
 	}
+
 	byName := make(map[string]oauthProvider, len(providers))
 	for _, p := range providers {
 		byName[p.name()] = p
@@ -59,13 +88,39 @@ func newAuth(env oauthEnv, users *UserStore, signer *cookieSigner) (*Auth, error
 	if err != nil {
 		return nil, fmt.Errorf("parse login template: %w", err)
 	}
-	return &Auth{
+	a := &Auth{
 		signer:    signer,
 		users:     users,
 		providers: providers,
 		byName:    byName,
 		loginTmpl: tmpl,
-	}, nil
+	}
+
+	// Open mode has no real login, so seed the fixed development account the
+	// preference routes will act as.
+	if a.openMode() {
+		if _, err := users.Upsert(devAccountProvider, devAccountSubject, "", "Development account"); err != nil {
+			return nil, fmt.Errorf("create development account: %w", err)
+		}
+	}
+	return a, nil
+}
+
+// openMode reports whether the login gate is removed entirely, which is the
+// case exactly when no sign-in provider is enabled.
+func (a *Auth) openMode() bool { return len(a.providers) == 0 }
+
+// gate is the handler every app route goes through. With a provider enabled it
+// is the login gate (require); in open mode it attaches the fixed development
+// account and lets every request through.
+func (a *Auth) gate(next http.Handler) http.Handler {
+	if !a.openMode() {
+		return a.require(next)
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), userContextKey{}, devAccountID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // require wraps every protected route. A request with a valid session cookie

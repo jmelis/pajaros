@@ -16,8 +16,9 @@ import (
 // force a meaningful amount of fresh upstream traffic.
 //
 // Keys are authenticated account ids for the hotspot endpoints (see
-// accountKey and auth.go) and source IPs for the pre-login OAuth endpoints,
-// where no account exists yet.
+// hotspotRateLimitKey and auth.go) and source IPs for the pre-login OAuth
+// endpoints, where no account exists yet. In open mode (no login gate) the
+// hotspot endpoints fall back to source IPs too.
 //
 // Deliberately not one goroutine-per-key like rateLimiter in ratelimit.go —
 // with potentially thousands of distinct keys that doesn't scale. Each bucket
@@ -111,6 +112,18 @@ func (l *keyedRateLimiter) middleware(keyFn func(*http.Request) string, next htt
 // collectively, which is a safe fallback rather than an open door.
 func accountKey(r *http.Request) string {
 	return userIDFromContext(r)
+}
+
+// hotspotRateLimitKey returns the keyFn for the hotspot endpoints. With the
+// login gate active those endpoints are keyed by account id; in open mode
+// there is no account, so they fall back to the client IP — the same keying
+// the pre-login /auth/* endpoints use. Keying on the fixed development
+// account instead would collapse every client into one bucket.
+func hotspotRateLimitKey(openMode bool) func(*http.Request) string {
+	if openMode {
+		return clientIP
+	}
+	return accountKey
 }
 
 // clientIP returns the request's source IP. Only RemoteAddr is trusted —

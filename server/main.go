@@ -53,8 +53,7 @@ const defaultLang = "es"
 //   PORT, HOST  listen address (default "8080" / "0.0.0.0").
 //   WIKIMEDIA_RPS, EBIRD_RPS, GBIF_RPS  global upstream rate limits.
 //
-// Authentication (all optional; the server starts fine without any of them,
-// but nothing can be reached until at least one provider is configured):
+// Authentication (all optional; the server starts fine without any of them):
 //   SESSION_SECRET  HMAC key for signing session cookies. If unset, a random
 //                   key is generated at startup, so sessions don't survive a
 //                   restart. Set a stable random value in production.
@@ -62,7 +61,21 @@ const defaultLang = "es"
 //                 preferences (default "./users.db"). Created automatically,
 //                 including its parent directory, on first startup.
 //
-// Sign in with Google (needs all three):
+// Each sign-in provider is turned on explicitly with its own flag:
+//   GOOGLE_AUTH_ENABLED  truthy to offer "Sign in with Google".
+//   APPLE_AUTH_ENABLED   truthy to offer "Sign in with Apple".
+// Truthy means "1", "true", "yes", or "on" (case-insensitive); unset, empty,
+// or anything else leaves that provider off, even if its credentials below are
+// present. Setting a flag without that provider's complete credentials is a
+// fatal startup error naming what's missing.
+//
+// With neither flag set, authentication is disabled entirely: every route
+// (frontend and API) is reachable with no session, and every request acts as a
+// single fixed development account ("dev:local") so the account-preference
+// routes still work. This is meant for local development only — set a flag (or
+// both) before deploying anywhere real.
+//
+// Google credentials (needed when GOOGLE_AUTH_ENABLED is truthy):
 //   GOOGLE_CLIENT_ID
 //   GOOGLE_CLIENT_SECRET
 //   OAUTH_REDIRECT_BASE_URL  externally reachable base URL of this server,
@@ -70,16 +83,13 @@ const defaultLang = "es"
 //                            are <base>/auth/google/callback and
 //                            <base>/auth/apple/callback.
 //
-// Sign in with Apple (needs all six):
+// Apple credentials (needed when APPLE_AUTH_ENABLED is truthy):
 //   APPLE_TEAM_ID      Apple Developer Team ID.
 //   APPLE_SERVICES_ID  Services ID (the OAuth client id).
 //   APPLE_KEY_ID       Key ID of the Sign in with Apple private key.
 //   APPLE_PRIVATE_KEY  contents of the .p8 private key (PEM). Literal "\n"
 //                      escapes are accepted for env-var friendliness.
 //   OAUTH_REDIRECT_BASE_URL  as above.
-//
-// A provider with any required value missing is simply not offered (its login
-// button is rendered disabled); it never prevents startup or panics.
 
 type SpeciesCard struct {
 	SpeciesCode string `json:"speciesCode"`
@@ -155,8 +165,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Authentication. Everything below the top-level login/callback routes is
-	// gated by auth.require; see the environment-variable block above.
+	// Authentication. In open mode (no provider enabled) every route below is
+	// reachable without a session; otherwise the built mux gates them. See the
+	// environment-variable block above.
 	signer, err := newCookieSigner(os.Getenv("SESSION_SECRET"))
 	if err != nil {
 		log.Fatal(err)
@@ -165,8 +176,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	logConfiguredProviders(auth.providers)
-	if os.Getenv("SESSION_SECRET") == "" {
+	if auth.openMode() {
+		log.Printf("WARNING: authentication is disabled — running in open/development mode; every route is reachable without signing in")
+	} else {
+		logConfiguredProviders(auth.providers)
+	}
+	if os.Getenv("SESSION_SECRET") == "" && !auth.openMode() {
 		log.Printf("SESSION_SECRET not set — sessions will not survive a restart")
 	}
 
@@ -177,17 +192,23 @@ func main() {
 	// (and, via popularity mode, GBIF) on a cache miss, so they get the
 	// tighter limit; the hotspot search is a single eBird call per request
 	// regardless of how many hotspots come back, so it gets a looser one.
+	//
+	// The key is the account id when the login gate is active. In open mode
+	// there is no account, so it falls back to the client IP instead of the
+	// single fixed development account, which would rate-limit everyone
+	// collectively.
 	hotspotDetailLimiter := newKeyedRateLimiter(20, 10) // burst 20, 10/min sustained
 	hotspotSearchLimiter := newKeyedRateLimiter(20, 20) // burst 20, 20/min sustained
+	hotspotKey := hotspotRateLimitKey(auth.openMode())
 
 	// The login/callback endpoints run before an account exists, so they keep
 	// an IP-keyed limit of their own.
 	authLimiter := newIPRateLimiter(30, 30)
 
 	appMux := http.NewServeMux()
-	appMux.HandleFunc("GET /api/hotspots", hotspotSearchLimiter.middleware(accountKey, srv.handleNearbyHotspots))
-	appMux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(accountKey, srv.handleHotspotInfo))
-	appMux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(accountKey, srv.handleHotspotSpecies))
+	appMux.HandleFunc("GET /api/hotspots", hotspotSearchLimiter.middleware(hotspotKey, srv.handleNearbyHotspots))
+	appMux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotInfo))
+	appMux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotSpecies))
 
 	// Per-account preferences. These touch only the local database, so unlike
 	// the hotspot routes they need no upstream-keyed rate limit.
@@ -201,20 +222,35 @@ func main() {
 	appMux.Handle("GET /images/", http.StripPrefix("/images/", http.FileServer(http.Dir(cacheDir))))
 	appMux.Handle("GET /", http.FileServerFS(staticFS))
 
-	// Public routes: the login page and the OAuth endpoints themselves.
-	// Everything else falls through "/" to the auth-gated appMux.
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /login", auth.handleLoginPage)
-	mux.HandleFunc("GET /auth/google", authLimiter.middleware(clientIP, auth.handleOAuthStart(auth.byName["google"])))
-	mux.HandleFunc("GET /auth/google/callback", authLimiter.middleware(clientIP, auth.handleOAuthCallback(auth.byName["google"])))
-	mux.HandleFunc("GET /auth/apple", authLimiter.middleware(clientIP, auth.handleOAuthStart(auth.byName["apple"])))
-	mux.HandleFunc("POST /auth/apple/callback", authLimiter.middleware(clientIP, auth.handleOAuthCallback(auth.byName["apple"])))
-	mux.HandleFunc("POST /auth/logout", auth.handleLogout)
-	mux.Handle("/", auth.require(appMux))
+	mux := buildRootMux(auth, appMux, authLimiter)
 
 	addr := host + ":" + port
 	log.Printf("listening on %s (cache dir: %s, user db: %s)", addr, cacheDir, dbPath)
 	log.Fatal(http.ListenAndServe(addr, mux))
+}
+
+// buildRootMux assembles the top-level handler: the public login page and
+// OAuth routes (registered only for enabled providers) and the app mux behind
+// the login gate. In open mode there is no gate and no login route is
+// registered, so a request to /login falls through to the app's 404.
+func buildRootMux(auth *Auth, appMux http.Handler, authLimiter *keyedRateLimiter) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle("/", auth.gate(appMux))
+	if auth.openMode() {
+		return mux
+	}
+
+	mux.HandleFunc("GET /login", auth.handleLoginPage)
+	mux.HandleFunc("POST /auth/logout", auth.handleLogout)
+	if p, ok := auth.byName["google"]; ok {
+		mux.HandleFunc("GET /auth/google", authLimiter.middleware(clientIP, auth.handleOAuthStart(p)))
+		mux.HandleFunc("GET /auth/google/callback", authLimiter.middleware(clientIP, auth.handleOAuthCallback(p)))
+	}
+	if p, ok := auth.byName["apple"]; ok {
+		mux.HandleFunc("GET /auth/apple", authLimiter.middleware(clientIP, auth.handleOAuthStart(p)))
+		mux.HandleFunc("POST /auth/apple/callback", authLimiter.middleware(clientIP, auth.handleOAuthCallback(p)))
+	}
+	return mux
 }
 
 func (s *Server) handleNearbyHotspots(w http.ResponseWriter, r *http.Request) {
