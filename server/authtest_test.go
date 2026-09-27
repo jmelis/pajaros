@@ -15,6 +15,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 )
 
@@ -94,7 +95,7 @@ func testECKeyPEM(t *testing.T) string {
 
 func newTestAuth(t *testing.T, providers ...oauthProvider) *Auth {
 	t.Helper()
-	users, err := NewUserStore(t.TempDir())
+	users, err := NewUserStore(filepath.Join(t.TempDir(), "users.db"))
 	if err != nil {
 		t.Fatalf("NewUserStore: %v", err)
 	}

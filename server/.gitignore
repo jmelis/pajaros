@@ -1,4 +1,6 @@
 /cache/
 /users/
+/users.db
+/users.db-*
 /pajaros-server
 /server

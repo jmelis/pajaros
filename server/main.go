@@ -20,6 +20,7 @@ type Server struct {
 	ebirdCache *EbirdCache
 	cache      *ImageCache
 	gbif       *GBIFCache
+	users      *UserStore
 }
 
 // validLocID matches eBird's hotspot location ID format (e.g. "L99381"). It
@@ -35,6 +36,11 @@ var validLocID = regexp.MustCompile(`^L\d+$`).MatchString
 // of the species cache key, so an attacker sending a new lang value on every
 // request would otherwise force a fresh eBird fetch every time.
 var validLang = map[string]bool{"es": true, "fr": true, "en": true}
+
+// defaultLang is the bird-name language used when neither the request nor the
+// account's stored preference selects one. Kept next to validLang so the
+// species endpoint and the store agree on what an unset preference means.
+const defaultLang = "es"
 
 // Environment variables
 // =====================
@@ -52,8 +58,9 @@ var validLang = map[string]bool{"es": true, "fr": true, "en": true}
 //   SESSION_SECRET  HMAC key for signing session cookies. If unset, a random
 //                   key is generated at startup, so sessions don't survive a
 //                   restart. Set a stable random value in production.
-//   USER_STORE_DIR  directory for the one-JSON-file-per-user store
-//                   (default "./users").
+//   USER_DB_PATH  path to the SQLite database holding users and their
+//                 preferences (default "./users.db"). Created automatically,
+//                 including its parent directory, on first startup.
 //
 // Sign in with Google (needs all three):
 //   GOOGLE_CLIENT_ID
@@ -123,11 +130,24 @@ func main() {
 		log.Fatalf("cache dir %q: %v", cacheDir, err)
 	}
 
+	// Persistence for user identity and preferences. The SQLite database is
+	// created, schema included, on first startup; see USER_DB_PATH above.
+	dbPath := os.Getenv("USER_DB_PATH")
+	if dbPath == "" {
+		dbPath = "./users.db"
+	}
+	users, err := NewUserStore(dbPath)
+	if err != nil {
+		log.Fatalf("user database %q: %v", dbPath, err)
+	}
+	defer users.Close()
+
 	srv := &Server{
 		ebird:      ebirdClient,
 		ebirdCache: ebirdCache,
 		cache:      cache,
 		gbif:       gbifCache,
+		users:      users,
 	}
 
 	staticFS, err := fs.Sub(embeddedStatic, "static")
@@ -137,14 +157,6 @@ func main() {
 
 	// Authentication. Everything below the top-level login/callback routes is
 	// gated by auth.require; see the environment-variable block above.
-	userDir := os.Getenv("USER_STORE_DIR")
-	if userDir == "" {
-		userDir = "./users"
-	}
-	users, err := NewUserStore(userDir)
-	if err != nil {
-		log.Fatalf("user store dir %q: %v", userDir, err)
-	}
 	signer, err := newCookieSigner(os.Getenv("SESSION_SECRET"))
 	if err != nil {
 		log.Fatal(err)
@@ -176,6 +188,16 @@ func main() {
 	appMux.HandleFunc("GET /api/hotspots", hotspotSearchLimiter.middleware(accountKey, srv.handleNearbyHotspots))
 	appMux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(accountKey, srv.handleHotspotInfo))
 	appMux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(accountKey, srv.handleHotspotSpecies))
+
+	// Per-account preferences. These touch only the local database, so unlike
+	// the hotspot routes they need no upstream-keyed rate limit.
+	appMux.HandleFunc("GET /api/me", srv.handleGetProfile)
+	appMux.HandleFunc("GET /api/me/language", srv.handleGetLanguage)
+	appMux.HandleFunc("PUT /api/me/language", srv.handleSetLanguage)
+	appMux.HandleFunc("GET /api/me/favorites", srv.handleListFavorites)
+	appMux.HandleFunc("PUT /api/me/favorites/{locId}", srv.handleAddFavorite)
+	appMux.HandleFunc("DELETE /api/me/favorites/{locId}", srv.handleRemoveFavorite)
+
 	appMux.Handle("GET /images/", http.StripPrefix("/images/", http.FileServer(http.Dir(cacheDir))))
 	appMux.Handle("GET /", http.FileServerFS(staticFS))
 
@@ -191,7 +213,7 @@ func main() {
 	mux.Handle("/", auth.require(appMux))
 
 	addr := host + ":" + port
-	log.Printf("listening on %s (cache dir: %s, user dir: %s)", addr, cacheDir, userDir)
+	log.Printf("listening on %s (cache dir: %s, user db: %s)", addr, cacheDir, dbPath)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
@@ -241,7 +263,17 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 	}
 	lang := r.URL.Query().Get("lang")
 	if lang == "" {
-		lang = "es"
+		// No explicit language: fall back to the account's stored preference,
+		// then to the app default. An explicit (even invalid) query value is
+		// still validated strictly below.
+		if pref, ok, err := s.users.PreferredLanguage(userIDFromContext(r)); err != nil {
+			log.Printf("PreferredLanguage(%s): %v", userIDFromContext(r), err)
+		} else if ok && validLang[pref] {
+			lang = pref
+		}
+	}
+	if lang == "" {
+		lang = defaultLang
 	}
 	if !validLang[lang] {
 		http.Error(w, "unsupported lang", http.StatusBadRequest)
