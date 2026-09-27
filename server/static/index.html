@@ -26,6 +26,7 @@
 </style>
 </head>
 <body>
+<p id="authbar" style="text-align:right; margin:0 0 -1rem;"><button id="logoutBtn" type="button">Sign out</button></p>
 <h1>pajaros — dev test page</h1>
 
 <fieldset>
@@ -291,6 +292,11 @@ for (const radio of document.querySelectorAll('input[name="mode"]')) {
 }
 
 $("findHotspots").addEventListener("click", findHotspots);
+
+$("logoutBtn").addEventListener("click", async () => {
+  await fetch("/auth/logout", { method: "POST" });
+  window.location = "/login";
+});
 
 $("searchHere").addEventListener("click", () => {
   const center = map.getCenter();

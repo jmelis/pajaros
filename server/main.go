@@ -36,6 +36,44 @@ var validLocID = regexp.MustCompile(`^L\d+$`).MatchString
 // request would otherwise force a fresh eBird fetch every time.
 var validLang = map[string]bool{"es": true, "fr": true, "en": true}
 
+// Environment variables
+// =====================
+//
+// Required:
+//   EBIRD_API_KEY  eBird API key (existing requirement).
+//
+// Optional (existing):
+//   CACHE_DIR  on-disk upstream/image cache (default "./cache").
+//   PORT, HOST  listen address (default "8080" / "0.0.0.0").
+//   WIKIMEDIA_RPS, EBIRD_RPS, GBIF_RPS  global upstream rate limits.
+//
+// Authentication (all optional; the server starts fine without any of them,
+// but nothing can be reached until at least one provider is configured):
+//   SESSION_SECRET  HMAC key for signing session cookies. If unset, a random
+//                   key is generated at startup, so sessions don't survive a
+//                   restart. Set a stable random value in production.
+//   USER_STORE_DIR  directory for the one-JSON-file-per-user store
+//                   (default "./users").
+//
+// Sign in with Google (needs all three):
+//   GOOGLE_CLIENT_ID
+//   GOOGLE_CLIENT_SECRET
+//   OAUTH_REDIRECT_BASE_URL  externally reachable base URL of this server,
+//                            e.g. "https://pajaros.example.com". Callback URLs
+//                            are <base>/auth/google/callback and
+//                            <base>/auth/apple/callback.
+//
+// Sign in with Apple (needs all six):
+//   APPLE_TEAM_ID      Apple Developer Team ID.
+//   APPLE_SERVICES_ID  Services ID (the OAuth client id).
+//   APPLE_KEY_ID       Key ID of the Sign in with Apple private key.
+//   APPLE_PRIVATE_KEY  contents of the .p8 private key (PEM). Literal "\n"
+//                      escapes are accepted for env-var friendliness.
+//   OAUTH_REDIRECT_BASE_URL  as above.
+//
+// A provider with any required value missing is simply not offered (its login
+// button is rendered disabled); it never prevents startup or panics.
+
 type SpeciesCard struct {
 	SpeciesCode string `json:"speciesCode"`
 	SciName     string `json:"sciName"`
@@ -97,25 +135,63 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Per-IP limits, independent of the global upstream limiters in
+	// Authentication. Everything below the top-level login/callback routes is
+	// gated by auth.require; see the environment-variable block above.
+	userDir := os.Getenv("USER_STORE_DIR")
+	if userDir == "" {
+		userDir = "./users"
+	}
+	users, err := NewUserStore(userDir)
+	if err != nil {
+		log.Fatalf("user store dir %q: %v", userDir, err)
+	}
+	signer, err := newCookieSigner(os.Getenv("SESSION_SECRET"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	auth, err := newAuth(loadOAuthEnv(), users, signer)
+	if err != nil {
+		log.Fatal(err)
+	}
+	logConfiguredProviders(auth.providers)
+	if os.Getenv("SESSION_SECRET") == "" {
+		log.Printf("SESSION_SECRET not set — sessions will not survive a restart")
+	}
+
+	// Per-account limits, independent of the global upstream limiters in
 	// ratelimit.go: those cap our total outbound rate across every client,
-	// these cap how much of that shared budget one IP can burn through.
+	// these cap how much of that shared budget one account can burn through.
 	// Detail views (info + species) are the ones that can fan out to eBird
 	// (and, via popularity mode, GBIF) on a cache miss, so they get the
 	// tighter limit; the hotspot search is a single eBird call per request
 	// regardless of how many hotspots come back, so it gets a looser one.
-	hotspotDetailLimiter := newIPRateLimiter(20, 10) // burst 20, 10/min sustained
-	hotspotSearchLimiter := newIPRateLimiter(20, 20) // burst 20, 20/min sustained
+	hotspotDetailLimiter := newKeyedRateLimiter(20, 10) // burst 20, 10/min sustained
+	hotspotSearchLimiter := newKeyedRateLimiter(20, 20) // burst 20, 20/min sustained
 
+	// The login/callback endpoints run before an account exists, so they keep
+	// an IP-keyed limit of their own.
+	authLimiter := newIPRateLimiter(30, 30)
+
+	appMux := http.NewServeMux()
+	appMux.HandleFunc("GET /api/hotspots", hotspotSearchLimiter.middleware(accountKey, srv.handleNearbyHotspots))
+	appMux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(accountKey, srv.handleHotspotInfo))
+	appMux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(accountKey, srv.handleHotspotSpecies))
+	appMux.Handle("GET /images/", http.StripPrefix("/images/", http.FileServer(http.Dir(cacheDir))))
+	appMux.Handle("GET /", http.FileServerFS(staticFS))
+
+	// Public routes: the login page and the OAuth endpoints themselves.
+	// Everything else falls through "/" to the auth-gated appMux.
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/hotspots", hotspotSearchLimiter.middleware(srv.handleNearbyHotspots))
-	mux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(srv.handleHotspotInfo))
-	mux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(srv.handleHotspotSpecies))
-	mux.Handle("GET /images/", http.StripPrefix("/images/", http.FileServer(http.Dir(cacheDir))))
-	mux.Handle("GET /", http.FileServerFS(staticFS))
+	mux.HandleFunc("GET /login", auth.handleLoginPage)
+	mux.HandleFunc("GET /auth/google", authLimiter.middleware(clientIP, auth.handleOAuthStart(auth.byName["google"])))
+	mux.HandleFunc("GET /auth/google/callback", authLimiter.middleware(clientIP, auth.handleOAuthCallback(auth.byName["google"])))
+	mux.HandleFunc("GET /auth/apple", authLimiter.middleware(clientIP, auth.handleOAuthStart(auth.byName["apple"])))
+	mux.HandleFunc("POST /auth/apple/callback", authLimiter.middleware(clientIP, auth.handleOAuthCallback(auth.byName["apple"])))
+	mux.HandleFunc("POST /auth/logout", auth.handleLogout)
+	mux.Handle("/", auth.require(appMux))
 
 	addr := host + ":" + port
-	log.Printf("listening on %s (cache dir: %s)", addr, cacheDir)
+	log.Printf("listening on %s (cache dir: %s, user dir: %s)", addr, cacheDir, userDir)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 

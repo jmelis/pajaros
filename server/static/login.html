@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — pajaros</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 22rem; margin: 4rem auto; padding: 0 1rem; text-align: center; }
+  h1 { font-size: 1.4rem; }
+  .provider { display: block; width: 100%; box-sizing: border-box; margin: 0.6rem 0; padding: 0.7rem 1rem;
+              border-radius: 8px; border: 1px solid #ccc; background: #fff; color: #222;
+              font-size: 1rem; text-decoration: none; cursor: pointer; }
+  .provider:hover:not(:disabled) { background: #f2f2f2; }
+  .provider:disabled { color: #999; cursor: not-allowed; }
+  .note { color: #888; font-size: 0.85em; }
+  .error { color: #b00020; }
+</style>
+</head>
+<body>
+<h1>pajaros</h1>
+<p>Sign in to continue.</p>
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+{{range .Providers}}
+  {{if .Disabled}}
+    <button class="provider" type="button" disabled title="Not configured on this server">Sign in with {{.DisplayName}} (unavailable)</button>
+  {{else}}
+    <a class="provider" href="{{.URL}}">Sign in with {{.DisplayName}}</a>
+  {{end}}
+{{else}}
+  <p class="note">No sign-in providers are configured on this server.</p>
+{{end}}
+</body>
+</html>
