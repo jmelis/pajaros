@@ -244,6 +244,148 @@
     #map { height: 300px; }
     .brand .tagline { display: none; }
   }
+
+  /* Secondary-language subtitle under species names */
+  .card .sub { color: var(--accent-dark); font-size: 0.78rem; font-weight: 600; }
+
+  /* Quiz entry point */
+  .quiz-bar { margin-top: var(--space-2); }
+  .quiz-size { max-width: 120px; }
+
+  /* Overlays (settings + quiz) */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3);
+    background: rgba(20, 28, 24, 0.55);
+  }
+  .overlay[hidden] { display: none; }
+  .overlay-panel {
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow: auto;
+    padding: var(--space-3);
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  .overlay-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+  }
+  .overlay-head h2 { margin: 0; font-size: 1.1rem; }
+  .settings-body { display: flex; flex-direction: column; gap: var(--space-2); }
+  .settings-modes { margin: 0; padding: 0; border: 0; }
+  .settings-modes legend {
+    margin-bottom: 6px;
+    padding: 0;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .settings-stats { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+  .settings-stats .stat {
+    padding: 8px 12px;
+    background: var(--accent-soft);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+  }
+
+  /* Quiz screen */
+  .quiz-overlay {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 0;
+    background: var(--surface);
+  }
+  .quiz-top {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border);
+  }
+  .quiz-progress { font-weight: 700; }
+  .quiz-stars { font-weight: 700; color: #b8860b; }
+  #quizClose { margin-left: auto; }
+  .quiz-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    overflow: auto;
+  }
+  .quiz-image {
+    width: min(100%, 520px);
+    max-height: 46vh;
+    object-fit: contain;
+    background: #eee;
+    border-radius: var(--radius);
+  }
+  .quiz-prompt { margin: 0; font-weight: 700; }
+  .quiz-choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-1);
+    width: min(100%, 640px);
+  }
+  .quiz-choice { width: 100%; padding: 14px; font-size: 1rem; }
+  .quiz-reveal { text-align: center; }
+  .quiz-reveal-name { font-size: 1.4rem; font-weight: 700; }
+  .quiz-reveal-sub { color: var(--accent-dark); font-weight: 600; }
+  .quiz-reveal-sci { color: var(--muted); font-style: italic; }
+  .quiz-grade { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); }
+  .quiz-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    text-align: center;
+  }
+  .quiz-score { margin: 0; font-size: 1.2rem; font-weight: 700; }
+
+  /* Kid mode: warmer palette, larger targets, reward flourishes. Mechanics
+     and difficulty are identical to standard mode. */
+  body.kid-mode {
+    --bg: #fff8e8;
+    --surface: #fffdf7;
+    --text: #3a2a12;
+    --muted: #8a7350;
+    --accent: #ef8a17;
+    --accent-dark: #c96f08;
+    --accent-soft: #fdf0d8;
+    --border: #f0dfc0;
+  }
+  body.kid-mode .btn { font-size: 1.05rem; padding: 13px 20px; }
+  body.kid-mode .quiz-choice { font-size: 1.15rem; padding: 18px; }
+  body.kid-mode .quiz-image { border-radius: 20px; }
+  .star-burst {
+    position: fixed;
+    top: 42%;
+    left: 50%;
+    z-index: 1200;
+    color: #f2a516;
+    font-size: 5rem;
+    pointer-events: none;
+    animation: star-pop 900ms ease-out forwards;
+  }
+  @keyframes star-pop {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(-20deg); }
+    30% { opacity: 1; transform: translate(-50%, -50%) scale(1.3) rotate(10deg); }
+    100% { opacity: 0; transform: translate(-50%, -90%) scale(1.6) rotate(0); }
+  }
 </style>
 </head>
 <body>
@@ -252,7 +394,7 @@
     <h1>pajaros</h1>
     <span class="tagline">field guide</span>
   </div>
-  <button id="logoutBtn" class="btn btn-secondary btn-sm" type="button">Sign out</button>
+  <button id="settingsBtn" class="btn btn-secondary btn-sm" type="button" aria-label="Settings" title="Settings">⚙</button>
 </header>
 
 <main class="container">
@@ -265,13 +407,6 @@
     <div class="field-grid">
       <label class="field"><span>Latitude</span><input id="lat" type="number" step="any" value="50.8503"></label>
       <label class="field"><span>Longitude</span><input id="lng" type="number" step="any" value="4.3517"></label>
-      <label class="field"><span>Language</span>
-        <select id="lang">
-          <option value="es" selected>es</option>
-          <option value="fr">fr</option>
-          <option value="en">en</option>
-        </select>
-      </label>
     </div>
     <p class="hint">Location access requires HTTPS or localhost — it will fail over plain http from another device.</p>
   </section>
@@ -289,11 +424,71 @@
       <label><input type="radio" name="mode" value="category"><span>Category</span></label>
       <label><input type="radio" name="mode" value="alphabetical"><span>Alphabetical</span></label>
     </div>
+    <div id="quizBar" class="actions quiz-bar" hidden>
+      <label class="field quiz-size"><span>Quiz size</span>
+        <select id="quizCount">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="15">15</option>
+          <option value="20">20</option>
+          <option value="all">all</option>
+        </select>
+      </label>
+      <button id="quizStart" class="btn btn-primary" type="button">Quiz me on these birds</button>
+    </div>
     <p id="status">Click a hotspot marker on the map to load its species.</p>
   </section>
 
   <div id="groups"></div>
 </main>
+
+<div id="settingsOverlay" class="overlay" hidden>
+  <div class="overlay-panel settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="overlay-head">
+      <h2 id="settingsTitle">Settings</h2>
+      <button id="settingsClose" class="btn btn-secondary btn-sm" type="button">Close</button>
+    </div>
+    <div class="settings-body">
+      <label class="field"><span>Primary language</span>
+        <select id="primaryLang">
+          <option value="es">es</option>
+          <option value="fr">fr</option>
+          <option value="en">en</option>
+        </select>
+      </label>
+      <label class="field"><span>Secondary language (optional)</span>
+        <select id="secondaryLang">
+          <option value="">None</option>
+          <option value="es">es</option>
+          <option value="fr">fr</option>
+          <option value="en">en</option>
+        </select>
+      </label>
+      <fieldset class="settings-modes">
+        <legend>Look</legend>
+        <div class="segmented" role="radiogroup" aria-label="Display mode">
+          <label><input type="radio" name="displayMode" value="standard" checked><span>Standard</span></label>
+          <label><input type="radio" name="displayMode" value="kid"><span>Kid mode</span></label>
+        </div>
+      </fieldset>
+      <div class="settings-stats" id="settingsStats"></div>
+      <div class="actions settings-actions">
+        <button id="resetProgress" class="btn btn-secondary" type="button">Reset my progress</button>
+        <button id="logoutBtn" class="btn btn-secondary" type="button">Sign out</button>
+      </div>
+      <p id="settingsHint" class="hint" hidden></p>
+    </div>
+  </div>
+</div>
+
+<div id="quizOverlay" class="overlay quiz-overlay" hidden>
+  <div class="quiz-top">
+    <span id="quizProgress" class="quiz-progress"></span>
+    <span id="quizStars" class="quiz-stars" hidden></span>
+    <button id="quizClose" class="btn btn-secondary btn-sm" type="button">Close</button>
+  </div>
+  <div id="quizBody" class="quiz-body"></div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -339,6 +534,59 @@ const MISSING_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 10
   <line x1="90" y1="10" x2="10" y2="90" stroke="#c33" stroke-width="9" stroke-linecap="round"/>
 </svg>`;
 const MISSING_URL = "data:image/svg+xml," + encodeURIComponent(MISSING_SVG);
+
+// ---- Account state -------------------------------------------------------
+// Language, secondary language, display mode and star total are all stored
+// per account server-side; the settings panel edits them and this mirrors the
+// current values for rendering (species browser + quiz).
+const VALID_LANGS = ["es", "fr", "en"];
+const state = {
+  language: "es",
+  secondaryLanguage: "",
+  displayMode: "standard",
+  stars: 0,
+  // speciesCode -> name in the secondary language, for the current hotspot.
+  secondaryNames: {},
+};
+
+function applyDisplayMode() {
+  document.body.classList.toggle("kid-mode", state.displayMode === "kid");
+}
+
+function secondaryNameFor(speciesCode) {
+  return state.secondaryNames[speciesCode] || "";
+}
+
+// loadSecondaryNames fetches the current hotspot's species in the secondary
+// language so browsing cards and quiz reveals can show a subtitle. No-op when
+// no secondary language is set (or it equals the primary).
+async function loadSecondaryNames(locId) {
+  state.secondaryNames = {};
+  if (!state.secondaryLanguage || state.secondaryLanguage === state.language) return;
+  try {
+    const res = await fetch(`/api/hotspots/${locId}/species?lang=${state.secondaryLanguage}&mode=category`);
+    if (!res.ok) return;
+    const species = await res.json();
+    for (const sp of species) state.secondaryNames[sp.speciesCode] = sp.comName;
+  } catch (e) {
+    // A missing subtitle is not worth surfacing as an error.
+  }
+}
+
+async function initAccount() {
+  try {
+    const res = await fetch("/api/me");
+    if (!res.ok) return;
+    const p = await res.json();
+    state.language = VALID_LANGS.includes(p.language) ? p.language : "es";
+    state.secondaryLanguage = p.secondaryLanguage || "";
+    state.displayMode = p.displayMode === "kid" ? "kid" : "standard";
+    state.stars = p.stars || 0;
+  } catch (e) {
+    // Open/dev mode already works without this; keep the defaults.
+  }
+  applyDisplayMode();
+}
 
 // Images are fetched server-side in the background (see /api/hotspots/.../species),
 // so a card's imageUrl often 404s at first. Preload off-DOM and only swap the
@@ -458,6 +706,7 @@ function speciesCard(sp) {
     <img src="${sp.imageMissing ? MISSING_URL : PLACEHOLDER_URL}" alt="${escapeHtml(sp.comName)}">
     <div class="card-body">
       <div class="com">${escapeHtml(sp.comName)}</div>
+      ${secondaryNameFor(sp.speciesCode) ? `<div class="sub">${escapeHtml(secondaryNameFor(sp.speciesCode))}</div>` : ""}
       <div class="sci">${escapeHtml(sp.sciName)}</div>
       ${sp.nearbyCount != null ? `<div class="nearby">${sp.nearbyCount} nearby reports</div>` : ""}
     </div>
@@ -476,11 +725,14 @@ function currentMode() {
 
 async function loadSpecies(locId, locName) {
   currentHotspot = { locId, locName };
-  const lang = $("lang").value;
+  const lang = state.language;
   const mode = currentMode();
   setURLParams({ locId, lang, mode });
   const groups = $("groups");
   groups.innerHTML = "";
+  // Fetch the secondary-language names first (cached after the first load) so
+  // the cards below can render their subtitles immediately.
+  await loadSecondaryNames(locId);
 
   // popularity and alphabetical are both flat, sorted lists (server does the
   // sorting — see main.go) — only category needs family grouping client-side.
@@ -496,6 +748,7 @@ async function loadSpecies(locId, locName) {
     groups.appendChild(grid);
     for (const sp of species) grid.appendChild(speciesCard(sp));
     setStatus(`${species.length} species at ${locName}, ${flatModeLabel[mode]}.`);
+    $("quizBar").hidden = false;
     return;
   }
 
@@ -523,6 +776,7 @@ async function loadSpecies(locId, locName) {
     currentGrid.appendChild(speciesCard(sp));
   }
   setStatus(`${species.length} species at ${locName}, grouped by family.`);
+  $("quizBar").hidden = false;
 }
 
 for (const radio of document.querySelectorAll('input[name="mode"]')) {
@@ -562,11 +816,285 @@ $("useLocation").addEventListener("click", () => {
   );
 });
 
+// ---- Settings panel ------------------------------------------------------
+
+function showSettingsHint(msg) {
+  const hint = $("settingsHint");
+  hint.textContent = msg;
+  hint.hidden = false;
+}
+
+async function refreshSettings() {
+  $("settingsHint").hidden = true;
+  try {
+    const [pRes, stRes] = await Promise.all([fetch("/api/me"), fetch("/api/me/progress")]);
+    if (pRes.ok) {
+      const p = await pRes.json();
+      if (VALID_LANGS.includes(p.language)) $("primaryLang").value = p.language;
+      $("secondaryLang").value = VALID_LANGS.includes(p.secondaryLanguage) ? p.secondaryLanguage : "";
+      const radio = document.querySelector(`input[name="displayMode"][value="${p.displayMode}"]`);
+      if (radio) radio.checked = true;
+      state.language = VALID_LANGS.includes(p.language) ? p.language : "es";
+      state.secondaryLanguage = VALID_LANGS.includes(p.secondaryLanguage) ? p.secondaryLanguage : "";
+      state.displayMode = p.displayMode === "kid" ? "kid" : "standard";
+      state.stars = p.stars || 0;
+    }
+    if (stRes.ok) {
+      const st = await stRes.json();
+      state.stars = st.stars || 0;
+      $("settingsStats").innerHTML =
+        `<span class="stat"><strong>⭐ ${st.stars}</strong> stars</span>` +
+        `<span class="stat"><strong>${st.speciesMastered}</strong> mastered</span>` +
+        `<span class="stat"><strong>${st.speciesLearning}</strong> learning</span>`;
+    }
+    applyDisplayMode();
+  } catch (e) {
+    showSettingsHint("Could not load settings.");
+  }
+}
+
+$("settingsBtn").addEventListener("click", () => {
+  $("settingsOverlay").hidden = false;
+  refreshSettings();
+});
+$("settingsClose").addEventListener("click", () => { $("settingsOverlay").hidden = true; });
+$("settingsOverlay").addEventListener("click", (e) => {
+  if (e.target === $("settingsOverlay")) $("settingsOverlay").hidden = true;
+});
+
+$("primaryLang").addEventListener("change", async () => {
+  const lang = $("primaryLang").value;
+  const res = await fetch("/api/me/language", {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ language: lang }),
+  });
+  if (!res.ok) { showSettingsHint("Could not save the primary language."); return; }
+  state.language = lang;
+  setURLParams({ lang });
+  if (currentHotspot) loadSpecies(currentHotspot.locId, currentHotspot.locName);
+});
+
+$("secondaryLang").addEventListener("change", async () => {
+  const lang = $("secondaryLang").value;
+  const res = await fetch("/api/me/secondary-language", {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ language: lang }),
+  });
+  if (!res.ok) { showSettingsHint("Could not save the secondary language."); return; }
+  state.secondaryLanguage = lang;
+  if (currentHotspot) loadSpecies(currentHotspot.locId, currentHotspot.locName);
+});
+
+for (const radio of document.querySelectorAll('input[name="displayMode"]')) {
+  radio.addEventListener("change", async () => {
+    const mode = document.querySelector('input[name="displayMode"]:checked').value;
+    const res = await fetch("/api/me/display-mode", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayMode: mode }),
+    });
+    if (!res.ok) { showSettingsHint("Could not save the display mode."); return; }
+    state.displayMode = mode;
+    applyDisplayMode();
+  });
+}
+
+$("resetProgress").addEventListener("click", async () => {
+  if (!confirm("Reset all quiz progress and stars? This cannot be undone.")) return;
+  const res = await fetch("/api/me/progress", { method: "DELETE" });
+  if (!res.ok) { showSettingsHint("Could not reset progress."); return; }
+  state.stars = 0;
+  refreshSettings();
+});
+
+// ---- Quiz ----------------------------------------------------------------
+
+// A star burst is a kid-mode reward only; standard mode stays sober.
+function starBurst() {
+  if (state.displayMode !== "kid") return;
+  const el = document.createElement("div");
+  el.className = "star-burst";
+  el.textContent = "★";
+  $("quizOverlay").appendChild(el);
+  setTimeout(() => el.remove(), 900);
+}
+
+const quiz = {
+  queue: [],
+  index: 0,
+  answered: 0,
+  correct: 0,
+  starsEarned: 0,
+  mastered: false,
+
+  start(items) {
+    this.queue = items.slice();
+    this.index = 0;
+    this.answered = 0;
+    this.correct = 0;
+    this.starsEarned = 0;
+    this.mastered = false;
+    $("quizOverlay").hidden = false;
+    $("quizStars").hidden = state.displayMode !== "kid";
+    this.render();
+  },
+
+  finish() {
+    $("quizOverlay").hidden = true;
+  },
+
+  render() {
+    const body = $("quizBody");
+    body.innerHTML = "";
+    if (this.index >= this.queue.length) { this.renderSummary(); return; }
+    const item = this.queue[this.index];
+
+    $("quizProgress").textContent = `Question ${this.index + 1} / ${this.queue.length}`;
+    $("quizStars").textContent = state.displayMode === "kid" ? `⭐ ${state.stars}` : "";
+
+    const img = document.createElement("img");
+    img.className = "quiz-image";
+    img.alt = "";
+    img.src = item.imageMissing ? MISSING_URL : PLACEHOLDER_URL;
+    body.appendChild(img);
+    if (item.imageUrl && !item.imageMissing) preloadAndSwap(img, item.imageUrl);
+
+    if (item.questionType === "multipleChoice") {
+      const prompt = document.createElement("p");
+      prompt.className = "quiz-prompt";
+      prompt.textContent = "Which bird is this?";
+      body.appendChild(prompt);
+      const choices = document.createElement("div");
+      choices.className = "quiz-choices";
+      for (const c of item.choices || []) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-secondary quiz-choice";
+        btn.textContent = c.comName;
+        btn.addEventListener("click", () => this.answer(item, c.speciesCode === item.speciesCode));
+        choices.appendChild(btn);
+      }
+      body.appendChild(choices);
+      return;
+    }
+
+    // Recall: photo only, then reveal, then self-grade.
+    const showBtn = document.createElement("button");
+    showBtn.type = "button";
+    showBtn.className = "btn btn-primary quiz-show";
+    showBtn.textContent = "Show answer";
+
+    const reveal = document.createElement("div");
+    reveal.className = "quiz-reveal";
+    reveal.hidden = true;
+    reveal.innerHTML =
+      `<div class="quiz-reveal-name">${escapeHtml(item.comName)}</div>` +
+      (secondaryNameFor(item.speciesCode) ? `<div class="quiz-reveal-sub">${escapeHtml(secondaryNameFor(item.speciesCode))}</div>` : "") +
+      (item.sciName ? `<div class="quiz-reveal-sci">${escapeHtml(item.sciName)}</div>` : "");
+
+    const grade = document.createElement("div");
+    grade.className = "quiz-grade";
+    grade.hidden = true;
+    const rightBtn = document.createElement("button");
+    rightBtn.type = "button";
+    rightBtn.className = "btn btn-primary";
+    rightBtn.textContent = "I got it right";
+    rightBtn.addEventListener("click", () => this.answer(item, true));
+    const wrongBtn = document.createElement("button");
+    wrongBtn.type = "button";
+    wrongBtn.className = "btn btn-secondary";
+    wrongBtn.textContent = "I got it wrong";
+    wrongBtn.addEventListener("click", () => this.answer(item, false));
+    grade.append(rightBtn, wrongBtn);
+
+    showBtn.addEventListener("click", () => {
+      reveal.hidden = false;
+      showBtn.hidden = true;
+      grade.hidden = false;
+    });
+
+    body.append(showBtn, reveal, grade);
+  },
+
+  async answer(item, correct) {
+    for (const b of $("quizBody").querySelectorAll("button")) b.disabled = true;
+    let answer = null;
+    try {
+      const res = await fetch(`/api/me/progress/${encodeURIComponent(item.speciesCode)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ correct }),
+      });
+      if (res.ok) answer = await res.json();
+    } catch (e) {
+      // A scoring failure shouldn't strand the quiz; keep going.
+    }
+
+    if (answer) {
+      state.stars = answer.totalStars;
+      this.starsEarned += answer.starsEarned;
+      if (answer.newlyMastered) this.mastered = true;
+    }
+    this.answered++;
+    if (correct) {
+      this.correct++;
+      starBurst();
+    } else {
+      // Reinsert a handful of questions later instead of right after itself.
+      const pos = this.index + 4;
+      if (pos >= this.queue.length) this.queue.push(item);
+      else this.queue.splice(pos, 0, item);
+    }
+    this.index++;
+    this.render();
+  },
+
+  renderSummary() {
+    $("quizProgress").textContent = "Session complete";
+    $("quizStars").textContent = state.displayMode === "kid" ? `⭐ ${state.stars}` : "";
+    const body = $("quizBody");
+    body.innerHTML = "";
+    const pct = this.answered ? Math.round((this.correct / this.answered) * 100) : 0;
+    const heading = state.displayMode === "kid" && this.mastered ? "🎉 You mastered a bird!" : "Session complete";
+    const wrap = document.createElement("div");
+    wrap.className = "quiz-summary";
+    wrap.innerHTML =
+      `<h2>${heading}</h2>` +
+      `<p class="quiz-score">${this.correct} / ${this.answered} correct (${pct}%)</p>` +
+      `<p class="quiz-earned">⭐ ${this.starsEarned} stars earned this session</p>` +
+      `<div class="actions">` +
+      `<button id="quizAgain" class="btn btn-primary" type="button">Quiz again</button>` +
+      `<button id="quizDone" class="btn btn-secondary" type="button">Done</button>` +
+      `</div>`;
+    body.appendChild(wrap);
+    $("quizAgain").addEventListener("click", () => startQuiz());
+    $("quizDone").addEventListener("click", () => quiz.finish());
+  },
+};
+
+async function startQuiz() {
+  if (!currentHotspot) return;
+  const count = $("quizCount").value;
+  setStatus("Building quiz...");
+  const res = await fetch(`/api/hotspots/${currentHotspot.locId}/quiz?count=${encodeURIComponent(count)}&lang=${encodeURIComponent(state.language)}`);
+  if (!res.ok) { setStatus(`Quiz error: ${res.status}`); return; }
+  const session = await res.json();
+  if (!session.items || session.items.length === 0) {
+    setStatus("No cards available for a quiz here yet.");
+    return;
+  }
+  setStatus("");
+  quiz.start(session.items);
+}
+
+$("quizStart").addEventListener("click", startQuiz);
+$("quizClose").addEventListener("click", () => quiz.finish());
+
 // Support linking straight to a hotspot: /?locId=L42808575[&lang=es]
 async function init() {
+  await initAccount();
   const params = new URLSearchParams(window.location.search);
   const locId = params.get("locId");
-  if (params.get("lang")) $("lang").value = params.get("lang");
+  if (VALID_LANGS.includes(params.get("lang"))) state.language = params.get("lang");
   if (params.get("mode")) {
     const radio = document.querySelector(`input[name="mode"][value="${params.get("mode")}"]`);
     if (radio) radio.checked = true;

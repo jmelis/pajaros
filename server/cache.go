@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -116,11 +117,52 @@ func (c *ImageCache) EnsureFetched(sciName string) error {
 	if err := writeFileAtomic(c.imagePath(sciName), imgBytes); err != nil {
 		return err
 	}
+	info.SciName = sciName
 	metaBytes, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
 		return err
 	}
 	return writeFileAtomic(c.metaPath(sciName), metaBytes)
+}
+
+// CacheSpecies is one species with cached image metadata. It exists only to
+// seed the last-resort distractor pool for a hotspot too small to fill a
+// multiple-choice question on its own (see quiz.go's chooseDistractors).
+type CacheSpecies struct {
+	Code    string // slug, the stable key ImageURLFor uses
+	SciName string
+	ComName string
+}
+
+// CachedSpecies lists the species with a cached image metadata file, sorted by
+// name. Identity is the slugified scientific name (the same key ImageURLFor
+// uses) because that is all the on-disk cache preserves for entries written
+// before ImageInfo carried SciName; newer entries report the real scientific
+// name.
+func (c *ImageCache) CachedSpecies() []CacheSpecies {
+	entries, err := os.ReadDir(c.dir)
+	if err != nil {
+		return nil
+	}
+	out := []CacheSpecies{}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(c.dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		slug := strings.TrimSuffix(e.Name(), ".json")
+		sci := slug
+		var info ImageInfo
+		if json.Unmarshal(data, &info) == nil && info.SciName != "" {
+			sci = info.SciName
+		}
+		out = append(out, CacheSpecies{Code: slug, SciName: sci, ComName: sci})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ComName < out[j].ComName })
+	return out
 }
 
 func fileExists(path string) bool {

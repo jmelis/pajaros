@@ -18,6 +18,10 @@ var allowedLicenseRe = regexp.MustCompile(`(?i)^(cc0|cc[- ]by(-sa)?[- ]?[\d.]*|p
 var excludeFilenameRe = regexp.MustCompile(`(?i)(map|range|distribution|egg|nest|skeleton|anatomy|illustration|drawing|painting|sound|spectrogram|call\b|song\b|vocali|logo|stamp|coin|taxonomy|cladogram)`)
 
 type ImageInfo struct {
+	// SciName is the species this image belongs to, carried in the cache
+	// metadata so the image-cache fallback distractor pool (see cache.go's
+	// CachedSpecies) can show a real name instead of a slug.
+	SciName     string
 	Title       string
 	DownloadURL string
 	Author      string

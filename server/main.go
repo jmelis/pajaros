@@ -209,12 +209,23 @@ func main() {
 	appMux.HandleFunc("GET /api/hotspots", hotspotSearchLimiter.middleware(hotspotKey, srv.handleNearbyHotspots))
 	appMux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotInfo))
 	appMux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotSpecies))
+	// The quiz builder reuses the species/taxonomy cache but also reaches for
+	// the same GBIF popularity data a detail view can, so it shares that
+	// limiter.
+	appMux.HandleFunc("GET /api/hotspots/{locId}/quiz", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotQuiz))
 
 	// Per-account preferences. These touch only the local database, so unlike
 	// the hotspot routes they need no upstream-keyed rate limit.
 	appMux.HandleFunc("GET /api/me", srv.handleGetProfile)
 	appMux.HandleFunc("GET /api/me/language", srv.handleGetLanguage)
 	appMux.HandleFunc("PUT /api/me/language", srv.handleSetLanguage)
+	appMux.HandleFunc("GET /api/me/secondary-language", srv.handleGetSecondaryLanguage)
+	appMux.HandleFunc("PUT /api/me/secondary-language", srv.handleSetSecondaryLanguage)
+	appMux.HandleFunc("GET /api/me/display-mode", srv.handleGetDisplayMode)
+	appMux.HandleFunc("PUT /api/me/display-mode", srv.handleSetDisplayMode)
+	appMux.HandleFunc("GET /api/me/progress", srv.handleGetProgress)
+	appMux.HandleFunc("POST /api/me/progress/{speciesCode}", srv.handleSubmitAnswer)
+	appMux.HandleFunc("DELETE /api/me/progress", srv.handleResetProgress)
 	appMux.HandleFunc("GET /api/me/favorites", srv.handleListFavorites)
 	appMux.HandleFunc("PUT /api/me/favorites/{locId}", srv.handleAddFavorite)
 	appMux.HandleFunc("DELETE /api/me/favorites/{locId}", srv.handleRemoveFavorite)
@@ -297,22 +308,8 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid locId", http.StatusBadRequest)
 		return
 	}
-	lang := r.URL.Query().Get("lang")
-	if lang == "" {
-		// No explicit language: fall back to the account's stored preference,
-		// then to the app default. An explicit (even invalid) query value is
-		// still validated strictly below.
-		if pref, ok, err := s.users.PreferredLanguage(userIDFromContext(r)); err != nil {
-			log.Printf("PreferredLanguage(%s): %v", userIDFromContext(r), err)
-		} else if ok && validLang[pref] {
-			lang = pref
-		}
-	}
-	if lang == "" {
-		lang = defaultLang
-	}
-	if !validLang[lang] {
-		http.Error(w, "unsupported lang", http.StatusBadRequest)
+	lang, ok := s.resolveLang(w, r)
+	if !ok {
 		return
 	}
 	mode := r.URL.Query().Get("mode")
@@ -390,6 +387,30 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, cards)
+}
+
+// resolveLang returns the effective, already-validated bird-name language for
+// a request: an explicit lang query value, else the account's stored
+// preference, else the app default. An explicit (even invalid) query value is
+// validated strictly. On an unsupported value it writes a 400 and returns
+// ok=false, so callers just return.
+func (s *Server) resolveLang(w http.ResponseWriter, r *http.Request) (string, bool) {
+	lang := r.URL.Query().Get("lang")
+	if lang == "" {
+		if pref, ok, err := s.users.PreferredLanguage(userIDFromContext(r)); err != nil {
+			log.Printf("PreferredLanguage(%s): %v", userIDFromContext(r), err)
+		} else if ok && validLang[pref] {
+			lang = pref
+		}
+	}
+	if lang == "" {
+		lang = defaultLang
+	}
+	if !validLang[lang] {
+		http.Error(w, "unsupported lang", http.StatusBadRequest)
+		return "", false
+	}
+	return lang, true
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
