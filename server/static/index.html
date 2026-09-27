@@ -2,60 +2,298 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>pajaros — dev test page</title>
+<title>pajaros</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-  fieldset { margin-bottom: 1.5rem; }
-  label { margin-right: 1rem; }
-  input[type=number] { width: 8rem; }
-  #map { height: 400px; margin-bottom: 1rem; border-radius: 8px; }
-  .family-heading { margin: 1.5rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 2px solid #ddd; font-size: 1rem; color: #444; }
-  .family-heading:first-child { margin-top: 0.5rem; }
-  .family-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem; }
-  .card { text-align: center; display: block; text-decoration: none; color: inherit; }
-  .card:hover .com { text-decoration: underline; }
-  .card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: #eee; }
-  .card .com { font-weight: bold; }
-  .card .sci { font-style: italic; color: #666; font-size: 0.85em; }
-  .card .nearby { color: #888; font-size: 0.8em; }
-  #status { color: #666; }
-  .popup-btn { margin-top: 0.4rem; }
-  #modeToggle { margin: 1rem 0 0.5rem; }
-  #modeToggle label { margin-right: 1.5rem; font-weight: normal; }
+  :root {
+    --bg: #f8f7f4;
+    --surface: #ffffff;
+    --text: #1f2a24;
+    --muted: #6b7a72;
+    --accent: #2a7d4f;
+    --accent-dark: #216040;
+    --accent-soft: #eef4ef;
+    --border: #e4e1da;
+
+    --space-1: 8px;
+    --space-2: 16px;
+    --space-3: 24px;
+    --space-4: 32px;
+
+    --radius-sm: 8px;
+    --radius: 12px;
+
+    --shadow-sm: 0 1px 2px rgba(31, 42, 36, 0.06);
+    --shadow: 0 2px 10px rgba(31, 42, 36, 0.08);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 { line-height: 1.25; letter-spacing: -0.01em; }
+  a { color: var(--accent-dark); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Header */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: baseline; gap: var(--space-1); }
+  .brand h1 { margin: 0; font-size: 1.3rem; font-weight: 700; }
+  .brand .tagline {
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--space-3) 1rem var(--space-4);
+  }
+
+  /* Panels / cards */
+  .panel {
+    padding: var(--space-3);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+  }
+  .panel-title {
+    margin: 0 0 var(--space-2);
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* Buttons */
+  .btn {
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1;
+    padding: 10px 16px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
+  .btn-secondary:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
+  .btn-sm { padding: 7px 12px; font-size: 0.85rem; }
+
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+
+  /* Inputs */
+  .field-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field > span {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  input[type=number], select {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    padding: 9px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  input[type=number]:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(42, 125, 79, 0.15);
+  }
+  .hint { margin: var(--space-2) 0 0; color: var(--muted); font-size: 0.8rem; }
+
+  /* Map */
+  .map-panel { padding: 0; overflow: hidden; }
+  .map-toolbar { padding: var(--space-2); border-bottom: 1px solid var(--border); }
+  #map { height: 400px; }
+
+  /* Mode segmented control */
+  .segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    padding: 3px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  .segmented label { display: inline-flex; cursor: pointer; }
+  .segmented input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .segmented span {
+    display: inline-block;
+    padding: 7px 14px;
+    color: var(--muted);
+    font-size: 0.88rem;
+    font-weight: 600;
+    border-radius: 6px;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .segmented input:checked + span { background: var(--accent); color: #fff; }
+  .segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  #status { margin: var(--space-2) 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.4em; }
+
+  /* Species cards */
+  .family-heading {
+    margin: var(--space-3) 0 var(--space-2);
+    padding-bottom: var(--space-1);
+    border-bottom: 1px solid var(--border);
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .family-heading:first-child { margin-top: 0; }
+
+  .family-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-2);
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    color: inherit;
+    text-decoration: none;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .card:hover { transform: translateY(-2px); border-color: #cdd8d0; box-shadow: var(--shadow); }
+  .card img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    background: #eee;
+  }
+  .card-body { display: flex; flex-direction: column; gap: 2px; padding: var(--space-1) 10px 12px; }
+  .card .com { font-weight: 700; font-size: 0.95rem; line-height: 1.3; }
+  .card .sci { color: var(--muted); font-style: italic; font-size: 0.8rem; }
+  .card .nearby {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 2px 9px;
+    background: var(--accent-soft);
+    color: var(--accent-dark);
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-radius: 999px;
+  }
+
+  /* Leaflet popup */
+  .leaflet-popup-content { margin: 12px 14px; font-family: inherit; color: var(--text); line-height: 1.5; }
+  .leaflet-popup-content-wrapper { border-radius: var(--radius); box-shadow: var(--shadow); }
+  .popup-title { font-size: 1rem; }
+  .popup-btn {
+    margin-top: var(--space-1);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 7px 12px;
+    color: #fff;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+  .popup-btn:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+
+  @media (max-width: 480px) {
+    .container { padding: var(--space-2) var(--space-2) var(--space-3); }
+    #map { height: 300px; }
+    .brand .tagline { display: none; }
+  }
 </style>
 </head>
 <body>
-<p id="authbar" style="text-align:right; margin:0 0 -1rem;"><button id="logoutBtn" type="button">Sign out</button></p>
-<h1>pajaros — dev test page</h1>
+<header class="app-header">
+  <div class="brand">
+    <h1>pajaros</h1>
+    <span class="tagline">field guide</span>
+  </div>
+  <button id="logoutBtn" class="btn btn-secondary btn-sm" type="button">Sign out</button>
+</header>
 
-<fieldset>
-  <legend>1. Location</legend>
-  <button id="useLocation">📍 Use my location</button>
-  <small>(requires HTTPS or localhost — will fail over plain http from another device)</small>
-  <br><br>
-  <label>lat <input id="lat" type="number" step="any" value="50.8503"></label>
-  <label>lng <input id="lng" type="number" step="any" value="4.3517"></label>
-  <label>lang
-    <select id="lang">
-      <option value="es" selected>es</option>
-      <option value="fr">fr</option>
-      <option value="en">en</option>
-    </select>
-  </label>
-  <button id="findHotspots">Find hotspots</button>
-</fieldset>
+<main class="container">
+  <section class="panel" aria-labelledby="location-title">
+    <h2 id="location-title" class="panel-title">Location</h2>
+    <div class="actions">
+      <button id="findHotspots" class="btn btn-primary" type="button">Find hotspots</button>
+      <button id="useLocation" class="btn btn-secondary" type="button">📍 Use my location</button>
+    </div>
+    <div class="field-grid">
+      <label class="field"><span>Latitude</span><input id="lat" type="number" step="any" value="50.8503"></label>
+      <label class="field"><span>Longitude</span><input id="lng" type="number" step="any" value="4.3517"></label>
+      <label class="field"><span>Language</span>
+        <select id="lang">
+          <option value="es" selected>es</option>
+          <option value="fr">fr</option>
+          <option value="en">en</option>
+        </select>
+      </label>
+    </div>
+    <p class="hint">Location access requires HTTPS or localhost — it will fail over plain http from another device.</p>
+  </section>
 
-<button id="searchHere" style="margin-bottom: 0.5rem;">🔍 Search this area of the map</button>
-<div id="map"></div>
+  <section class="panel map-panel" aria-label="Hotspot map">
+    <div class="map-toolbar">
+      <button id="searchHere" class="btn btn-secondary btn-sm" type="button">🔍 Search this area of the map</button>
+    </div>
+    <div id="map"></div>
+  </section>
 
-<div id="modeToggle">
-  <label><input type="radio" name="mode" value="popularity" checked> By popularity (nearby)</label>
-  <label><input type="radio" name="mode" value="category"> By category</label>
-  <label><input type="radio" name="mode" value="alphabetical"> Alphabetical</label>
-</div>
-<p id="status">Click a hotspot marker on the map to load its species.</p>
-<div id="groups"></div>
+  <section class="panel" aria-label="Species browsing">
+    <div class="segmented" id="modeToggle" role="radiogroup" aria-label="Species browsing mode">
+      <label><input type="radio" name="mode" value="popularity" checked><span>Popularity</span></label>
+      <label><input type="radio" name="mode" value="category"><span>Category</span></label>
+      <label><input type="radio" name="mode" value="alphabetical"><span>Alphabetical</span></label>
+    </div>
+    <p id="status">Click a hotspot marker on the map to load its species.</p>
+  </section>
+
+  <div id="groups"></div>
+</main>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -138,7 +376,7 @@ function loadSpeciesButton(h) {
 
 function popupHTML(h) {
   return `
-    <strong>${escapeHtml(h.locName)}</strong><br>
+    <strong class="popup-title">${escapeHtml(h.locName)}</strong><br>
     ${h.numChecklistsAllTime ?? 0} checklists &middot; ${h.numSpeciesAllTime ?? 0} species<br>
     ${loadSpeciesButton(h)}
   `;
@@ -148,7 +386,7 @@ function popupHTML(h) {
 // which doesn't carry the checklist/species-count stats the nearby-search
 // endpoint does — so its popup skips that line rather than showing zeroes.
 function popupHTMLNoStats(h) {
-  return `<strong>${escapeHtml(h.locName)}</strong><br>${loadSpeciesButton(h)}`;
+  return `<strong class="popup-title">${escapeHtml(h.locName)}</strong><br>${loadSpeciesButton(h)}`;
 }
 
 const MIN_MARKER_RADIUS = 5;
@@ -218,9 +456,11 @@ function speciesCard(sp) {
   card.rel = "noopener noreferrer";
   card.innerHTML = `
     <img src="${sp.imageMissing ? MISSING_URL : PLACEHOLDER_URL}" alt="${escapeHtml(sp.comName)}">
-    <div class="com">${escapeHtml(sp.comName)}</div>
-    <div class="sci">${escapeHtml(sp.sciName)}</div>
-    ${sp.nearbyCount != null ? `<div class="nearby">${sp.nearbyCount} nearby reports</div>` : ""}
+    <div class="card-body">
+      <div class="com">${escapeHtml(sp.comName)}</div>
+      <div class="sci">${escapeHtml(sp.sciName)}</div>
+      ${sp.nearbyCount != null ? `<div class="nearby">${sp.nearbyCount} nearby reports</div>` : ""}
+    </div>
   `;
   // imageMissing means the server already confirmed no photo exists — no
   // point polling a URL that will never 200.
