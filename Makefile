@@ -1,4 +1,4 @@
-.PHONY: all bake validate clean
+.PHONY: all bake validate clean server
 
 all: bake
 
@@ -13,3 +13,7 @@ validate:
 
 clean:
 	rm -f index.html
+
+# Requires EBIRD_API_KEY (see .envrc); direnv exports it automatically.
+server:
+	cd server && go run .

@@ -49,8 +49,9 @@
 <div id="map"></div>
 
 <div id="modeToggle">
-  <label><input type="radio" name="mode" value="category" checked> By category</label>
-  <label><input type="radio" name="mode" value="popularity"> By popularity (nearby)</label>
+  <label><input type="radio" name="mode" value="popularity" checked> By popularity (nearby)</label>
+  <label><input type="radio" name="mode" value="category"> By category</label>
+  <label><input type="radio" name="mode" value="alphabetical"> Alphabetical</label>
 </div>
 <p id="status">Click a hotspot marker on the map to load its species.</p>
 <div id="groups"></div>
@@ -81,6 +82,24 @@ const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10
   <circle cx="76" cy="38" r="2" fill="#e8e8e8"/>
 </svg>`;
 const PLACEHOLDER_URL = "data:image/svg+xml," + encodeURIComponent(PLACEHOLDER_SVG);
+
+// Shown instead of PLACEHOLDER_SVG once the server has confirmed no
+// freely-licensed photo exists for a species (sp.imageMissing) — same
+// silhouette, marked with a red X so it doesn't read as "still loading".
+const MISSING_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" fill="#e8e8e8"/>
+  <g fill="#cbcbcb">
+    <ellipse cx="45" cy="60" rx="28" ry="20"/>
+    <circle cx="72" cy="42" r="14"/>
+    <polygon points="84,42 96,38 84,48"/>
+    <polygon points="20,55 4,50 20,68"/>
+    <ellipse cx="40" cy="50" rx="14" ry="9" transform="rotate(-20 40 50)"/>
+  </g>
+  <circle cx="76" cy="38" r="2" fill="#e8e8e8"/>
+  <line x1="10" y1="10" x2="90" y2="90" stroke="#c33" stroke-width="9" stroke-linecap="round"/>
+  <line x1="90" y1="10" x2="10" y2="90" stroke="#c33" stroke-width="9" stroke-linecap="round"/>
+</svg>`;
+const MISSING_URL = "data:image/svg+xml," + encodeURIComponent(MISSING_SVG);
 
 // Images are fetched server-side in the background (see /api/hotspots/.../species),
 // so a card's imageUrl often 404s at first. Preload off-DOM and only swap the
@@ -131,6 +150,22 @@ function popupHTMLNoStats(h) {
   return `<strong>${escapeHtml(h.locName)}</strong><br>${loadSpeciesButton(h)}`;
 }
 
+const MIN_MARKER_RADIUS = 5;
+const MAX_MARKER_RADIUS = 20;
+
+// Checklist counts are heavily right-skewed (a handful of hotspots run into
+// the tens of thousands, most are far smaller), so a log scale spreads that
+// out much better than sqrt does. Scaled relative to the busiest hotspot in
+// *this* search rather than a fixed global max, so the full size range is
+// always used whether the area's counts run into the tens or the
+// tens-of-thousands — the tradeoff is that the same hotspot can render at a
+// different size depending on what else is nearby in the current search.
+function markerRadius(checklists, maxChecklists) {
+  if (maxChecklists <= 0) return MIN_MARKER_RADIUS;
+  const t = Math.log1p(checklists || 0) / Math.log1p(maxChecklists);
+  return MIN_MARKER_RADIUS + t * (MAX_MARKER_RADIUS - MIN_MARKER_RADIUS);
+}
+
 async function findHotspots() {
   const lat = parseFloat($("lat").value), lng = parseFloat($("lng").value);
   if (Number.isNaN(lat) || Number.isNaN(lng)) { setStatus("Enter valid lat/lng."); return; }
@@ -145,9 +180,10 @@ async function findHotspots() {
   userMarker = L.marker([lat, lng]).addTo(map).bindPopup("You are here");
 
   const bounds = L.latLngBounds([[lat, lng]]);
+  const maxChecklists = Math.max(0, ...hotspots.map((h) => h.numChecklistsAllTime || 0));
   for (const h of hotspots) {
     const marker = L.circleMarker([h.lat, h.lng], {
-      radius: 6 + Math.min(10, Math.sqrt(h.numChecklistsAllTime || 0)),
+      radius: markerRadius(h.numChecklistsAllTime, maxChecklists),
       color: "#2a7d4f",
       fillColor: "#2a7d4f",
       fillOpacity: 0.6,
@@ -180,12 +216,14 @@ function speciesCard(sp) {
   card.target = "_blank";
   card.rel = "noopener noreferrer";
   card.innerHTML = `
-    <img src="${PLACEHOLDER_URL}" alt="${escapeHtml(sp.comName)}">
+    <img src="${sp.imageMissing ? MISSING_URL : PLACEHOLDER_URL}" alt="${escapeHtml(sp.comName)}">
     <div class="com">${escapeHtml(sp.comName)}</div>
     <div class="sci">${escapeHtml(sp.sciName)}</div>
     ${sp.nearbyCount != null ? `<div class="nearby">${sp.nearbyCount} nearby reports</div>` : ""}
   `;
-  if (sp.imageUrl) preloadAndSwap(card.querySelector("img"), sp.imageUrl);
+  // imageMissing means the server already confirmed no photo exists — no
+  // point polling a URL that will never 200.
+  if (sp.imageUrl && !sp.imageMissing) preloadAndSwap(card.querySelector("img"), sp.imageUrl);
   return card;
 }
 
@@ -203,16 +241,20 @@ async function loadSpecies(locId, locName) {
   const groups = $("groups");
   groups.innerHTML = "";
 
-  if (mode === "popularity") {
-    setStatus(`Loading species for ${locName} (checking nearby report counts, first load can take a few seconds)...`);
-    const res = await fetch(`/api/hotspots/${locId}/species?lang=${lang}&mode=popularity`);
+  // popularity and alphabetical are both flat, sorted lists (server does the
+  // sorting — see main.go) — only category needs family grouping client-side.
+  const flatModeLabel = { popularity: "most reported nearby first", alphabetical: "alphabetical order" };
+  if (mode in flatModeLabel) {
+    const hint = mode === "popularity" ? " (checking nearby report counts, first load can take a few seconds)" : "";
+    setStatus(`Loading species for ${locName}${hint}...`);
+    const res = await fetch(`/api/hotspots/${locId}/species?lang=${lang}&mode=${mode}`);
     if (!res.ok) { setStatus(`Error: ${res.status}`); return; }
     const species = await res.json();
     const grid = document.createElement("div");
     grid.className = "family-grid";
     groups.appendChild(grid);
     for (const sp of species) grid.appendChild(speciesCard(sp));
-    setStatus(`${species.length} species at ${locName}, most reported nearby first.`);
+    setStatus(`${species.length} species at ${locName}, ${flatModeLabel[mode]}.`);
     return;
   }
 

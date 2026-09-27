@@ -47,6 +47,10 @@ type SpeciesCard struct {
 	// for this species in the surrounding area (see gbif.go). nil means
 	// unmatched/no data, not zero — see PopularityCounts.
 	NearbyCount *int `json:"nearbyCount,omitempty"`
+	// ImageMissing is true once a Wikimedia lookup has already confirmed no
+	// freely-licensed photo exists for this species — distinct from "not
+	// fetched yet", which is the common case and just leaves this false.
+	ImageMissing bool `json:"imageMissing,omitempty"`
 }
 
 func main() {
@@ -194,11 +198,16 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 		}
 		if taxon.SciName != "" {
 			cards[i].ImageURL = s.cache.ImageURLFor(taxon.SciName)
-			s.cache.EnsureFetchedAsync(taxon.SciName)
+			if s.cache.IsKnownMissing(taxon.SciName) {
+				cards[i].ImageMissing = true
+			} else {
+				s.cache.EnsureFetchedAsync(taxon.SciName)
+			}
 		}
 	}
 
-	if mode == "popularity" {
+	switch mode {
+	case "popularity":
 		hotspot, err := s.ebirdCache.HotspotInfo(locID)
 		if err != nil {
 			log.Printf("HotspotInfo(%s): %v", locID, err)
@@ -232,6 +241,8 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 				return cards[i].ComName < cards[j].ComName
 			})
 		}
+	case "alphabetical":
+		sort.SliceStable(cards, func(i, j int) bool { return cards[i].ComName < cards[j].ComName })
 	}
 
 	writeJSON(w, cards)

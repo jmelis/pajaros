@@ -59,6 +59,14 @@ func (c *ImageCache) ImageURLFor(sciName string) string {
 	return "/images/" + slugify(sciName) + ".jpg"
 }
 
+// IsKnownMissing reports whether sciName has already been resolved to "no
+// free image found" — as opposed to simply not having been fetched yet. The
+// frontend uses this to show a distinct "no photo" placeholder instead of
+// polling a URL that will never 200.
+func (c *ImageCache) IsKnownMissing(sciName string) bool {
+	return fileExists(c.missingMarkerPath(sciName))
+}
+
 // EnsureFetchedAsync kicks off a background fetch for sciName if it isn't
 // already cached (or already being fetched) and returns immediately. Safe to
 // call once per species per request — concurrency is capped process-wide and
@@ -89,7 +97,7 @@ func (c *ImageCache) EnsureFetched(sciName string) error {
 		return nil
 	}
 
-	info, err := ResolvePrincipalImage(sciName, 1600)
+	info, err := ResolvePrincipalImage(sciName, maxImageWidth)
 	if err != nil {
 		return err
 	}
@@ -97,11 +105,15 @@ func (c *ImageCache) EnsureFetched(sciName string) error {
 		return os.WriteFile(c.missingMarkerPath(sciName), []byte{}, 0o644)
 	}
 
-	bytes, err := DownloadImage(info.DownloadURL)
+	imgBytes, err := DownloadImage(info.DownloadURL)
 	if err != nil {
 		return err
 	}
-	if err := writeFileAtomic(c.imagePath(sciName), bytes); err != nil {
+	imgBytes, err = capImageWidth(imgBytes, maxImageWidth)
+	if err != nil {
+		return err
+	}
+	if err := writeFileAtomic(c.imagePath(sciName), imgBytes); err != nil {
 		return err
 	}
 	metaBytes, err := json.MarshalIndent(info, "", "  ")
