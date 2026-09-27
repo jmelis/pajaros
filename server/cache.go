@@ -24,6 +24,9 @@ type ImageCache struct {
 	dir      string
 	sem      chan struct{}
 	inFlight sync.Map // sciName -> struct{}, so concurrent requests don't double-fetch
+	// metaMu serializes metadata read-modify-write so a concurrent fetch and
+	// name record for the same species can't drop a locale's common name.
+	metaMu sync.Mutex
 }
 
 func NewImageCache(dir string) (*ImageCache, error) {
@@ -72,8 +75,16 @@ func (c *ImageCache) IsKnownMissing(sciName string) bool {
 // already cached (or already being fetched) and returns immediately. Safe to
 // call once per species per request — concurrency is capped process-wide and
 // duplicate concurrent fetches for the same species are deduped.
-func (c *ImageCache) EnsureFetchedAsync(sciName string) {
-	if sciName == "" || fileExists(c.imagePath(sciName)) || fileExists(c.missingMarkerPath(sciName)) {
+//
+// lang and comName, when non-empty, are the species' common name in that
+// locale; they are recorded in the cache metadata (even for an already-cached
+// image) so the fallback distractor pool can show proper common names.
+func (c *ImageCache) EnsureFetchedAsync(sciName, lang, comName string) {
+	if sciName == "" {
+		return
+	}
+	if fileExists(c.imagePath(sciName)) || fileExists(c.missingMarkerPath(sciName)) {
+		c.recordName(sciName, lang, comName)
 		return
 	}
 	if _, alreadyFetching := c.inFlight.LoadOrStore(sciName, struct{}{}); alreadyFetching {
@@ -83,7 +94,7 @@ func (c *ImageCache) EnsureFetchedAsync(sciName string) {
 		defer c.inFlight.Delete(sciName)
 		c.sem <- struct{}{} // blocks here, in the background goroutine, not the caller
 		defer func() { <-c.sem }()
-		if err := c.EnsureFetched(sciName); err != nil {
+		if err := c.EnsureFetched(sciName, lang, comName); err != nil {
 			log.Printf("EnsureFetched(%s): %v", sciName, err)
 		}
 	}()
@@ -93,8 +104,11 @@ func (c *ImageCache) EnsureFetchedAsync(sciName string) {
 // found" marker) is on disk, fetching it from Wikimedia if this is the
 // first time we've seen this species. Safe to call repeatedly/concurrently
 // per species — cheap no-op once cached.
-func (c *ImageCache) EnsureFetched(sciName string) error {
+//
+// lang/comName are recorded alongside the image metadata (see recordName).
+func (c *ImageCache) EnsureFetched(sciName, lang, comName string) error {
 	if fileExists(c.imagePath(sciName)) || fileExists(c.missingMarkerPath(sciName)) {
+		c.recordName(sciName, lang, comName)
 		return nil
 	}
 
@@ -118,6 +132,73 @@ func (c *ImageCache) EnsureFetched(sciName string) error {
 		return err
 	}
 	info.SciName = sciName
+	if lang != "" && comName != "" {
+		info.Names = map[string]string{lang: comName}
+	}
+	return c.writeMetadata(sciName, info)
+}
+
+// recordName merges one locale's common name into sciName's cache metadata,
+// creating the metadata file if needed. It is a cheap no-op once that
+// locale/name pair is already recorded. Kept separate from image fetching so
+// the name can still be captured when the image was cached by an earlier run.
+func (c *ImageCache) recordName(sciName, lang, comName string) {
+	if lang == "" || comName == "" {
+		return
+	}
+	info := c.readMetadata(sciName)
+	if info.Names == nil {
+		info.Names = map[string]string{}
+	}
+	if info.Names[lang] == comName {
+		return
+	}
+	info.Names[lang] = comName
+	if info.SciName == "" {
+		info.SciName = sciName
+	}
+	if err := c.writeMetadata(sciName, info); err != nil {
+		log.Printf("record name %s: %v", sciName, err)
+	}
+}
+
+// readMetadata loads sciName's cache metadata, returning an empty ImageInfo
+// when there is none (or it can't be parsed). Callers that need to modify it
+// must hold metaMu for the read-modify-write to be atomic.
+func (c *ImageCache) readMetadata(sciName string) *ImageInfo {
+	data, err := os.ReadFile(c.metaPath(sciName))
+	if err != nil {
+		return &ImageInfo{}
+	}
+	var info ImageInfo
+	if json.Unmarshal(data, &info) != nil {
+		return &ImageInfo{}
+	}
+	return &info
+}
+
+// writeMetadata persists info for sciName, merging in any common names (and a
+// scientific name) already on disk rather than overwriting them, so fetching
+// and name-recording for the same species can't lose each other's data.
+func (c *ImageCache) writeMetadata(sciName string, info *ImageInfo) error {
+	c.metaMu.Lock()
+	defer c.metaMu.Unlock()
+
+	existing := c.readMetadata(sciName)
+	if info.SciName == "" {
+		info.SciName = existing.SciName
+	}
+	if info.SciName == "" {
+		info.SciName = sciName
+	}
+	if info.Names == nil {
+		info.Names = map[string]string{}
+	}
+	for lang, name := range existing.Names {
+		if _, ok := info.Names[lang]; !ok {
+			info.Names[lang] = name
+		}
+	}
 	metaBytes, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
 		return err
@@ -139,7 +220,12 @@ type CacheSpecies struct {
 // uses) because that is all the on-disk cache preserves for entries written
 // before ImageInfo carried SciName; newer entries report the real scientific
 // name.
-func (c *ImageCache) CachedSpecies() []CacheSpecies {
+//
+// Only species with a recorded common name are returned, resolved in lang
+// (falling back to English, then any locale). Entries whose metadata predates
+// common-name recording are skipped rather than shown as a scientific name or
+// slug, since the fallback pool feeds kid-facing multiple-choice options.
+func (c *ImageCache) CachedSpecies(lang string) []CacheSpecies {
 	entries, err := os.ReadDir(c.dir)
 	if err != nil {
 		return nil
@@ -153,16 +239,41 @@ func (c *ImageCache) CachedSpecies() []CacheSpecies {
 		if err != nil {
 			continue
 		}
-		slug := strings.TrimSuffix(e.Name(), ".json")
-		sci := slug
 		var info ImageInfo
-		if json.Unmarshal(data, &info) == nil && info.SciName != "" {
-			sci = info.SciName
+		if json.Unmarshal(data, &info) != nil {
+			continue
 		}
-		out = append(out, CacheSpecies{Code: slug, SciName: sci, ComName: sci})
+		comName := pickCommonName(info.Names, lang)
+		if comName == "" {
+			continue
+		}
+		slug := strings.TrimSuffix(e.Name(), ".json")
+		sci := info.SciName
+		if sci == "" {
+			sci = slug
+		}
+		out = append(out, CacheSpecies{Code: slug, SciName: sci, ComName: comName})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ComName < out[j].ComName })
 	return out
+}
+
+// pickCommonName resolves a species' display name for lang: the requested
+// locale first, then English, then any recorded locale. Returns "" when no
+// common name is known.
+func pickCommonName(names map[string]string, lang string) string {
+	if name := names[lang]; name != "" {
+		return name
+	}
+	if name := names["en"]; name != "" {
+		return name
+	}
+	for _, name := range names {
+		if name != "" {
+			return name
+		}
+	}
+	return ""
 }
 
 func fileExists(path string) bool {

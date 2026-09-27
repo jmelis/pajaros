@@ -21,7 +21,12 @@ type ImageInfo struct {
 	// SciName is the species this image belongs to, carried in the cache
 	// metadata so the image-cache fallback distractor pool (see cache.go's
 	// CachedSpecies) can show a real name instead of a slug.
-	SciName     string
+	SciName string
+	// Names maps an eBird locale code ("es", "fr", "en") to this species'
+	// common name in that locale. The image cache is keyed by scientific name
+	// and has no other species data, so the fallback distractor pool relies on
+	// these to show proper, localized common names (see CachedSpecies).
+	Names       map[string]string
 	Title       string
 	DownloadURL string
 	Author      string

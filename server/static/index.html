@@ -346,7 +346,9 @@
   .quiz-reveal-name { font-size: 1.4rem; font-weight: 700; }
   .quiz-reveal-sub { color: var(--accent-dark); font-weight: 600; }
   .quiz-reveal-sci { color: var(--muted); font-style: italic; }
-  .quiz-grade { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); }
+  /* Only lay the grade buttons out when revealed: a bare `.quiz-grade` rule
+     would out-rank the UA [hidden] rule and show them before "Show answer". */
+  .quiz-grade:not([hidden]) { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); }
   .quiz-summary {
     display: flex;
     flex-direction: column;
@@ -547,6 +549,9 @@ const state = {
   stars: 0,
   // speciesCode -> name in the secondary language, for the current hotspot.
   secondaryNames: {},
+  // The current hotspot's species in the primary language, used to build
+  // multiple-choice options when a recall card is requeued after a wrong answer.
+  species: [],
 };
 
 function applyDisplayMode() {
@@ -743,6 +748,7 @@ async function loadSpecies(locId, locName) {
     const res = await fetch(`/api/hotspots/${locId}/species?lang=${lang}&mode=${mode}`);
     if (!res.ok) { setStatus(`Error: ${res.status}`); return; }
     const species = await res.json();
+    state.species = species;
     const grid = document.createElement("div");
     grid.className = "family-grid";
     groups.appendChild(grid);
@@ -756,6 +762,7 @@ async function loadSpecies(locId, locName) {
   const res = await fetch(`/api/hotspots/${locId}/species?lang=${lang}&mode=category`);
   if (!res.ok) { setStatus(`Error: ${res.status}`); return; }
   const species = await res.json();
+  state.species = species;
 
   // Species arrive already grouped by family (server sends eBird's
   // taxonomic order), so a family heading just goes up whenever it changes.
@@ -841,9 +848,9 @@ async function refreshSettings() {
     }
     if (stRes.ok) {
       const st = await stRes.json();
-      state.stars = st.stars || 0;
+      state.stars = st.totalStars || 0;
       $("settingsStats").innerHTML =
-        `<span class="stat"><strong>⭐ ${st.stars}</strong> stars</span>` +
+        `<span class="stat"><strong>⭐ ${st.totalStars}</strong> stars</span>` +
         `<span class="stat"><strong>${st.speciesMastered}</strong> mastered</span>` +
         `<span class="stat"><strong>${st.speciesLearning}</strong> learning</span>`;
     }
@@ -916,6 +923,41 @@ function starBurst() {
   el.textContent = "★";
   $("quizOverlay").appendChild(el);
   setTimeout(() => el.remove(), 900);
+}
+
+// multipleChoiceChoices builds a multiple-choice option set for a card being
+// re-presented after a wrong answer reset it to box 1. Recall items carry no
+// server-built choices, so distractors are drawn from the current hotspot's
+// species (the same "any other species here" source the server falls back to).
+function multipleChoiceChoices(item) {
+  const choices = [{ speciesCode: item.speciesCode, comName: item.comName }];
+  const seen = new Set([item.speciesCode]);
+  for (const sp of state.species) {
+    if (seen.has(sp.speciesCode)) continue;
+    seen.add(sp.speciesCode);
+    choices.push({ speciesCode: sp.speciesCode, comName: sp.comName });
+    if (choices.length === 4) break;
+  }
+  for (let i = choices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [choices[i], choices[j]] = [choices[j], choices[i]];
+  }
+  return choices;
+}
+
+// requeuedItem returns a copy of item whose question type matches box, the
+// card's box *after* the answer: box 2+ is recall, boxes 0-1 are multiple
+// choice. A card reset to box 1 keeps its existing choices when it has them
+// and otherwise gets a fresh set.
+function requeuedItem(item, box) {
+  const next = Object.assign({}, item);
+  next.questionType = box >= 2 ? "recall" : "multipleChoice";
+  if (next.questionType === "recall") {
+    delete next.choices;
+  } else if (!next.choices || next.choices.length < 2) {
+    next.choices = multipleChoiceChoices(item);
+  }
+  return next;
 }
 
 const quiz = {
@@ -1039,10 +1081,14 @@ const quiz = {
       this.correct++;
       starBurst();
     } else {
-      // Reinsert a handful of questions later instead of right after itself.
+      // Reinsert a handful of questions later instead of right after itself,
+      // as a fresh item whose format matches the card's reset (box 1) state.
+      // A failed answer call leaves the box unknown; a wrong answer resets to
+      // box 1 regardless, so fall back to that.
+      const requeued = requeuedItem(item, answer ? answer.box : 1);
       const pos = this.index + 4;
-      if (pos >= this.queue.length) this.queue.push(item);
-      else this.queue.splice(pos, 0, item);
+      if (pos >= this.queue.length) this.queue.push(requeued);
+      else this.queue.splice(pos, 0, requeued);
     }
     this.index++;
     this.render();

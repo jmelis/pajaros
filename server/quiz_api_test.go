@@ -301,7 +301,7 @@ func TestResetProgressClearsStatsAndQuiz(t *testing.T) {
 
 	submitAnswer(t, app, auth, id, "sp1", true)
 	submitAnswer(t, app, auth, id, "sp1", true)
-	if stats := getProgress(t, app, auth, id); stats.Stars == 0 || stats.SpeciesLearning == 0 {
+	if stats := getProgress(t, app, auth, id); stats.TotalStars == 0 || stats.SpeciesLearning == 0 {
 		t.Fatalf("stats before reset = %+v, want non-zero stars and learning", stats)
 	}
 
@@ -311,7 +311,7 @@ func TestResetProgressClearsStatsAndQuiz(t *testing.T) {
 		t.Fatalf("DELETE /api/me/progress = %d, want 204", rr.Code)
 	}
 
-	if stats := getProgress(t, app, auth, id); stats.Stars != 0 || stats.SpeciesMastered != 0 || stats.SpeciesLearning != 0 {
+	if stats := getProgress(t, app, auth, id); stats.TotalStars != 0 || stats.SpeciesMastered != 0 || stats.SpeciesLearning != 0 {
 		t.Fatalf("stats after reset = %+v, want all zero", stats)
 	}
 
@@ -454,12 +454,18 @@ func TestCachedSpeciesReadsMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A metadata file written by the current code carries SciName; one from an
-	// older cache only has the slug.
-	meta, _ := json.Marshal(ImageInfo{SciName: "Turdus merula", Title: "Turdus merula 1.jpg"})
+	// Current entries carry both the scientific name and per-locale common
+	// names, so the fallback pool can label options like every other source.
+	meta, _ := json.Marshal(ImageInfo{
+		SciName: "Turdus merula",
+		Names:   map[string]string{"en": "Common Blackbird", "es": "Mirlo común"},
+		Title:   "Turdus merula 1.jpg",
+	})
 	if err := os.WriteFile(filepath.Join(dir, slugify("Turdus merula")+".json"), meta, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// A legacy entry without a recorded common name is skipped rather than
+	// falling back to a raw slug or scientific name.
 	if err := os.WriteFile(filepath.Join(dir, "parus-major.json"), []byte(`{"Title":"Parus major.jpg"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -468,20 +474,44 @@ func TestCachedSpeciesReadsMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := cache.CachedSpecies()
-	if len(got) != 2 {
-		t.Fatalf("CachedSpecies = %+v, want 2 entries", got)
+	got := cache.CachedSpecies("es")
+	if len(got) != 1 {
+		t.Fatalf("CachedSpecies(es) = %+v, want 1 common-named entry", got)
 	}
-	byCode := map[string]CacheSpecies{}
-	for _, c := range got {
-		byCode[c.Code] = c
+	c := got[0]
+	if c.Code != "turdus-merula" || c.SciName != "Turdus merula" || c.ComName != "Mirlo común" {
+		t.Errorf("CachedSpecies(es) entry = %+v, want turdus-merula / Turdus merula / Mirlo común", c)
 	}
-	if c := byCode["turdus-merula"]; c.SciName != "Turdus merula" {
-		t.Errorf("new entry SciName = %q, want Turdus merula", c.SciName)
+
+	// A locale with no recorded name falls back to English, never to a slug.
+	got = cache.CachedSpecies("fr")
+	if len(got) != 1 || got[0].ComName != "Common Blackbird" {
+		t.Fatalf("CachedSpecies(fr) = %+v, want the English common name", got)
 	}
-	// A legacy entry with no SciName falls back to the slug for its name.
-	if c := byCode["parus-major"]; c.ComName != "parus-major" || c.SciName != "parus-major" {
-		t.Errorf("legacy entry = %+v, want slug-derived name", c)
+}
+
+func TestGetProgressUsesTotalStarsField(t *testing.T) {
+	app, _, store, auth := newQuizTestApp(t)
+	if _, err := store.Upsert("google", "field", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	const id = "google:field"
+	submitAnswer(t, app, auth, id, "vermfly", true)
+
+	rr := httptest.NewRecorder()
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodGet, "/api/me/progress", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET /api/me/progress = %d (%s), want 200", rr.Code, rr.Body.String())
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(rr.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode progress: %v", err)
+	}
+	if _, ok := raw["totalStars"]; !ok {
+		t.Errorf("progress response %s has no totalStars field", rr.Body.String())
+	}
+	if _, ok := raw["stars"]; ok {
+		t.Errorf("progress response %s still has the old stars field", rr.Body.String())
 	}
 }
 

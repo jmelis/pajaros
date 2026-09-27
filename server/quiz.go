@@ -77,6 +77,10 @@ const (
 	questionTypeRecall         = "recall"
 )
 
+// quizChoiceCount is how many distractor options a multiple-choice question
+// gets, in addition to the correct answer.
+const quizChoiceCount = 3
+
 // questionTypeForBox picks the question format from the card's box *before*
 // the answer: boxes 0-1 get multiple choice, box 2+ gets free recall. This
 // means reaching "known" (box 3) requires at least one unprompted recall.
@@ -318,36 +322,49 @@ func (s *Server) orderedQuizPool(locID string, codes []string, taxa map[string]T
 		log.Printf("quiz PopularityCounts(%g, %g): %v", hotspot.Lat, hotspot.Lng, err)
 		return pool
 	}
-	sort.SliceStable(pool, func(i, j int) bool {
-		ci, iok := counts[pool[i].sciName]
-		cj, jok := counts[pool[j].sciName]
-		vi, vj := -1, -1
-		if iok {
-			vi = ci
-		}
-		if jok {
-			vj = cj
-		}
-		if vi != vj {
-			return vi > vj
-		}
-		return pool[i].comName < pool[j].comName
-	})
+	// Same ordering rule as the species endpoint's "popularity" mode.
+	sortByPopularity(pool,
+		func(p quizSpecies) (int, bool) {
+			count, ok := counts[p.sciName]
+			return count, ok
+		},
+		func(p quizSpecies) string { return p.comName },
+	)
 	return pool
 }
 
+// speciesLister is the slice of the image cache the fallback pool needs.
+// Web-only methods can't be faked otherwise, and this keeps the "don't scan
+// the cache unless the hotspot is too small" guarantee testable.
+type speciesLister interface {
+	CachedSpecies(lang string) []CacheSpecies
+}
+
 // cacheQuizFallback lists species from the image cache, for use as a
-// last-resort distractor source. Returns nil when there is no image cache.
-func (s *Server) cacheQuizFallback() []quizSpecies {
-	if s.cache == nil {
+// last-resort distractor source, with common names resolved in lang. Returns
+// nil when there is no image cache.
+func cacheQuizFallback(cache speciesLister, lang string) []quizSpecies {
+	if cache == nil {
 		return nil
 	}
-	cached := s.cache.CachedSpecies()
+	cached := cache.CachedSpecies(lang)
 	out := make([]quizSpecies, 0, len(cached))
 	for _, c := range cached {
 		out = append(out, quizSpecies{code: c.Code, comName: c.ComName, sciName: c.SciName})
 	}
 	return out
+}
+
+// quizFallbackPool returns the image-cache fallback pool to use for a hotspot
+// pool, or nil when the pool is already big enough to fill a multiple-choice
+// question on its own. Building the cache pool reads and JSON-parses every
+// cached image's metadata, so it is skipped entirely (no directory scan)
+// unless the pool has fewer than four candidates.
+func quizFallbackPool(cache speciesLister, pool []quizSpecies, lang string) []quizSpecies {
+	if len(pool) >= quizChoiceCount+1 {
+		return nil
+	}
+	return cacheQuizFallback(cache, lang)
 }
 
 // handleHotspotQuiz builds and returns a quiz session for a hotspot. It reuses
@@ -384,7 +401,12 @@ func (s *Server) handleHotspotQuiz(w http.ResponseWriter, r *http.Request) {
 	}
 
 	selected := composeSession(pool, progress, time.Now(), count)
-	fallback := s.cacheQuizFallback()
+	// The fallback pool only ever matters for a hotspot with fewer than four
+	// candidates; quizFallbackPool skips the image-cache scan otherwise.
+	var fallback []quizSpecies
+	if s.cache != nil {
+		fallback = quizFallbackPool(s.cache, pool, lang)
+	}
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	items := make([]QuizItem, 0, len(selected))
@@ -401,11 +423,11 @@ func (s *Server) handleHotspotQuiz(w http.ResponseWriter, r *http.Request) {
 			if s.cache.IsKnownMissing(c.species.sciName) {
 				item.ImageMissing = true
 			} else {
-				s.cache.EnsureFetchedAsync(c.species.sciName)
+				s.cache.EnsureFetchedAsync(c.species.sciName, lang, c.species.comName)
 			}
 		}
 		if item.QuestionType == questionTypeMultipleChoice {
-			item.Choices = buildChoices(c.species, pool, fallback, 3, rng)
+			item.Choices = buildChoices(c.species, pool, fallback, quizChoiceCount, rng)
 		}
 		items = append(items, item)
 	}

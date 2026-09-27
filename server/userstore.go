@@ -73,7 +73,7 @@ type CardProgress struct {
 // Mastered counts box-5 cards; Learning counts every other card that has a
 // progress row (boxes 1-4).
 type ProgressStats struct {
-	Stars           int `json:"stars"`
+	TotalStars      int `json:"totalStars"`
 	SpeciesMastered int `json:"speciesMastered"`
 	SpeciesLearning int `json:"speciesLearning"`
 }
@@ -522,7 +522,7 @@ func (s *UserStore) ProgressStats(id string) (ProgressStats, error) {
 
 	var st ProgressStats
 	var err error
-	if st.Stars, err = s.stars(id); err != nil {
+	if st.TotalStars, err = s.stars(id); err != nil {
 		return st, err
 	}
 	if err := s.db.QueryRow(

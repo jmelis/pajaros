@@ -268,6 +268,47 @@ func TestChooseDistractorsUsesCacheWhenHotspotTooSmall(t *testing.T) {
 	}
 }
 
+// countingSpeciesLister records how often the image-cache fallback pool is
+// consulted, so a test can prove the directory scan is skipped when it can't
+// matter.
+type countingSpeciesLister struct {
+	calls   int
+	species []CacheSpecies
+}
+
+func (c *countingSpeciesLister) CachedSpecies(lang string) []CacheSpecies {
+	c.calls++
+	return c.species
+}
+
+func TestQuizFallbackPoolSkipsCacheWhenHotspotIsBigEnough(t *testing.T) {
+	lister := &countingSpeciesLister{species: []CacheSpecies{{Code: "cached", SciName: "Cachedus birdus", ComName: "Cached Bird"}}}
+	pool := []quizSpecies{
+		quizSp("a", "A", "", ""),
+		quizSp("b", "B", "", ""),
+		quizSp("c", "C", "", ""),
+		quizSp("d", "D", "", ""),
+	}
+
+	// Four candidates are enough to fill a multiple-choice question, so the
+	// image cache must not be scanned at all.
+	if got := quizFallbackPool(lister, pool, "en"); got != nil {
+		t.Errorf("quizFallbackPool(4-species pool) = %+v, want nil", got)
+	}
+	if lister.calls != 0 {
+		t.Errorf("image cache scanned %d times for a 4-species pool, want 0", lister.calls)
+	}
+
+	// Three candidates are not, so the cache pool is built once (with names).
+	got := quizFallbackPool(lister, pool[:3], "en")
+	if lister.calls != 1 {
+		t.Errorf("image cache scanned %d times for a 3-species pool, want 1", lister.calls)
+	}
+	if len(got) != 1 || got[0].comName != "Cached Bird" || got[0].code != "cached" {
+		t.Errorf("quizFallbackPool(3-species pool) = %+v, want the cached species", got)
+	}
+}
+
 func TestBuildChoicesIncludesCorrectOnceAndShuffles(t *testing.T) {
 	correct := quizSp("correct", "Correct", "famA", "ordX")
 	pool := []quizSpecies{
@@ -335,7 +376,7 @@ func TestAnswerCardLeitnerStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stats.Stars != 9 || stats.SpeciesMastered != 1 || stats.SpeciesLearning != 0 {
+	if stats.TotalStars != 9 || stats.SpeciesMastered != 1 || stats.SpeciesLearning != 0 {
 		t.Errorf("stats = %+v, want 9 stars / 1 mastered / 0 learning", stats)
 	}
 

@@ -342,7 +342,7 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 			if s.cache.IsKnownMissing(taxon.SciName) {
 				cards[i].ImageMissing = true
 			} else {
-				s.cache.EnsureFetchedAsync(taxon.SciName)
+				s.cache.EnsureFetchedAsync(taxon.SciName, lang, taxon.ComName)
 			}
 		}
 	}
@@ -367,20 +367,15 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 					cards[i].NearbyCount = &c
 				}
 			}
-			sort.SliceStable(cards, func(i, j int) bool {
-				a, b := cards[i].NearbyCount, cards[j].NearbyCount
-				av, bv := -1, -1
-				if a != nil {
-					av = *a
-				}
-				if b != nil {
-					bv = *b
-				}
-				if av != bv {
-					return av > bv
-				}
-				return cards[i].ComName < cards[j].ComName
-			})
+			sortByPopularity(cards,
+				func(c SpeciesCard) (int, bool) {
+					if c.NearbyCount == nil {
+						return 0, false
+					}
+					return *c.NearbyCount, true
+				},
+				func(c SpeciesCard) string { return c.ComName },
+			)
 		}
 	case "alphabetical":
 		sort.SliceStable(cards, func(i, j int) bool { return cards[i].ComName < cards[j].ComName })
