@@ -342,6 +342,8 @@
     width: min(100%, 640px);
   }
   .quiz-choice { width: 100%; padding: 14px; font-size: 1rem; }
+  .quiz-choice.quiz-choice-correct { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .quiz-choice.quiz-choice-incorrect { background: #fbeaea; border-color: #c33; color: #a33; }
   .quiz-reveal { text-align: center; }
   .quiz-reveal-name { font-size: 1.4rem; font-weight: 700; }
   .quiz-reveal-sub { color: var(--accent-dark); font-weight: 600; }
@@ -1012,7 +1014,8 @@ const quiz = {
         btn.type = "button";
         btn.className = "btn btn-secondary quiz-choice";
         btn.textContent = c.comName;
-        btn.addEventListener("click", () => this.answer(item, c.speciesCode === item.speciesCode));
+        btn.dataset.speciesCode = c.speciesCode;
+        btn.addEventListener("click", () => this.answer(item, c.speciesCode === item.speciesCode, btn));
         choices.appendChild(btn);
       }
       body.appendChild(choices);
@@ -1057,8 +1060,20 @@ const quiz = {
     body.append(showBtn, reveal, grade);
   },
 
-  async answer(item, correct) {
-    for (const b of $("quizBody").querySelectorAll("button")) b.disabled = true;
+  async answer(item, correct, chosenBtn) {
+    const buttons = $("quizBody").querySelectorAll("button");
+    for (const b of buttons) b.disabled = true;
+
+    // Multiple choice needs an explicit right/wrong reveal: mark the correct
+    // option green always, and the tapped option red when it was the wrong
+    // one, so a mistake is visible instead of silently moving on.
+    if (item.questionType === "multipleChoice") {
+      for (const b of buttons) {
+        if (b.dataset.speciesCode === item.speciesCode) b.classList.add("quiz-choice-correct");
+        else if (b === chosenBtn) b.classList.add("quiz-choice-incorrect");
+      }
+    }
+
     let answer = null;
     try {
       const res = await fetch(`/api/me/progress/${encodeURIComponent(item.speciesCode)}`, {
@@ -1091,7 +1106,11 @@ const quiz = {
       else this.queue.splice(pos, 0, requeued);
     }
     this.index++;
-    this.render();
+    // Multiple choice just colored the buttons above; give that a moment to
+    // register before it's replaced by the next question. Recall already
+    // showed its reveal before the self-grade tap, so it can advance at once.
+    if (item.questionType === "multipleChoice") setTimeout(() => this.render(), 1100);
+    else this.render();
   },
 
   renderSummary() {
