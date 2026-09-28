@@ -33,6 +33,12 @@ type Server struct {
 // crafted locId could walk out of the cache directory.
 var validLocID = regexp.MustCompile(`^L\d+$`).MatchString
 
+// validRegionCode matches eBird's region code format at any level: country
+// ("US"), subnational1 ("US-NY") or subnational2 ("US-NY-109"). Same
+// path-traversal concern as validLocID — it's used verbatim in
+// EbirdCache.HotspotsInRegion's cache file path.
+var validRegionCode = regexp.MustCompile(`^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$`).MatchString
+
 // validLang is the fixed set of bird-name languages the frontend offers
 // (see static/index.html's #lang select). Enforcing an allow-list, rather
 // than accepting any query value, closes a cache-bypass path: lang is part

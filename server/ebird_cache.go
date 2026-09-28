@@ -92,3 +92,31 @@ func (c *EbirdCache) Species(locID, lang string) ([]string, map[string]Taxon, er
 	}
 	return codes, taxa, nil
 }
+
+type hotspotsRegionCacheEntry struct {
+	FetchedAt time.Time `json:"fetchedAt"`
+	Hotspots  []Hotspot `json:"hotspots"`
+}
+
+// HotspotsInRegion is EbirdClient.HotspotsInRegion, cached to disk for
+// ebirdCacheTTL. Caller must have already validated regionCode (see
+// validRegionCode) — it's used verbatim in the cache file path.
+func (c *EbirdCache) HotspotsInRegion(regionCode string) ([]Hotspot, error) {
+	path := filepath.Join(c.dir, "hotspots-region-"+regionCode+".json")
+	if data, err := os.ReadFile(path); err == nil {
+		var entry hotspotsRegionCacheEntry
+		if json.Unmarshal(data, &entry) == nil && time.Since(entry.FetchedAt) < ebirdCacheTTL {
+			return entry.Hotspots, nil
+		}
+	}
+
+	hotspots, err := c.client.HotspotsInRegion(regionCode)
+	if err != nil {
+		return nil, err
+	}
+	entry := hotspotsRegionCacheEntry{FetchedAt: time.Now(), Hotspots: hotspots}
+	if data, err := json.Marshal(entry); err == nil {
+		_ = writeFileAtomic(path, data)
+	}
+	return hotspots, nil
+}

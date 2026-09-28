@@ -72,6 +72,15 @@ func (c *EbirdClient) NearbyHotspots(lat, lng, distKm float64) ([]Hotspot, error
 	return hotspots, nil
 }
 
+// HotspotsInRegion returns every hotspot in a region (a country, e.g. "US",
+// or a subnational1/2 code, e.g. "US-NY"), unlike NearbyHotspots which is
+// limited to a 50km radius around a point.
+func (c *EbirdClient) HotspotsInRegion(regionCode string) ([]Hotspot, error) {
+	var hotspots []Hotspot
+	err := c.get(fmt.Sprintf("/ref/hotspot/%s", regionCode), url.Values{"fmt": {"json"}}, &hotspots)
+	return hotspots, err
+}
+
 // HotspotInfo resolves a single hotspot by its eBird location id — used to
 // support deep-linking directly to a hotspot (?locId=...) without first
 // doing a nearby-hotspots search.
