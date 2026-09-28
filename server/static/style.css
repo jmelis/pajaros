@@ -113,6 +113,17 @@ a { color: var(--accent-dark); }
   letter-spacing: 0.08em;
 }
 
+/* Stat pills: used by the home progress summary and the settings panel's
+   progress line (both render a <div class="settings-stats"> of <span
+   class="stat">s — the same markup, two call sites). */
+.settings-stats { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.settings-stats .stat {
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+}
+
 /* Buttons */
 .btn {
   font: inherit;

@@ -213,11 +213,15 @@ async function initAccount() {
 // ---- Home -----------------------------------------------------------------
 
 function renderProgress(el, st) {
+  const mastered = st.speciesMastered || 0;
+  const learning = st.speciesLearning || 0;
+  const due = st.dueForReview || 0;
+  const stars = st.totalStars || 0;
   el.innerHTML =
-    `<span class="stat"><strong>${st.speciesMastered || 0}</strong> ${t("stats.mastered")}</span>` +
-    `<span class="stat"><strong>${st.speciesLearning || 0}</strong> ${t("stats.learning")}</span>` +
-    `<span class="stat"><strong>${st.dueForReview || 0}</strong> ${t("stats.due")}</span>` +
-    (state.starRewards ? `<span class="stat"><strong>⭐ ${st.totalStars || 0}</strong> ${t("stats.stars")}</span>` : "");
+    `<span class="stat"><strong>${mastered}</strong> ${tn("stats.mastered", mastered)}</span>` +
+    `<span class="stat"><strong>${learning}</strong> ${tn("stats.learning", learning)}</span>` +
+    `<span class="stat"><strong>${due}</strong> ${tn("stats.due", due)}</span>` +
+    (state.starRewards ? `<span class="stat"><strong>⭐ ${stars}</strong> ${tn("stats.stars", stars)}</span>` : "");
 }
 
 function renderHomeFavorites() {
@@ -704,6 +708,7 @@ async function onPrimaryLanguageChange() {
   if (currentRoute.name === "home") await renderHome();
   else if (currentRoute.name === "mastered") await renderMastered();
   else if (currentRoute.name === "hotspot") await loadSpecies();
+  else if (currentRoute.name === "settings") await renderSettings();
 }
 
 async function onSecondaryLanguageChange() {
@@ -1001,7 +1006,7 @@ const quiz = {
     if (state.starRewards) {
       const earned = document.createElement("p");
       earned.className = "quiz-earned";
-      earned.textContent = t("quiz.earned", { n: this.starsEarned });
+      earned.textContent = tn("quiz.earned", this.starsEarned);
       wrap.appendChild(earned);
     }
 
