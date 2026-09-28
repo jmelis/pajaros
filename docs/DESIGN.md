@@ -253,3 +253,79 @@ Comprobaciones:
 | CC BY / CC BY-SA / CC0 | Licencias compatibles con repositorio público, web y PDF |
 | Cutouts (`rembg`) solo para el póster, generados aparte | La web sigue usando las fotos normales; solo la guía impresa necesita el ave "flotando" sin caja. Mantiene ese único paso pesado (modelo de ~1GB) fuera del resto del toolchain |
 | Sin créditos visibles (ni web ni PDF) | Proyecto familiar no comercial; los datos de atribución se conservan en `metadata.json` pero no se muestran en ningún sitio — riesgo de incumplimiento de CC BY/CC BY-SA asumido conscientemente |
+
+## 9. Aplicación servidor (`server/`)
+
+Producto aparte de la guía estática: un servidor Go que responde con datos de
+eBird y guarda cuentas, preferencias y progreso de quiz en SQLite. Comparte
+repositorio con la guía pero no código con ella.
+
+### 9.1 Vistas y navegación
+
+El frontend vive en `server/static/` separado en cuatro piezas —`index.html`
+(marcado), `style.css` (estilos), `app.js` (aplicación) e `i18n.json`
+(traducciones)— servidas como archivos y embebidas en el binario. No hay paso
+de build ni bundler.
+
+La navegación es por *hash* (`#/home`, `#/search`, `#/hotspot/<locId>`,
+`#/mastered`, `#/settings`), de modo que cada vista sobrevive a un recargado y
+es enlazable sin reescrituras en el servidor. Una barra inferior persistente
+llega a Inicio, Buscar, Dominadas y Ajustes y marca la vista actual para
+tecnología de asistencia. El enlace profundo antiguo
+`/?locId=…&lang=…&mode=…` sigue funcionando y aterriza en la vista del lugar.
+
+- **Inicio** — lugares guardados (con opción de quitarlos), un acceso
+  destacado a la búsqueda y el resumen de progreso: dominadas, en
+  aprendizaje, para repasar y estrellas. Una cuenta sin datos ve una pantalla
+  de bienvenida.
+- **Buscar** — los mismos campos de ubicación, geolocalización, mapa y
+  "buscar en esta zona"; elegir un lugar abre su vista.
+- **Lugar** — nombre, alternar guardado y elección entre **explorar** (con
+  sus órdenes por popularidad, categoría y alfabético) y **quiz** (con su
+  selector de tamaño).
+- **Dominadas** — las especies dominadas como tarjetas del mismo estilo que
+  el explorador, con foto, nombre, subtítulo en el idioma secundario, nombre
+  científico y sus propias estadísticas. Sin estado vacío, apunta al quiz.
+- **Ajustes** — idioma, idioma secundario, recompensas con estrellas,
+  progreso, reinicio y cerrar sesión.
+
+### 9.2 Preferencias
+
+- **Idioma principal** — dirige a la vez los nombres de las aves (eBird,
+  parámetro `lang`) y el texto de la interfaz (`en`/`fr`/`es`). No hay una
+  preferencia de idioma aparte para la interfaz.
+- **Idioma secundario** — subtítulo opcional bajo los nombres.
+- **Recompensas con estrellas** — un único booleano, apagado por defecto, que
+  controla solo la exhibición: estrellas, la explosión de estrellas al
+  acertar, el contador visible y la celebración al dominar. La mecánica del
+  quiz (cajas, fechas de repaso, dominio) no depende de él. No existe ya el
+  antiguo "modo niño" como *skin* visual.
+
+La página de inicio de sesión (`server/static/login.html`) permanece en
+inglés a propósito: se sirve antes de conocer ninguna preferencia de cuenta.
+
+### 9.3 Endpoints
+
+- `GET /api/hotspots`, `GET /api/hotspots/{locId}`,
+  `GET /api/hotspots/{locId}/species`, `GET /api/hotspots/{locId}/quiz` —
+  datos de eBird (con la misma limitación de tasa por cuenta).
+- `GET/PUT /api/me/language`, `GET/PUT /api/me/secondary-language`,
+  `GET/PUT /api/me/star-rewards` — preferencias locales.
+- `GET /api/me`, `GET /api/me/progress`,
+  `POST /api/me/progress/{speciesCode}`, `DELETE /api/me/progress` —
+  perfil y progreso.
+- `GET /api/me/favorites`, `PUT/DELETE /api/me/favorites/{locId}` — lugares
+  guardados, con nombre y coordenadas capturados al guardarlos para poder
+  listarlos sin llamar a eBird. Hay un tope por cuenta.
+- `GET /api/me/mastered` — especies dominadas con nombres y foto resueltos
+  solo desde datos locales.
+
+### 9.4 Esquema y robustez
+
+`server/userstore.go` reconcilia el esquema al arrancar de forma aditiva e
+idempotente: crea las tablas que falten y añade con `ALTER TABLE` las columnas
+que una base de datos antigua no tenga, sin tocar filas ni valores
+existentes. Así, una base cuyo `user_preferences` precede a
+`secondary_language` o `star_rewards` se repara sola en el siguiente
+arranque. La información de taxonomía resuelta (`species_taxonomy`) se guarda
+de forma duradera para que la vista de dominadas no necesite llamadas de red.
