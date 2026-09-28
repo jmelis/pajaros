@@ -10,9 +10,28 @@
 <body>
 <header class="app-header">
   <div class="brand">
+    <span class="brand-mark" aria-hidden="true">🐦</span>
     <h1>pajaros</h1>
     <span class="tagline" data-i18n="app.tagline"></span>
   </div>
+  <nav class="app-nav" data-i18n-aria="nav.aria">
+    <a href="#/home" data-nav="home">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>
+      <span data-i18n="nav.home"></span>
+    </a>
+    <a href="#/search" data-nav="search">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <span data-i18n="nav.search"></span>
+    </a>
+    <a href="#/mastered" data-nav="mastered">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 2.9 6.26L21.5 9l-5 4.87L17.8 21 12 17.6 6.2 21l1.3-7.13-5-4.87 6.6-.74Z"/></svg>
+      <span data-i18n="nav.mastered"></span>
+    </a>
+    <a href="#/settings" data-nav="settings">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+      <span data-i18n="nav.settings"></span>
+    </a>
+  </nav>
 </header>
 
 <main class="container">
@@ -127,13 +146,6 @@
     </section>
   </section>
 </main>
-
-<nav class="app-nav" data-i18n-aria="nav.aria">
-  <a href="#/home" data-nav="home" data-i18n="nav.home"></a>
-  <a href="#/search" data-nav="search" data-i18n="nav.search"></a>
-  <a href="#/mastered" data-nav="mastered" data-i18n="nav.mastered"></a>
-  <a href="#/settings" data-nav="settings" data-i18n="nav.settings"></a>
-</nav>
 
 <div id="quizOverlay" class="overlay quiz-overlay" hidden>
   <div class="quiz-top">
