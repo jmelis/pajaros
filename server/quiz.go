@@ -364,7 +364,7 @@ func quizFallbackPool(cache speciesLister, pool []quizSpecies, lang string) []qu
 
 // handleHotspotQuiz builds and returns a quiz session for a hotspot. It reuses
 // the species endpoint's species + taxonomy cache and (for new-card ordering)
-// its GBIF popularity data.
+// its popularity data.
 func (s *Server) handleHotspotQuiz(w http.ResponseWriter, r *http.Request) {
 	locID := r.PathValue("locId")
 	if !validLocID(locID) {

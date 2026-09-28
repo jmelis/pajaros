@@ -5,9 +5,9 @@ package main
 // and returns 403 from the deployed pod's address — a common anti-scraping
 // measure against hosting-provider ranges). The server makes no live calls
 // to eBird or GBIF at request time; both Hotspot and Taxon are served from
-// offline data built ahead of time — see docs/GBIF_DATA_PIPELINE.md.
+// offline data built ahead of time — see ARCHITECTURE.md.
 
-// Hotspot is one GBIF-derived point (see docs/GBIF_DATA_PIPELINE.md) — the
+// Hotspot is one GBIF-derived point (see ARCHITECTURE.md) — the
 // server's unit of "a place with birds," not eBird's curated hotspot list.
 // ID is "lat,lng" and doubles as the key into the bbolt species store
 // (species_store.go), so no separate ID translation is needed anywhere.

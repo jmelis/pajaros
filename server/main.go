@@ -47,15 +47,18 @@ const defaultLang = "es"
 // Environment variables
 // =====================
 //
-// Hotspot and taxonomy data are entirely offline (embedded at build time —
-// see hotspots_data.go, taxonomy_data.go, and cmd/gensnapshot to refresh
-// them), so there is no eBird API key or eBird rate limit to configure here
-// anymore. Species-per-hotspot still uses live GBIF occurrence data.
+// Hotspot, species and taxonomy data are entirely offline at request time —
+// taxonomy is go:embed'd at build time (taxonomy_data.go); hotspot/species
+// data is read lazily from a bbolt file at HOTSPOTS_DATA_DIR, built by
+// cmd/gensnapshot (see ARCHITECTURE.md and hotspots_data.go/species_store.go).
+// So there is no eBird or GBIF API key or rate limit to configure here —
+// Wikimedia (card images) is the only upstream call left at request time.
 //
 // Optional (existing):
 //   CACHE_DIR  on-disk upstream/image cache (default "./cache").
 //   PORT, HOST  listen address (default "8080" / "0.0.0.0").
-//   WIKIMEDIA_RPS, GBIF_RPS  global upstream rate limits.
+//   HOTSPOTS_DATA_DIR  directory holding hotspots.bolt (default "./data").
+//   WIKIMEDIA_RPS  Wikimedia rate limit (default 8/s).
 //
 // Authentication (all optional; the server starts fine without any of them):
 //   SESSION_SECRET  HMAC key for signing session cookies. If unset, a random
@@ -133,7 +136,7 @@ func main() {
 
 	// GBIF-derived hotspot/species data — low single-digit GB, rebuilt
 	// yearly by cmd/gensnapshot, scp'd to this host rather than go:embed'd
-	// or committed to git. See docs/GBIF_DATA_PIPELINE.md. bbolt is
+	// or committed to git. See ARCHITECTURE.md. bbolt is
 	// mmap-backed, so opening it doesn't load the worldwide dataset into
 	// memory — one handle is shared by both HotspotStore and SpeciesStore,
 	// which read different buckets of the same file.
@@ -206,10 +209,10 @@ func main() {
 	// Per-account limits, independent of the global upstream limiters in
 	// ratelimit.go: those cap our total outbound rate across every client,
 	// these cap how much of that shared budget one account can burn through.
-	// Detail views (info + species) are the ones that can fan out to eBird
-	// (and, via popularity mode, GBIF) on a cache miss, so they get the
-	// tighter limit; the hotspot search is a single eBird call per request
-	// regardless of how many hotspots come back, so it gets a looser one.
+	// Detail views (species) are the ones that can fan out to Wikimedia (one
+	// image lookup per species) on a cache miss, so they get the tighter
+	// limit; the hotspot search is a single local bbolt lookup regardless of
+	// how many hotspots come back, so it gets a looser one.
 	//
 	// The key is the account id when the login gate is active. In open mode
 	// there is no account, so it falls back to the client IP instead of the
@@ -228,7 +231,7 @@ func main() {
 	appMux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotInfo))
 	appMux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotSpecies))
 	// The quiz builder reuses the species/taxonomy cache but also reaches for
-	// the same GBIF popularity data a detail view can, so it shares that
+	// the same offline popularity data a detail view can, so it shares that
 	// limiter.
 	appMux.HandleFunc("GET /api/hotspots/{locId}/quiz", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotQuiz))
 

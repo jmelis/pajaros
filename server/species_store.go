@@ -10,7 +10,7 @@ import (
 const speciesBucketName = "species_by_hotspot"
 
 // SpeciesStore answers "which species, how often" for a hotspot ID from
-// hotspots.bolt (built by cmd/gensnapshot — see docs/GBIF_DATA_PIPELINE.md).
+// hotspots.bolt (built by cmd/gensnapshot — see ARCHITECTURE.md).
 // bbolt is mmap-backed, so a lookup only pages in the data it actually
 // touches — the worldwide dataset (low single-digit GB) is never loaded
 // wholesale into memory.

@@ -69,7 +69,7 @@ func cellKey(c gridCell) []byte {
 
 // runHotspots streams the GBIF aggregate TSV — columns decimallatitude,
 // decimallongitude, locality, species, n, sorted by (lat, lng) — see
-// docs/GBIF_DATA_PIPELINE.md for the exact SQL, which includes
+// ARCHITECTURE.md for the exact SQL, which includes
 // "ORDER BY decimalLatitude, decimalLongitude" specifically so this tool
 // can rely on same-point rows being adjacent, and on points themselves
 // arriving in non-decreasing (lat, lng) order.

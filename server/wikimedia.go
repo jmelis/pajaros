@@ -10,9 +10,9 @@ import (
 	"strings"
 )
 
-// Port of scripts/fetch_images.py's principal-image resolution, trimmed to
-// only what's needed for the card image (no extra photos, no metadata.json
-// bookkeeping — that lives in the static-site pipeline, not here).
+// Resolves a species' principal card image from Wikimedia Commons: search,
+// filter by license and by filename (excluding maps/illustrations/sound
+// files etc.), and return the first acceptable hit.
 
 var allowedLicenseRe = regexp.MustCompile(`(?i)^(cc0|cc[- ]by(-sa)?[- ]?[\d.]*|public domain|pd)`)
 var excludeFilenameRe = regexp.MustCompile(`(?i)(map|range|distribution|egg|nest|skeleton|anatomy|illustration|drawing|painting|sound|spectrogram|call\b|song\b|vocali|logo|stamp|coin|taxonomy|cladogram)`)

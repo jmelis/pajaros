@@ -1,7 +1,7 @@
-.PHONY: all bake validate clean build server server-open \
+.PHONY: all build server server-open \
         server-linux image image-push deploy deploy-manifest
 
-all: bake
+all: build
 
 # Container image, deployed via the sibling GitOps repo. Podman, never docker,
 # matching the other apps deployed the same way (see e.g. ../photosee).
@@ -13,18 +13,6 @@ IMAGE    ?= quay.io/jmelis/birdquiz
 TAG      ?= $(shell git rev-parse --short HEAD)
 DEPLOYER ?= ../docker-compose-deployer
 MANIFEST ?= $(DEPLOYER)/k8s/applications/birdquiz/deployment.yaml
-
-# Bird directory names (scientific names) contain spaces, which breaks make's
-# automatic prerequisite globbing/splitting — so this stays phony and always
-# reruns bake.sh, rather than trying to track individual metadata.json files.
-bake:
-	bash scripts/bake.sh
-
-validate:
-	bash scripts/validate.sh
-
-clean:
-	rm -f index.html
 
 build:
 	cd server && go build -o pajaros-server .

@@ -1,5 +1,5 @@
 // Command gensnapshot builds the embedded, worldwide data snapshots the
-// server ships instead of calling eBird/GBIF live (see docs/GBIF_DATA_PIPELINE.md
+// server ships instead of calling eBird/GBIF live (see ARCHITECTURE.md
 // for the full story on why). Run it from the server/ directory so its
 // relative output paths (data/...) land where the go:embed directives in
 // taxonomy_data.go and hotspots_data.go expect them.
@@ -14,7 +14,7 @@
 // result committed — not fetched at request time.
 //
 // hotspots consumes the aggregated file from GBIF's SQL Downloads API (see
-// docs/GBIF_DATA_PIPELINE.md) directly from its downloaded .zip — columns
+// ARCHITECTURE.md) directly from its downloaded .zip — columns
 // decimallatitude, decimallongitude, locality, species, n — no unzipping or
 // pre-sorting needed; it decompresses the zip's single entry on the fly.
 // It reads the data twice (see hotspots.go) instead of sorting it once,

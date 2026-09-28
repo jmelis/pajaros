@@ -4,11 +4,12 @@ import "fmt"
 
 // hotspotSpeciesSource resolves the species observed at a hotspot, in
 // taxonomic order, plus their taxonomy and (separately) their popularity —
-// the offline replacement for eBird's spplist + taxonomy endpoints, and for
-// GBIF's live occurrence-search. It's an interface (rather than a concrete
-// *SpeciesResolver field on Server) purely for testability: quiz/progress
-// tests want to hand the server a fixed set of made-up species codes without
-// going through real hotspot/bbolt/taxonomy data at all.
+// all from the offline GBIF-derived bbolt data (see ARCHITECTURE.md), no
+// live eBird or GBIF call involved. It's an interface (rather than a
+// concrete *SpeciesResolver field on Server) purely for testability:
+// quiz/progress tests want to hand the server a fixed set of made-up
+// species codes without going through real hotspot/bbolt/taxonomy data at
+// all.
 type hotspotSpeciesSource interface {
 	Species(locID, lang string) (codes []string, taxa map[string]Taxon, err error)
 	// PopularityCounts returns each species' observation count at a

@@ -11,7 +11,7 @@ import (
 // pajarosUA identifies this project (and gives a contact point) to
 // Wikimedia — the only upstream API the deployed server still talks to;
 // eBird and GBIF are both build-time-only now (see
-// docs/GBIF_DATA_PIPELINE.md and cmd/gensnapshot).
+// ARCHITECTURE.md and cmd/gensnapshot).
 const pajarosUA = "PajarosServer/0.1 (+https://github.com/jmelis/pajaros; contact: j.melis@gmail.com)"
 
 // wikimediaLimiter caps the *aggregate* outbound rate to Wikipedia/Commons

@@ -18,7 +18,7 @@ import (
 const gridDegrees = 1.0
 
 // Bucket names in hotspots.bolt (built by cmd/gensnapshot — see
-// docs/GBIF_DATA_PIPELINE.md). hotspot_by_id and hotspot_by_grid_cell hold
+// ARCHITECTURE.md). hotspot_by_id and hotspot_by_grid_cell hold
 // the metadata (lat, lng, name, totalCount) this file serves; species data
 // lives in species_store.go's own sibling bucket.
 const (

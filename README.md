@@ -1,63 +1,83 @@
-# Guía Familiar de Aves
+# pajaros
 
-Catálogo de identificación de aves para paseos familiares en **Alicante**, **Ourense** y **Bruselas** (20 especies por lugar). Web estática, navegable con gestos, más una guía A4 imprimible generada por el propio navegador.
+A family bird-quiz web app: search hotspots worldwide, browse the species
+seen at one, quiz yourself with spaced repetition. Go server, SQLite for
+accounts, offline GBIF-derived data for hotspots/species. See
+`ARCHITECTURE.md` for how it's built.
 
-**Web:** https://jmelis.github.io/pajaros/
+## Run locally
 
-## Uso local
+```
+make server-open   # http://localhost:8080 — no login required
+make server         # same, but honors GOOGLE_AUTH_ENABLED/APPLE_AUTH_ENABLED
+```
 
-`index.html` lleva el catálogo entero horneado dentro (nada de `fetch`), así que puedes abrirlo directamente desde el Finder/Explorador — **sin servidor, sin Node, sin nada**.
+Needs Go and `server/data/hotspots.bolt` present (see below) — everything
+else is a plain file on disk, no other services required. Full env var
+list is documented at the top of `server/main.go`.
 
-## Editar el catálogo
+## Deploy
 
-`index.html` es un artefacto generado — no lo edites a mano. La plantilla es `index.template.html`; `scripts/bake.sh` combina `places.json` + `birds/*/metadata.json` en él. Necesita [`jq`](https://jqlang.org/) (`brew install jq` / `apt install jq`), nada más.
+```
+make image-push   # build + push the container image
+make deploy        # ...and point the GitOps manifest at the new tag
+```
 
-- **Especie nueva:** crea `birds/<Genus species>/metadata.json` (copia el de otra especie), añádela a `places.json`, y ejecuta `python3 scripts/fetch_images.py "<Genus species>"` para descargar 3 fotos con licencia libre y su atribución desde Wikimedia (solo stdlib, sin `pip install`).
-- **Imagen nueva en una especie existente:** copia el archivo a `birds/<Genus species>/` y añade su entrada en `images[]` de `metadata.json` (`file`, `author`, `source_url`, `license`, `license_url`).
-- **Canto de un ave:** `python3 scripts/fetch_audio.py "<Genus species>"` descarga una grabación con licencia libre desde Wikimedia Commons (categoría `Audio files of <Genus species>`, mayormente importada de Xeno-canto) y rellena `audio` en `metadata.json`. No todas las especies tienen grabación disponible con licencia libre — en ese caso el botón de reproducir simplemente no aparece.
-- **Lugar nuevo:** añade la entrada en `places.json` (`name_es`, `name_fr`, 20 `species`) y un botón en `index.template.html` (`#place-buttons`).
-- **Cambio de interfaz:** edita `index.template.html`, `src/app.js` o `src/style.css`, nunca `index.html` directamente.
-- **Recorte para el póster:** `scripts/cutout.py` quita el fondo de `principal.jpg` y genera `birds/<Genus species>/poster-cutout.png` (ave flotando, sin caja) que usa la guía impresa si existe. Aparte del resto del proyecto — usa [`uv`](https://docs.astral.sh/uv/) para resolver `rembg`+`Pillow` desde las dependencias inline del script (descarga un modelo de ~1GB la primera vez y lo conserva en `~/.rembg/models/`):
-  ```bash
-  uv run scripts/cutout.py            # todas las especies
-  uv run scripts/cutout.py --missing  # solo las que aún no tienen recorte
-  ```
+## Refresh the bird data
 
-Después de cualquier cambio:
+Two independent sources, both refreshed roughly yearly, neither called at
+request time by the deployed server:
+
+| source | provides | committed to git? |
+|---|---|---|
+| eBird taxonomy API | species names (en/es/fr), classification | yes |
+| GBIF (EOD dataset) | which birds occur where, how often | no — `scp`'d |
+
+### Taxonomy (seconds)
+
+```
+cd server
+EBIRD_API_KEY=... go run ./cmd/gensnapshot taxonomy   # run from home; eBird blocks cloud IPs
+git add data/taxonomy_*.json.gz && git commit -m "Refresh eBird taxonomy"
+```
+
+### Hotspot/species data (GBIF, ~20 min once downloaded)
 
 ```bash
-bash scripts/validate.sh   # integridad y atribución del catálogo
-bash scripts/bake.sh       # regenera index.html — comitéalo
+curl -X POST -H "Content-Type: application/json" \
+  -u '<gbif_username>:<gbif_password>' \
+  https://api.gbif.org/v1/occurrence/download/request \
+  -d '{
+    "sendNotification": true,
+    "notificationAddresses": ["you@example.com"],
+    "format": "SQL_TSV_ZIP",
+    "sql": "SELECT decimalLatitude, decimalLongitude, locality, species, COUNT(*) AS n FROM occurrence WHERE datasetKey = '\''4fa7b334-ce0d-4e88-aaae-2e0c138d049e'\'' AND decimalLatitude IS NOT NULL GROUP BY decimalLatitude, decimalLongitude, locality, species ORDER BY decimalLatitude, decimalLongitude"
+  }'
 ```
 
-## Imprimir
-
-Menú (☰) → **Imprimir esta guía** → diálogo de impresión del navegador (Guardar como PDF, o imprimir a tamaño real 100%). Genera 2 láminas A4 (10 aves cada una) en forma de collage — tamaño y rotación de cada ave según su silueta, empaquetado denso vía CSS Grid (`grid-auto-flow: dense`), sin caja alrededor. Las especies sin `poster-cutout.png` caen de vuelta a la foto normal en un recuadro.
-
-## Estructura
+Poll `https://api.gbif.org/v1/occurrence/download/<KEY>` until `status` is
+`SUCCEEDED` (~10 min–a few hours depending on GBIF's queue), then:
 
 ```
-birds/<Genus species>/metadata.json, principal.jpg, foto2.jpg, foto3.jpg
-                            poster-cutout.png (opcional)  # ave sin fondo, para el póster
-                            song.mp3/.ogg (opcional)      # canto, con botón de reproducir en la ficha
-places.json                # 3 lugares × 20 especies
-
-index.template.html        # plantilla — edítala a ella, no a index.html
-index.html                 # generado por bake.sh, con el catálogo ya horneado dentro
-src/app.js, src/style.css, 404.html
-
-scripts/
-  bake.sh                  # places.json + birds/ → index.html
-  validate.sh              # integridad del catálogo (bash + jq)
-  fetch_images.py          # descarga fotos + atribución desde Wikimedia (Python stdlib)
-  fetch_audio.py           # descarga cantos + atribución desde Wikimedia Commons (Python stdlib)
-  cutout.py                # quita el fondo del póster (Python + rembg, aparte)
-
-docs/DESIGN.md, docs/IMPLEMENTATION_PLAN.md
+curl -sL -o gbif_download.zip "<downloadLink>"
+cd server
+go run ./cmd/gensnapshot hotspots gbif_download.zip   # ~20 min, writes data/hotspots.bolt
+scp data/hotspots.bolt <server-host>:<data-dir>
 ```
 
-CI (`.github/workflows/ci.yml`) valida, hornea y publica en GitHub Pages en cada push a `main`.
+Then restart the server (or just let it pick up the file — opening it is
+near-instant regardless of size). `server/.gitignore` already excludes
+`hotspots.bolt` — don't `git add` it.
 
-## Licencias de imágenes y audio
+**Gotchas:**
+- GBIF account needs a **username** (not email); free signup at
+  gbif.org. Keep the password out of shell history — a `.netrc` entry or a
+  gitignored env file you `source` is safer.
+- The `ORDER BY` in the query above is required, not optional — the build
+  tool depends on sorted input and fails loudly (`"input not sorted by
+  point"`) if it isn't.
+- `year` is a reserved word in GBIF's SQL dialect; needs double-quoting
+  (`"year"`) if a query ever needs to filter by it.
 
-Todo con licencia libre (CC BY, CC BY-SA, CC0 o dominio público). Los datos de atribución (`author`, `source_url`, `license`, `license_url`) siguen en `metadata.json` de cada especie, pero no se muestran en la web ni en la guía impresa — proyecto familiar no comercial, sin intención de redistribución más allá de este uso.
+See `ARCHITECTURE.md` for why the pipeline is shaped this way (GBIF vs.
+live eBird, the `bbolt` schema, the build algorithm).
