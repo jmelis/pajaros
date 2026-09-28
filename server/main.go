@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 // The frontend is split into markup, styles, application code and
@@ -129,32 +131,32 @@ func main() {
 		log.Fatalf("cache dir %q: %v", cacheDir, err)
 	}
 
-	// GBIF-derived hotspot/species data — large (low single-digit GB),
-	// rebuilt yearly by cmd/gensnapshot, scp'd to this host rather than
-	// go:embed'd or committed to git. See docs/GBIF_DATA_PIPELINE.md.
+	// GBIF-derived hotspot/species data — low single-digit GB, rebuilt
+	// yearly by cmd/gensnapshot, scp'd to this host rather than go:embed'd
+	// or committed to git. See docs/GBIF_DATA_PIPELINE.md. bbolt is
+	// mmap-backed, so opening it doesn't load the worldwide dataset into
+	// memory — one handle is shared by both HotspotStore and SpeciesStore,
+	// which read different buckets of the same file.
 	dataDir := os.Getenv("HOTSPOTS_DATA_DIR")
 	if dataDir == "" {
 		dataDir = "./data"
 	}
-	// Loading the full worldwide index (20M+ entries) takes tens of
-	// seconds — log before starting, not just after, so a slow startup
-	// doesn't look hung.
-	log.Printf("loading hotspot index from %s ...", dataDir)
 	loadStart := time.Now()
-	hotspots, err := loadHotspotStore(filepath.Join(dataDir, "hotspots_index.json.gz"))
+	hotspotsDB, err := bolt.Open(filepath.Join(dataDir, "hotspots.bolt"), 0o444, &bolt.Options{ReadOnly: true})
 	if err != nil {
-		log.Fatalf("hotspot index: %v", err)
+		log.Fatalf("open hotspots.bolt: %v", err)
 	}
-	log.Printf("loaded %d hotspots in %s", hotspots.Len(), time.Since(loadStart).Round(time.Millisecond))
+	defer hotspotsDB.Close()
+	hotspots, err := openHotspotStore(hotspotsDB)
+	if err != nil {
+		log.Fatalf("hotspot store: %v", err)
+	}
+	log.Printf("opened %d hotspots in %s", hotspots.Len(), time.Since(loadStart).Round(time.Millisecond))
 	taxonomy, err := loadTaxonomyStore()
 	if err != nil {
 		log.Fatalf("taxonomy snapshot: %v", err)
 	}
-	speciesStore, err := openSpeciesStore(filepath.Join(dataDir, "hotspots.bolt"), taxonomy)
-	if err != nil {
-		log.Fatalf("hotspot species store: %v", err)
-	}
-	defer speciesStore.Close()
+	speciesStore := openSpeciesStore(hotspotsDB, taxonomy)
 	species := NewSpeciesResolver(taxonomy, speciesStore)
 
 	// Persistence for user identity and preferences. The SQLite database is

@@ -19,16 +19,11 @@ type SpeciesStore struct {
 	taxonByID []Taxon // position i = stable species ID i, see TaxonomyStore.StableIDOrder
 }
 
-func openSpeciesStore(path string, taxonomy *TaxonomyStore) (*SpeciesStore, error) {
-	db, err := bolt.Open(path, 0o444, &bolt.Options{ReadOnly: true})
-	if err != nil {
-		return nil, fmt.Errorf("open %q: %w", path, err)
-	}
-	return &SpeciesStore{db: db, taxonByID: taxonomy.StableIDOrder()}, nil
-}
-
-func (s *SpeciesStore) Close() error {
-	return s.db.Close()
+// openSpeciesStore reads from db's species_by_hotspot bucket — db is
+// already open (see main.go, which shares one *bolt.DB handle between this
+// and openHotspotStore, both reading from the same hotspots.bolt file).
+func openSpeciesStore(db *bolt.DB, taxonomy *TaxonomyStore) *SpeciesStore {
+	return &SpeciesStore{db: db, taxonByID: taxonomy.StableIDOrder()}
 }
 
 // SpeciesCount is one species' observation count at a hotspot.

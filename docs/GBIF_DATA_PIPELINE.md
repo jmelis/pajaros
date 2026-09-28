@@ -15,11 +15,11 @@ datasetKey = 4fa7b334-ce0d-4e88-aaae-2e0c138d049e
 ```
 
 The server gets its hotspot/species-popularity data from one bulk GBIF
-download, processed into two files the server reads at a configured path —
-not `go:embed`, not committed to git. They're `scp`'d to the serving host
-directly (they're large; see storage format below). No GBIF or eBird calls
-happen at request time — see "How it's wired in" below for the concrete
-pieces.
+download, processed into a single file the server reads at a configured
+path — not `go:embed`, not committed to git. It's `scp`'d to the serving
+host directly (it's large; see storage format below). No GBIF or eBird
+calls happen at request time — see "How it's wired in" below for the
+concrete pieces.
 
 ## The data source: GBIF's EOD mirror
 
@@ -137,53 +137,83 @@ Run from `server/`. The `.zip` is read directly — its single entry is
 decompressed on the fly (`archive/zip`), so there's no manual unzip step
 and the ~23GB unzipped CSV is never written to disk.
 
-**Storage format**: a `bbolt` key-value store (`hotspots.bolt`), bucket
-`species_by_hotspot`, keyed by hotspot ID (`"lat,lng"`), value = a binary
-blob of `[uint16 speciesID, varint count]` pairs sorted by count
-descending. The lookup this needs to serve — given a hotspot, fetch its
-popularity-ordered species list — is a pure key-value read, once per quiz
-session, never scanned or joined, so a relational layer (SQLite) buys
-nothing here; measured against Massachusetts's ~13K hotspots, this binary
-`bbolt` encoding (4.2MB) beats SQLite's normalized 3-table schema (5.3MB
-gzipped) and JSON-encoded `bbolt` values (16.8MB — per-value compression
-can't dedupe the same ~11K repeated species names across independent
-blobs the way one shared gzip stream can), because it stores integer
-species IDs instead of repeated scientific-name text. At global scale this
-lands in the low single-digit GB — trivial to `scp`. `bbolt` is mmap-backed,
-so nothing is ever fully loaded into RAM regardless of file size.
+**Storage format**: a single `bbolt` key-value store (`hotspots.bolt`) with
+four buckets, all keyed and read the same way — a pure key-value lookup,
+never scanned or joined, so a relational layer (SQLite) buys nothing here.
+`bbolt` is mmap-backed, so opening the file doesn't load anything into RAM;
+each lookup pages in only the data it touches, independent of how many
+hotspots exist worldwide (currently ~20 million).
+
+- `species_by_hotspot`: hotspot ID (`"lat,lng"`) -> a binary blob of
+  `[uint16 speciesID, varint count]` pairs sorted by count descending.
+  Measured against Massachusetts's ~13K hotspots, this binary encoding
+  (4.2MB) beats SQLite's normalized 3-table schema (5.3MB gzipped) and
+  JSON-encoded `bbolt` values (16.8MB — per-value compression can't dedupe
+  the same ~11K repeated species names across independent blobs the way
+  one shared gzip stream can), because it stores integer species IDs
+  instead of repeated scientific-name text.
+- `hotspot_by_id`: hotspot ID -> an encoded `{lat, lng, name, totalCount}`
+  record (lat/lng as float64, totalCount as a varint, name as the
+  remaining bytes — the ID itself isn't repeated in the value, since it's
+  already the bucket key). Backs `HotspotStore.Info`, a single `Get`.
+- `hotspot_by_grid_cell`: encoded 1-degree grid cell (see
+  `server/hotspots_data.go`'s `gridCell`/`cellFor`/`cellKey`) -> every
+  hotspot in that cell, packed back-to-back as
+  `{id, lat, lng, name, totalCount}` entries (here the ID *is* repeated per
+  entry, since a cell's value holds many different hotspots). Backs
+  `HotspotStore.Nearby`: cheap enough to fetch every grid cell a search
+  radius could reach with a handful of direct `Get`s, entries decoded and
+  haversine-filtered from there — see "How it's wired in" below. Full
+  entries are stored here rather than just IDs so `Nearby` never needs a
+  second `Get` per candidate hotspot.
+- `hotspot_meta`: a couple of small fixed keys, currently just the total
+  hotspot count, so `HotspotStore.Len()` is a single lookup instead of a
+  full bucket scan.
+
+At global scale this lands in the low single-digit GB — trivial to `scp`.
 
 **No minimum-activity threshold is applied** — every distinct point
 becomes a hotspot (on the order of 20 million worldwide). What's "worth
 showing" by default (a map view, a search result) is a server-side query
-concern (`ORDER BY total_count DESC LIMIT N`, or `WHERE total_count >= ?`
-against the small index below), not a build-time one — it can change
-without rerunning the GBIF download.
+concern, not a build-time one — it can change without rerunning the GBIF
+download.
 
 **Build algorithm**: because the input is sorted by point, this is a
-single streaming pass with memory bounded by one point at a time, not by
-total row or point count:
+single streaming pass with memory bounded by one point at a time for most
+of the work, and by one latitude band at a time for the grid index —
+never by total row or point count:
 
 1. Read the file line by line. Accumulate the *current* point's data only
    — species counts (`speciesID → count`), locality counts, and a running
    total. The moment the `(lat, lng)` key changes, the previous point is
-   complete: encode its species map as the sorted binary blob and its
-   `{id, lat, lng, name, totalCount}` as an index entry, then reset the
-   accumulator for the new point. (A cheap guard checks each new point's
-   coordinates are `>=` the previous one — if GBIF's output ever weren't
-   actually sorted, this fails loudly with a clear error instead of
-   silently mis-grouping data.)
+   complete: encode its species map as the sorted binary blob
+   (`species_by_hotspot`) and its `{lat, lng, name, totalCount}` as a
+   `hotspot_by_id` value, then reset the accumulator for the new point.
+   (A cheap guard checks each new point's coordinates are `>=` the
+   previous one — if GBIF's output ever weren't actually sorted, this
+   fails loudly with a clear error instead of silently mis-grouping data.)
 2. Resolve each `species` (scientific name) to a `uint16` ID via a table
    built from the embedded taxonomy, sorted by eBird `speciesCode` for a
    stable mapping — both the build tool and the server compute this
    independently from the same committed taxonomy file, so nothing extra
    needs to ship to keep them in sync.
-3. Completed points are batched (500,000 at a time) into single `bbolt`
-   transactions, written as fresh keys in ascending order — no
-   read-modify-write, since sorted input guarantees each point is only
-   ever seen once.
-4. At the end, write every point's index entry to `hotspots_index.json.gz`.
-5. `scp` both output files (`hotspots.bolt`, `hotspots_index.json.gz`) to
-   the serving host; point the server at their path via config/env var.
+3. Each completed point is also assigned to its 1-degree grid cell and
+   appended to that cell's in-memory entry buffer. Because the input is
+   sorted by latitude, a point's grid cell latitude band never decreases —
+   once processing moves past a band, no later point can fall back into
+   it. That makes "the band just finished" a safe, bounded-memory flush
+   point: every cell touched by that band gets written to
+   `hotspot_by_grid_cell` (one `Put` per cell, in ascending cell-key order)
+   and its buffer is discarded, so at most one band's worth of points is
+   ever held in memory — a small fraction of the worldwide total, not the
+   whole dataset.
+4. Completed points' `species_by_hotspot` and `hotspot_by_id` entries are
+   batched (500,000 at a time) into single `bbolt` transactions, written
+   as fresh keys in ascending order — no read-modify-write, since sorted
+   input guarantees each point's ID is only ever seen once.
+5. At the end, the total point count is written to `hotspot_meta`, and
+   `hotspots.bolt` is `scp`'d to the serving host; point the server at its
+   directory via config/env var.
 
 At current global scale this runs in a few minutes.
 
@@ -193,20 +223,22 @@ Implemented in `server/cmd/gensnapshot/hotspots.go`.
 
 The server makes zero external calls at request time — Wikimedia (for
 images) is the only upstream API left. `main.go` reads `HOTSPOTS_DATA_DIR`
-(default `./data`) at startup and loads both files from there:
-`HotspotStore` (`hotspots_data.go`) indexes `hotspots_index.json.gz` fully
-in memory (small — no species data) with a 1°-grid spatial index for
-`Nearby` queries; `SpeciesStore` (`species_store.go`) opens `hotspots.bolt`
-read-only and answers `Lookup(hotspotID)` via `bbolt`, mmap-backed so nothing
-is fully loaded. `SpeciesResolver` (`species_resolver.go`) sits on top of
-both, implementing the `hotspotSpeciesSource` interface `main.go`/`quiz.go`
-call. A hotspot's ID is its `"lat,lng"` string, which is both its `bbolt`
-key and its API path segment (`/api/hotspots/{locId}/...`) — no separate ID
-translation anywhere.
+(default `./data`) at startup and opens `hotspots.bolt` once, read-only, as
+a single shared `*bbolt.DB` handle: `HotspotStore` (`hotspots_data.go`)
+answers `Info`/`Nearby`/`Len` from its `hotspot_by_id`/`hotspot_by_grid_cell`/
+`hotspot_meta` buckets, and `SpeciesStore` (`species_store.go`) answers
+`Lookup(hotspotID)` from the sibling `species_by_hotspot` bucket — both
+mmap-backed, so opening the file is close to instant and nothing is ever
+fully loaded into memory regardless of how many hotspots exist worldwide.
+`SpeciesResolver` (`species_resolver.go`) sits on top of `SpeciesStore`,
+implementing the `hotspotSpeciesSource` interface `main.go`/`quiz.go` call.
+A hotspot's ID is its `"lat,lng"` string, which is both its `bbolt` key (in
+every bucket keyed by hotspot) and its API path segment
+(`/api/hotspots/{locId}/...`) — no separate ID translation anywhere.
 
 ## Next refresh (~2027)
 
-Re-run steps 2–6, then `scp` the two rebuilt files over the old ones on
+Re-run steps 2–6, then `scp` the rebuilt file over the old one on
 the serving host. The dataset will have moved forward to whatever the
 latest complete year is by then (check `facet=year` first to confirm).
 No code changes needed unless GBIF's SQL dialect or the EOD dataset key

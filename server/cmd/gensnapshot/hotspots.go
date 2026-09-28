@@ -17,47 +17,92 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// batchPoints is how many completed points to buffer before writing them to
-// bbolt in one transaction. The input is sorted by point (see below), so
-// each key is written exactly once — no read-modify-write, no decoding an
-// existing blob — and writes land in ascending key order within each
-// batch, which is bbolt's B+tree fast path (mostly appending, minimal page
-// splits) rather than the random-order-insert cost a large unsorted batch
-// would pay.
+// batchPoints is how many completed points to buffer before writing their
+// species_by_hotspot and hotspot_by_id entries to bbolt in one transaction.
+// The input is sorted by point (see below), so each key is written exactly
+// once — no read-modify-write, no decoding an existing blob — and writes
+// land in ascending key order within each batch, which is bbolt's B+tree
+// fast path (mostly appending, minimal page splits) rather than the
+// random-order-insert cost a large unsorted batch would pay.
 const batchPoints = 500_000
 
-// hotspotOut is one entry in the small in-memory hotspot index
-// (data/hotspots_index.json.gz) — lat/lng/name/totalCount only, no species
-// data, cheap enough to load fully into memory at server startup for
-// map/search browsing. The bulky per-species data lives in the sibling
-// data/hotspots.bolt KV store instead, fetched lazily by ID.
-type hotspotOut struct {
-	ID         string  `json:"id"`
-	Lat        float64 `json:"lat"`
-	Lng        float64 `json:"lng"`
-	Name       string  `json:"name"`
-	TotalCount int     `json:"totalCount"`
+// Bucket names in hotspots.bolt. speciesBucketName holds the per-hotspot
+// species popularity data; the other three hold hotspot metadata (lat,
+// lng, name, totalCount). See server/hotspots_data.go, which reads all
+// four (that file's speciesBucketName equivalent is species_store.go's own
+// constant of the same name/value — both are declared independently, but
+// must agree).
+const (
+	speciesBucketName   = "species_by_hotspot"
+	hotspotByIDBucket   = "hotspot_by_id"
+	hotspotByCellBucket = "hotspot_by_grid_cell"
+	hotspotMetaBucket   = "hotspot_meta"
+	hotspotCountMetaKey = "count"
+)
+
+// gridDegrees must match server/hotspots_data.go's constant of the same
+// name exactly — it determines which bbolt key ("lat,lng" cell) each
+// hotspot's grid-cell entry is written under, and the server computes the
+// identical key at query time to find it.
+const gridDegrees = 1.0
+
+type gridCell struct{ latCell, lngCell int }
+
+func cellFor(lat, lng float64) gridCell {
+	return gridCell{int(math.Floor(lat / gridDegrees)), int(math.Floor(lng / gridDegrees))}
+}
+
+// cellKeyOffset shifts cell coordinates into an always-non-negative range
+// before big-endian encoding, so byte-order comparison of encoded keys
+// matches numeric cell order (comfortably larger than any real cell
+// coordinate: |latCell| <= 90, |lngCell| <= 180). This encoding must match
+// server/hotspots_data.go's cellKey exactly, or Nearby's Gets simply won't
+// find what this build wrote for a given cell.
+const cellKeyOffset = 1 << 20
+
+func cellKey(c gridCell) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint32(buf[0:4], uint32(c.latCell+cellKeyOffset))
+	binary.BigEndian.PutUint32(buf[4:8], uint32(c.lngCell+cellKeyOffset))
+	return buf
 }
 
 // runHotspots streams the GBIF aggregate TSV — columns decimallatitude,
 // decimallongitude, locality, species, n, sorted by (lat, lng) — see
 // docs/GBIF_DATA_PIPELINE.md for the exact SQL, which includes
 // "ORDER BY decimalLatitude, decimalLongitude" specifically so this tool
-// can rely on same-point rows being adjacent.
+// can rely on same-point rows being adjacent, and on points themselves
+// arriving in non-decreasing (lat, lng) order.
 //
-// Because the input is sorted, memory stays O(1) relative to both row
-// count and total point count: only the point currently being read is
-// held in full; the moment the key changes, that point is complete and
+// Because the input is sorted, memory stays O(1) relative to row count and
+// close to O(1) relative to total point count too: only the point
+// currently being read is held in full (species counts, locality counts, a
+// running total); the moment its key changes, that point is complete and
 // gets queued for writing, never touched again. Completed points are
-// batched (batchPoints at a time) into single bbolt transactions with
-// fresh, sorted-order Puts.
+// batched (batchPoints at a time) into single bbolt transactions against
+// species_by_hotspot and hotspot_by_id, with fresh, sorted-order Puts.
 //
-// Writes two files under data/:
-//   - hotspots_index.json.gz: every point's {id,lat,lng,name,totalCount},
-//     for map/search browsing.
-//   - hotspots.bolt: a bbolt KV store (bucket "species_by_hotspot") mapping
-//     hotspot ID to a binary blob of [uint16 speciesID, varint count] pairs,
-//     sorted by count descending, fetched lazily by ID at request time.
+// hotspot_by_grid_cell entries can't be flushed per-point the same way,
+// since a cell accumulates entries from many points before it's complete.
+// Instead this exploits the same sort order at a coarser grain: since lat
+// only increases as the file is read, a point's 1-degree latitude cell
+// (gridCell.latCell) is non-decreasing too, so once it advances past a
+// given value, no later point can ever fall back into it. That makes each
+// "latitude band" (a run of points sharing one latCell) a safe flush
+// boundary — cells belonging to it are accumulated in memory only until
+// the band ends, then written and discarded, bounding memory to one
+// band's worth of points (a small fraction of the worldwide total) rather
+// than the whole dataset.
+//
+// Writes one file, data/hotspots.bolt, a bbolt KV store with four buckets:
+//   - species_by_hotspot: hotspot ID -> binary blob of
+//     [uint16 speciesID, varint count] pairs, sorted by count descending.
+//   - hotspot_by_id: hotspot ID -> encoded {lat,lng,name,totalCount}.
+//   - hotspot_by_grid_cell: encoded grid cell -> encoded
+//     {id,lat,lng,name,totalCount} entries for every hotspot in that cell,
+//     packed back-to-back.
+//   - hotspot_meta: small fixed keys, currently just the total hotspot
+//     count (so the server's Len() doesn't need a full bucket scan).
 func runHotspots(tsvPath string) error {
 	speciesIndex, err := loadSpeciesIndex()
 	if err != nil {
@@ -76,38 +121,91 @@ func runHotspots(tsvPath string) error {
 	}
 	defer db.Close()
 
-	const bucketName = "species_by_hotspot"
 	if err := db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte(bucketName))
-		return err
+		for _, name := range []string{speciesBucketName, hotspotByIDBucket, hotspotByCellBucket, hotspotMetaBucket} {
+			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		return err
 	}
 
-	type pendingWrite struct {
-		key  string
-		blob []byte
-	}
-	pending := make([]pendingWrite, 0, batchPoints)
+	type kv struct{ key, blob []byte }
+	pendingSpecies := make([]kv, 0, batchPoints)
+	pendingHotspot := make([]kv, 0, batchPoints)
 
 	flushBatch := func() error {
-		if len(pending) == 0 {
+		if len(pendingSpecies) == 0 {
 			return nil
 		}
 		err := db.Update(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte(bucketName))
-			for _, w := range pending {
-				if err := b.Put([]byte(w.key), w.blob); err != nil {
+			// FillPercent defaults to 0.5 (bbolt leaves half of each page
+			// free to absorb future random-order inserts). Every key here
+			// is written exactly once, in strictly ascending order, and
+			// never touched again, so that headroom is pure waste — fill
+			// pages completely instead.
+			sb := tx.Bucket([]byte(speciesBucketName))
+			sb.FillPercent = 1.0
+			for _, w := range pendingSpecies {
+				if err := sb.Put(w.key, w.blob); err != nil {
+					return err
+				}
+			}
+			hb := tx.Bucket([]byte(hotspotByIDBucket))
+			hb.FillPercent = 1.0
+			for _, w := range pendingHotspot {
+				if err := hb.Put(w.key, w.blob); err != nil {
 					return err
 				}
 			}
 			return nil
 		})
-		pending = pending[:0]
+		pendingSpecies = pendingSpecies[:0]
+		pendingHotspot = pendingHotspot[:0]
 		return err
 	}
 
-	var index []hotspotOut
+	// Grid-cell accumulator for the current latitude band — see the
+	// function doc above for why this is a safe, bounded-memory flush
+	// boundary given the input's sort order.
+	gridBandStarted := false
+	curGridLatCell := 0
+	gridCells := map[int][]byte{}
+
+	flushGridBand := func() error {
+		if !gridBandStarted || len(gridCells) == 0 {
+			gridCells = map[int][]byte{}
+			gridBandStarted = false
+			return nil
+		}
+		// Ascending lngCell order matches cellKey's big-endian encoding, so
+		// (combined with latCell only ever increasing between bands) every
+		// grid-cell Put across the whole build lands in ascending key
+		// order — bbolt's fast path.
+		lngCells := make([]int, 0, len(gridCells))
+		for lc := range gridCells {
+			lngCells = append(lngCells, lc)
+		}
+		sort.Ints(lngCells)
+		err := db.Update(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte(hotspotByCellBucket))
+			b.FillPercent = 1.0 // see flushBatch's comment — same append-only reasoning applies here
+			for _, lc := range lngCells {
+				key := cellKey(gridCell{curGridLatCell, lc})
+				if err := b.Put(key, gridCells[lc]); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		gridCells = map[int][]byte{}
+		gridBandStarted = false
+		return err
+	}
+
+	pointCount := 0
 
 	// Current point's accumulator — the only per-point state ever held at
 	// once, discarded the moment the key changes.
@@ -129,13 +227,23 @@ func runHotspots(tsvPath string) error {
 		if err != nil {
 			return fmt.Errorf("bad lng %q: %w", curLng, err)
 		}
-		index = append(index, hotspotOut{
-			ID: curKey, Lat: latF, Lng: lngF,
-			Name:       dominantLocality(localityCounts),
-			TotalCount: total,
-		})
-		pending = append(pending, pendingWrite{key: curKey, blob: encodeSpeciesBlob(speciesCounts)})
-		if len(pending) >= batchPoints {
+		name := dominantLocality(localityCounts)
+
+		pendingSpecies = append(pendingSpecies, kv{key: []byte(curKey), blob: encodeSpeciesBlob(speciesCounts)})
+		pendingHotspot = append(pendingHotspot, kv{key: []byte(curKey), blob: encodeHotspotByIDValue(latF, lngF, name, total)})
+
+		cell := cellFor(latF, lngF)
+		if gridBandStarted && cell.latCell != curGridLatCell {
+			if err := flushGridBand(); err != nil {
+				return err
+			}
+		}
+		curGridLatCell = cell.latCell
+		gridBandStarted = true
+		gridCells[cell.lngCell] = append(gridCells[cell.lngCell], encodeHotspotEntry(curKey, latF, lngF, name, total)...)
+
+		pointCount++
+		if len(pendingSpecies) >= batchPoints {
 			if err := flushBatch(); err != nil {
 				return err
 			}
@@ -158,14 +266,15 @@ func runHotspots(tsvPath string) error {
 	// across digit-count boundaries (e.g. "10.2" < "9.5" as strings, but
 	// 10.2 > 9.5) — a naive string comparison here would false-positive
 	// constantly at global scale, where latitude crosses such boundaries
-	// throughout the file.
+	// throughout the file. The grid-cell batching above also depends on
+	// this ordering holding, not just the per-point grouping.
 	var prevLat, prevLng float64
 	havePrev := false
 
 	for sc.Scan() {
 		rows++
 		if rows%20_000_000 == 0 {
-			fmt.Fprintf(os.Stderr, "%dM rows processed, %d points so far\n", rows/1_000_000, len(index))
+			fmt.Fprintf(os.Stderr, "%dM rows processed, %d points so far\n", rows/1_000_000, pointCount)
 		}
 		parts := strings.SplitN(sc.Text(), "\t", 5)
 		if len(parts) != 5 {
@@ -216,14 +325,19 @@ func runHotspots(tsvPath string) error {
 	if err := flushBatch(); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "%d rows processed, %d hotspots, %d species occurrences unresolved against taxonomy\n",
-		rows, len(index), unresolvedSpecies)
-
-	indexPath := "data/hotspots_index.json.gz"
-	if err := writeGzippedJSON(indexPath, index); err != nil {
-		return fmt.Errorf("write %s: %w", indexPath, err)
+	if err := flushGridBand(); err != nil {
+		return err
 	}
-	fmt.Fprintf(os.Stderr, "wrote %s (%d hotspots) and %s\n", indexPath, len(index), boltPath)
+	if err := db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(hotspotMetaBucket))
+		return b.Put([]byte(hotspotCountMetaKey), appendUvarint(nil, uint64(pointCount)))
+	}); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(os.Stderr, "%d rows processed, %d hotspots, %d species occurrences unresolved against taxonomy\n",
+		rows, pointCount, unresolvedSpecies)
+	fmt.Fprintf(os.Stderr, "wrote %s (%d hotspots)\n", boltPath, pointCount)
 	return nil
 }
 
@@ -249,6 +363,48 @@ func encodeSpeciesBlob(counts map[uint16]int) []byte {
 		buf = append(buf, tmp[:m]...)
 	}
 	return buf
+}
+
+// encodeHotspotByIDValue is the hotspot_by_id bucket's value format. The ID
+// isn't repeated here (it's already the bucket key) — contrast with
+// encodeHotspotEntry below, whose values pack multiple different hotspots
+// together and so must carry each one's ID inline. Must exactly match
+// server/hotspots_data.go's decodeHotspotByID.
+func encodeHotspotByIDValue(lat, lng float64, name string, totalCount int) []byte {
+	buf := make([]byte, 0, 16+binary.MaxVarintLen64+len(name))
+	buf = appendFloat64(buf, lat)
+	buf = appendFloat64(buf, lng)
+	buf = appendUvarint(buf, uint64(totalCount))
+	buf = append(buf, name...)
+	return buf
+}
+
+// encodeHotspotEntry is one {id, lat, lng, name, totalCount} entry within a
+// hotspot_by_grid_cell bucket value, where every hotspot in a cell is
+// packed back-to-back. Must exactly match server/hotspots_data.go's
+// decodeHotspotEntry.
+func encodeHotspotEntry(id string, lat, lng float64, name string, totalCount int) []byte {
+	buf := make([]byte, 0, len(id)+16+2*binary.MaxVarintLen64+len(name))
+	buf = appendUvarint(buf, uint64(len(id)))
+	buf = append(buf, id...)
+	buf = appendFloat64(buf, lat)
+	buf = appendFloat64(buf, lng)
+	buf = appendUvarint(buf, uint64(totalCount))
+	buf = appendUvarint(buf, uint64(len(name)))
+	buf = append(buf, name...)
+	return buf
+}
+
+func appendFloat64(buf []byte, f float64) []byte {
+	var tmp [8]byte
+	binary.LittleEndian.PutUint64(tmp[:], math.Float64bits(f))
+	return append(buf, tmp[:]...)
+}
+
+func appendUvarint(buf []byte, v uint64) []byte {
+	var tmp [binary.MaxVarintLen64]byte
+	n := binary.PutUvarint(tmp[:], v)
+	return append(buf, tmp[:n]...)
 }
 
 func dominantLocality(counts map[string]int) string {

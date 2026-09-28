@@ -98,24 +98,25 @@ go run ./cmd/gensnapshot hotspots gbif_download.zip
 
 No need to unzip it yourself — the tool reads the `.zip` directly. At
 current global scale this takes a few minutes and prints progress every 20
-million rows. It writes:
+million rows. It writes a single file:
 
 - `server/data/hotspots.bolt`
-- `server/data/hotspots_index.json.gz`
 
-These are large (low single-digit GB) and `server/.gitignore` already
-excludes them — **do not** `git add` them.
+This is large (low single-digit GB) and `server/.gitignore` already
+excludes it — **do not** `git add` it.
 
 ### 2d. Deploy the new data
 
 ```bash
-scp server/data/hotspots.bolt server/data/hotspots_index.json.gz <server-host>:<data-dir>
+scp server/data/hotspots.bolt <server-host>:<data-dir>
 ```
 
-The server reads both files from `HOTSPOTS_DATA_DIR` (default `./data`,
+The server opens this file from `HOTSPOTS_DATA_DIR` (default `./data`,
 relative to wherever the binary runs) at startup — set that env var to
 `<data-dir>` on the serving host if it isn't already `./data`, then restart
-the server to pick up the new files.
+the server to pick up the new file. The open itself is close to instant
+(bbolt just mmaps the file; nothing is loaded wholesale into memory), so a
+restart with fresh data doesn't cost any real startup delay.
 
 ## If something looks wrong
 

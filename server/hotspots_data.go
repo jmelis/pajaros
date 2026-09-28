@@ -1,28 +1,69 @@
 package main
 
 import (
-	"compress/gzip"
-	"encoding/json"
+	"encoding/binary"
 	"fmt"
 	"math"
-	"os"
 	"sort"
+
+	bolt "go.etcd.io/bbolt"
 )
 
-// gridDegrees buckets hotspots into ~1-degree cells so Nearby only scans
-// points near the query instead of the whole worldwide set (on the order of
-// 20 million points at current scale — a linear scan per request would be
-// far too slow for a live map/search endpoint).
+// gridDegrees buckets hotspots into ~1-degree cells so Nearby only fetches
+// cells near the query instead of scanning the whole worldwide set (on the
+// order of 20 million points at current scale). Must match
+// cmd/gensnapshot/hotspots.go's constant of the same name exactly — it
+// determines the bbolt key each hotspot's grid-cell entry was written
+// under.
 const gridDegrees = 1.0
 
-// HotspotStore answers hotspot lookups from hotspots_index.json.gz (built by
-// cmd/gensnapshot — see docs/GBIF_DATA_PIPELINE.md), loaded once at startup
-// from a plain file path. Unlike the taxonomy tables, this file is large and
-// rebuilt yearly, so it's not go:embed'd or committed to git — it's scp'd to
-// the serving host and read from HOTSPOTS_DATA_DIR.
+// Bucket names in hotspots.bolt (built by cmd/gensnapshot — see
+// docs/GBIF_DATA_PIPELINE.md). hotspot_by_id and hotspot_by_grid_cell hold
+// the metadata (lat, lng, name, totalCount) this file serves; species data
+// lives in species_store.go's own sibling bucket.
+const (
+	hotspotByIDBucket   = "hotspot_by_id"
+	hotspotByCellBucket = "hotspot_by_grid_cell"
+	hotspotMetaBucket   = "hotspot_meta"
+	hotspotCountMetaKey = "count"
+)
+
+// HotspotStore answers hotspot lookups from hotspots.bolt, the same
+// mmap-backed bbolt file SpeciesStore reads from (species_store.go) —
+// nothing is loaded into memory at startup. Info is a single Get against
+// hotspot_by_id; Nearby does one Get per candidate grid cell against
+// hotspot_by_grid_cell. Len() reads a precomputed count cmd/gensnapshot
+// wrote to hotspot_meta, so it doesn't need a full bucket scan either.
 type HotspotStore struct {
-	byID map[string]Hotspot
-	grid map[gridCell][]Hotspot
+	db    *bolt.DB
+	count int
+}
+
+// openHotspotStore opens db's hotspot buckets — db is already open (see
+// main.go, which shares one *bolt.DB handle between this and
+// openSpeciesStore) — and fails fast if any expected bucket is missing,
+// so Info/Nearby never have to handle that case per call.
+func openHotspotStore(db *bolt.DB) (*HotspotStore, error) {
+	var count int
+	err := db.View(func(tx *bolt.Tx) error {
+		for _, name := range []string{hotspotByIDBucket, hotspotByCellBucket, hotspotMetaBucket} {
+			if tx.Bucket([]byte(name)) == nil {
+				return fmt.Errorf("bucket %q not found", name)
+			}
+		}
+		b := tx.Bucket([]byte(hotspotMetaBucket))
+		v := b.Get([]byte(hotspotCountMetaKey))
+		if v == nil {
+			return fmt.Errorf("key %q not found in %q", hotspotCountMetaKey, hotspotMetaBucket)
+		}
+		n, _ := binary.Uvarint(v)
+		count = int(n)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &HotspotStore{db: db, count: count}, nil
 }
 
 type gridCell struct{ latCell, lngCell int }
@@ -31,73 +72,80 @@ func cellFor(lat, lng float64) gridCell {
 	return gridCell{int(math.Floor(lat / gridDegrees)), int(math.Floor(lng / gridDegrees))}
 }
 
-// NewHotspotStore indexes list by ID and by spatial grid cell. Used directly
-// by tests with a handful of fixture hotspots, and by loadHotspotStore with
-// the full worldwide index.
-func NewHotspotStore(list []Hotspot) *HotspotStore {
-	byID := make(map[string]Hotspot, len(list))
-	grid := make(map[gridCell][]Hotspot)
-	for _, h := range list {
-		byID[h.ID] = h
-		cell := cellFor(h.Lat, h.Lng)
-		grid[cell] = append(grid[cell], h)
-	}
-	return &HotspotStore{byID: byID, grid: grid}
+// cellKeyOffset shifts cell coordinates into an always-non-negative range
+// before big-endian encoding, so byte-order comparison of encoded keys
+// matches numeric cell order (comfortably larger than any real cell
+// coordinate: |latCell| <= 90, |lngCell| <= 180). Must match
+// cmd/gensnapshot/hotspots.go's cellKey exactly, or these Gets simply won't
+// find what the build wrote for a given cell.
+const cellKeyOffset = 1 << 20
+
+func cellKey(c gridCell) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint32(buf[0:4], uint32(c.latCell+cellKeyOffset))
+	binary.BigEndian.PutUint32(buf[4:8], uint32(c.lngCell+cellKeyOffset))
+	return buf
 }
 
-// hotspotIndexEntry is the on-disk shape cmd/gensnapshot writes to
-// hotspots_index.json.gz (see its hotspotOut type) — kept distinct from
-// Hotspot's own JSON tags, which are chosen for the HTTP API's wire format
-// (locId/locName, for frontend compatibility) rather than the file format.
-// Decoding straight into Hotspot here would silently zero every field: Go's
-// json.Unmarshal doesn't error on an unmatched tag, it just leaves the field
-// at its zero value, which is exactly what happened before this type existed
-// (every hotspot's ID decoded as "", collapsing 20M+ entries into one).
-type hotspotIndexEntry struct {
-	ID         string  `json:"id"`
-	Lat        float64 `json:"lat"`
-	Lng        float64 `json:"lng"`
-	Name       string  `json:"name"`
-	TotalCount int     `json:"totalCount"`
+// decodeHotspotByID reads the hotspot_by_id bucket's value format — lat,
+// lng, totalCount, name, with no ID (it's already the bucket key). Must
+// exactly match cmd/gensnapshot/hotspots.go's encodeHotspotByIDValue.
+func decodeHotspotByID(id string, buf []byte) Hotspot {
+	lat := math.Float64frombits(binary.LittleEndian.Uint64(buf[0:8]))
+	lng := math.Float64frombits(binary.LittleEndian.Uint64(buf[8:16]))
+	total, m := binary.Uvarint(buf[16:])
+	name := string(buf[16+m:])
+	return Hotspot{ID: id, Lat: lat, Lng: lng, Name: name, TotalCount: int(total)}
 }
 
-// loadHotspotStore decompresses and parses the hotspot index at path.
-func loadHotspotStore(path string) (*HotspotStore, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("open hotspot index %q: %w", path, err)
-	}
-	defer f.Close()
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return nil, err
-	}
-	defer gz.Close()
-	var entries []hotspotIndexEntry
-	if err := json.NewDecoder(gz).Decode(&entries); err != nil {
-		return nil, err
-	}
-	list := make([]Hotspot, len(entries))
-	for i, e := range entries {
-		list[i] = Hotspot{ID: e.ID, Name: e.Name, Lat: e.Lat, Lng: e.Lng, TotalCount: e.TotalCount}
-	}
-	return NewHotspotStore(list), nil
+// decodeHotspotEntry reads one {id, lat, lng, name, totalCount} entry from
+// the front of buf, as packed back-to-back by
+// cmd/gensnapshot/hotspots.go's encodeHotspotEntry, and returns how many
+// bytes it consumed so callers can decode a hotspot_by_grid_cell value's
+// entries in a loop.
+func decodeHotspotEntry(buf []byte) (Hotspot, int) {
+	i := 0
+	idLen, m := binary.Uvarint(buf[i:])
+	i += m
+	id := string(buf[i : i+int(idLen)])
+	i += int(idLen)
+	lat := math.Float64frombits(binary.LittleEndian.Uint64(buf[i:]))
+	i += 8
+	lng := math.Float64frombits(binary.LittleEndian.Uint64(buf[i:]))
+	i += 8
+	total, m := binary.Uvarint(buf[i:])
+	i += m
+	nameLen, m := binary.Uvarint(buf[i:])
+	i += m
+	name := string(buf[i : i+int(nameLen)])
+	i += int(nameLen)
+	return Hotspot{ID: id, Lat: lat, Lng: lng, Name: name, TotalCount: int(total)}, i
 }
 
 // Info looks up a single hotspot by its ID ("lat,lng").
 func (s *HotspotStore) Info(id string) (Hotspot, bool) {
-	h, ok := s.byID[id]
+	var h Hotspot
+	var ok bool
+	s.db.View(func(tx *bolt.Tx) error {
+		v := tx.Bucket([]byte(hotspotByIDBucket)).Get([]byte(id))
+		if v == nil {
+			return nil
+		}
+		h, ok = decodeHotspotByID(id, v), true
+		return nil
+	})
 	return h, ok
 }
 
-// Len returns the total number of hotspots loaded.
+// Len returns the total number of hotspots in the store.
 func (s *HotspotStore) Len() int {
-	return len(s.byID)
+	return s.count
 }
 
 // Nearby returns every hotspot within distKm of (lat, lng), most-active
-// first, by scanning only the grid cells the search radius could reach
-// rather than every hotspot worldwide.
+// first, by fetching only the grid cells the search radius could reach —
+// one bbolt Get per candidate cell — rather than scanning every hotspot
+// worldwide.
 func (s *HotspotStore) Nearby(lat, lng, distKm float64) []Hotspot {
 	// ~111km per degree of latitude; generous enough for longitude too at
 	// the latitudes this project's test hotspots sit at. +1 cell of margin
@@ -106,16 +154,23 @@ func (s *HotspotStore) Nearby(lat, lng, distKm float64) []Hotspot {
 	center := cellFor(lat, lng)
 
 	var out []Hotspot
-	for dLat := -cellRadius; dLat <= cellRadius; dLat++ {
-		for dLng := -cellRadius; dLng <= cellRadius; dLng++ {
-			cell := gridCell{center.latCell + dLat, center.lngCell + dLng}
-			for _, h := range s.grid[cell] {
-				if haversineKm(lat, lng, h.Lat, h.Lng) <= distKm {
-					out = append(out, h)
+	s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(hotspotByCellBucket))
+		for dLat := -cellRadius; dLat <= cellRadius; dLat++ {
+			for dLng := -cellRadius; dLng <= cellRadius; dLng++ {
+				cell := gridCell{center.latCell + dLat, center.lngCell + dLng}
+				v := b.Get(cellKey(cell))
+				for i := 0; i < len(v); {
+					h, n := decodeHotspotEntry(v[i:])
+					if haversineKm(lat, lng, h.Lat, h.Lng) <= distKm {
+						out = append(out, h)
+					}
+					i += n
 				}
 			}
 		}
-	}
+		return nil
+	})
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].TotalCount > out[j].TotalCount
 	})
