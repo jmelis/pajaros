@@ -12,9 +12,10 @@ make server-open   # http://localhost:8080 — no login required
 make server         # same, but honors GOOGLE_AUTH_ENABLED/APPLE_AUTH_ENABLED
 ```
 
-Needs Go and `server/data/hotspots.bolt` present (see below) — everything
-else is a plain file on disk, no other services required. Full env var
-list is documented at the top of `server/main.go`.
+Needs Go and `server/data/hotspots.bolt` and `server/data/places.bolt`
+present (see below) — everything else is a plain file on disk, no other
+services required. Full env var list is documented at the top of
+`server/main.go`.
 
 ## Deploy
 
@@ -25,13 +26,14 @@ make deploy        # ...and point the GitOps manifest at the new tag
 
 ## Refresh the bird data
 
-Two independent sources, both refreshed roughly yearly, neither called at
+Three independent sources, all refreshed roughly yearly, none called at
 request time by the deployed server:
 
 | source | provides | committed to git? |
 |---|---|---|
 | eBird taxonomy API | species names (en/es/fr), classification | yes |
 | GBIF (EOD dataset) | which birds occur where, how often | no — `scp`'d |
+| GeoNames (cities500) | place names for search, worldwide | no — `scp`'d |
 
 ### Taxonomy (seconds)
 
@@ -81,3 +83,19 @@ near-instant regardless of size). `server/.gitignore` already excludes
 
 See `ARCHITECTURE.md` for why the pipeline is shaped this way (GBIF vs.
 live eBird, the `bbolt` schema, the build algorithm).
+
+### Place-search data (GeoNames, a couple of minutes)
+
+```bash
+curl -sL -o cities500.zip http://download.geonames.org/export/dump/cities500.zip
+cd server
+go run ./cmd/gensnapshot places cities500.zip   # writes data/places.bolt (tens of MB)
+scp data/places.bolt <server-host>:<data-dir>
+```
+
+Same directory, same restart-or-let-it-pick-up-the-file story as
+`hotspots.bolt` above; `server/.gitignore` excludes `places.bolt` too. No
+account or key needed — GeoNames' dumps are a plain public download.
+`cities500.zip` (every place with population > 500 or that's a seat of
+local government, ~185K rows) is the right file, not `allCountries.zip`
+(~12M rows, mostly geographic features no one searches for by name).

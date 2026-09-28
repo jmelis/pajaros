@@ -7,8 +7,8 @@ import "fmt"
 // real hotspot/bbolt/taxonomy data, matching hotspotSpeciesSource's own
 // stated purpose (see species_resolver.go).
 type fakeSpeciesSource struct {
-	species map[string]fakeSpeciesEntry  // key: locID + "|" + lang
-	counts  map[string]map[string]int    // key: locID -> sciName -> count
+	species map[string]fakeSpeciesEntry // key: locID + "|" + lang
+	counts  map[string]map[string]int   // key: locID -> sciName -> count
 }
 
 type fakeSpeciesEntry struct {

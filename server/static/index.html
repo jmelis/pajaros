@@ -62,14 +62,15 @@
   <section id="view-search" class="view" hidden>
     <h2 class="view-title" data-i18n="search.title"></h2>
     <section class="panel">
+      <div class="place-search">
+        <input id="placeQuery" type="search" autocomplete="off" data-i18n-placeholder="search.placePlaceholder">
+        <ul id="placeSuggestions" class="place-suggestions" hidden></ul>
+      </div>
       <div class="actions">
-        <button id="findHotspots" class="btn btn-primary" type="button" data-i18n="search.find"></button>
         <button id="useLocation" class="btn btn-secondary" type="button" data-i18n="search.useLocation"></button>
       </div>
-      <div class="field-grid">
-        <label class="field"><span data-i18n="search.lat"></span><input id="lat" type="number" step="any" value="50.8503"></label>
-        <label class="field"><span data-i18n="search.lng"></span><input id="lng" type="number" step="any" value="4.3517"></label>
-      </div>
+      <input id="lat" type="hidden" value="50.8503">
+      <input id="lng" type="hidden" value="4.3517">
       <p class="hint" data-i18n="search.hint"></p>
     </section>
     <section class="panel map-panel">

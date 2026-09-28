@@ -6,9 +6,11 @@
 /birdquiz-server-linux-amd64
 /server
 
-# GBIF-derived hotspot data — large (low single-digit GB), rebuilt by
-# cmd/gensnapshot hotspots, never committed: scp'd directly to the serving
-# host instead. See ARCHITECTURE.md. Unlike this, data/taxonomy_*.json.gz
-# stays small and IS committed (go:embed'd into the binary) — don't broaden
-# this pattern to /data/ wholesale.
+# GBIF-derived hotspot data and its GeoNames-derived place-search sibling —
+# large (hotspots.bolt: low single-digit GB; places.bolt: tens of MB),
+# rebuilt by cmd/gensnapshot hotspots/places, never committed: scp'd
+# directly to the serving host instead. See ARCHITECTURE.md. Unlike these,
+# data/taxonomy_*.json.gz stays small and IS committed (go:embed'd into the
+# binary) — don't broaden this pattern to /data/ wholesale.
 /data/hotspots.bolt
+/data/places.bolt

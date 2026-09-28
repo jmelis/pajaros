@@ -8,6 +8,7 @@
 //
 //	EBIRD_API_KEY=... go run ./cmd/gensnapshot taxonomy
 //	go run ./cmd/gensnapshot hotspots <gbif-download.zip | gbif.tsv>
+//	go run ./cmd/gensnapshot places <geonames-cities500.zip | cities500.txt>
 //
 // eBird blocks requests from this project's cloud deployment, so taxonomy
 // must be run from an unblocked connection (a home network works) and the
@@ -20,6 +21,9 @@
 // It reads the data twice (see hotspots.go) instead of sorting it once,
 // which keeps memory bounded without the cost of an external sort of a
 // 20GB+ file, and never writes the ~20GB unzipped CSV to disk at all.
+//
+// places consumes a GeoNames gazetteer dump (see places.go/ARCHITECTURE.md)
+// straight from its downloaded .zip, the same way hotspots does.
 package main
 
 import (
@@ -38,7 +42,7 @@ var taxonLangs = []string{"en", "es", "fr"}
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: gensnapshot <taxonomy>")
+		fmt.Fprintln(os.Stderr, "usage: gensnapshot <taxonomy|hotspots|places>")
 		os.Exit(2)
 	}
 
@@ -52,6 +56,12 @@ func main() {
 			os.Exit(2)
 		}
 		err = runHotspots(os.Args[2])
+	case "places":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: gensnapshot places <geonames-dump>")
+			os.Exit(2)
+		}
+		err = runPlaces(os.Args[2])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown subcommand %q\n", os.Args[1])
 		os.Exit(2)

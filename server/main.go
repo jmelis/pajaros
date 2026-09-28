@@ -24,6 +24,7 @@ var embeddedStatic embed.FS
 
 type Server struct {
 	hotspots *HotspotStore
+	places   *PlaceStore
 	species  hotspotSpeciesSource
 	cache    *ImageCache
 	users    *UserStore
@@ -51,13 +52,16 @@ const defaultLang = "en"
 // taxonomy is go:embed'd at build time (taxonomy_data.go); hotspot/species
 // data is read lazily from a bbolt file at HOTSPOTS_DATA_DIR, built by
 // cmd/gensnapshot (see ARCHITECTURE.md and hotspots_data.go/species_store.go).
-// So there is no eBird or GBIF API key or rate limit to configure here —
+// Place-name search reads a second, much smaller bbolt file in the same
+// directory, places.bolt, built from a GeoNames dump (places_data.go). So
+// there is no eBird or GBIF API key or rate limit to configure here —
 // Wikimedia (card images) is the only upstream call left at request time.
 //
 // Optional (existing):
 //   CACHE_DIR  on-disk upstream/image cache (default "./cache").
 //   PORT, HOST  listen address (default "8080" / "0.0.0.0").
-//   HOTSPOTS_DATA_DIR  directory holding hotspots.bolt (default "./data").
+//   HOTSPOTS_DATA_DIR  directory holding hotspots.bolt and places.bolt
+//                      (default "./data").
 //   WIKIMEDIA_RPS  Wikimedia rate limit (default 8/s).
 //
 // Authentication (all optional; the server starts fine without any of them):
@@ -155,6 +159,18 @@ func main() {
 		log.Fatalf("hotspot store: %v", err)
 	}
 	log.Printf("opened %d hotspots in %s", hotspots.Len(), time.Since(loadStart).Round(time.Millisecond))
+
+	placesDB, err := bolt.Open(filepath.Join(dataDir, "places.bolt"), 0o444, &bolt.Options{ReadOnly: true})
+	if err != nil {
+		log.Fatalf("open places.bolt: %v", err)
+	}
+	defer placesDB.Close()
+	places, err := openPlaceStore(placesDB)
+	if err != nil {
+		log.Fatalf("place store: %v", err)
+	}
+	log.Printf("opened %d places", places.Len())
+
 	taxonomy, err := loadTaxonomyStore()
 	if err != nil {
 		log.Fatalf("taxonomy snapshot: %v", err)
@@ -176,6 +192,7 @@ func main() {
 
 	srv := &Server{
 		hotspots: hotspots,
+		places:   places,
 		species:  species,
 		cache:    cache,
 		users:    users,
@@ -228,6 +245,10 @@ func main() {
 
 	appMux := http.NewServeMux()
 	appMux.HandleFunc("GET /api/hotspots", hotspotSearchLimiter.middleware(hotspotKey, srv.handleNearbyHotspots))
+	// Place-name search: same class of endpoint as the hotspot search
+	// above (a single local bbolt lookup, no upstream fan-out), so it
+	// shares that limiter rather than needing one of its own.
+	appMux.HandleFunc("GET /api/places", hotspotSearchLimiter.middleware(hotspotKey, srv.handlePlaceSearch))
 	appMux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotInfo))
 	appMux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotSpecies))
 	// The quiz builder reuses the species/taxonomy cache but also reaches for
@@ -308,6 +329,15 @@ func (s *Server) handleNearbyHotspots(w http.ResponseWriter, r *http.Request) {
 
 	hotspots := s.hotspots.Nearby(lat, lng, distKm)
 	writeJSON(w, hotspots)
+}
+
+// handlePlaceSearch answers "type a place name" search — a prefix match
+// against places.bolt's GeoNames-derived index, most-populous match first.
+// This is a separate concept from a hotspot: it's a town/region to center a
+// subsequent /api/hotspots search on, not a birding site itself.
+func (s *Server) handlePlaceSearch(w http.ResponseWriter, r *http.Request) {
+	places := s.places.Search(r.URL.Query().Get("q"), 8)
+	writeJSON(w, places)
 }
 
 func (s *Server) handleHotspotInfo(w http.ResponseWriter, r *http.Request) {

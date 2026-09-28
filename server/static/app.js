@@ -28,6 +28,10 @@ const state = {
   hotspot: null,
   // Whether the search view has run its first hotspot search.
   searchLoaded: false,
+  // Every hotspot from the last /api/hotspots search, most-active first —
+  // hotspotMarkers (below) only ever holds a prefix of this, so "show more"
+  // can reveal the rest without a second network round-trip.
+  hotspotsFull: [],
 };
 
 let currentRoute = { name: "home", locId: "" };
@@ -69,6 +73,9 @@ function applyI18n() {
   });
   document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
     el.setAttribute("aria-label", t(el.dataset.i18nAria));
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    el.setAttribute("placeholder", t(el.dataset.i18nPlaceholder));
   });
 }
 
@@ -306,6 +313,9 @@ function initMap() {
     maxZoom: 19,
     attribution: t("search.mapAttribution"),
   }).addTo(map);
+  // Keeps the plotted markers in sync with whatever's actually in view —
+  // see renderVisibleHotspots.
+  map.on("moveend", renderVisibleHotspots);
 }
 
 function clearHotspotMarkers() {
@@ -315,9 +325,7 @@ function clearHotspotMarkers() {
 
 function popupHTML(h, withStats) {
   const saved = state.favorites.some((f) => f.locId === h.locId);
-  const stats = withStats
-    ? `<br>${tn("search.checklists", h.numChecklistsAllTime || 0)} · ${tn("search.speciesCount", h.numSpeciesAllTime || 0)}`
-    : "";
+  const stats = withStats ? `<br>${tn("search.observations", h.totalCount || 0)}` : "";
   return `
     <strong class="popup-title">${escapeHtml(h.locName)}</strong>${stats}
     <div class="popup-actions">
@@ -329,18 +337,28 @@ function popupHTML(h, withStats) {
 const MIN_MARKER_RADIUS = 5;
 const MAX_MARKER_RADIUS = 20;
 
-// Checklist counts are heavily right-skewed (a handful of hotspots run into
-// the tens of thousands, most are far smaller), so a log scale spreads that
-// out much better than sqrt does. Scaled relative to the busiest hotspot in
-// *this* search rather than a fixed global max, so the full size range is
-// always used whether the area's counts run into the tens or the
+// Observation counts are heavily right-skewed (a handful of hotspots run
+// into the tens of thousands, most are far smaller), so a log scale spreads
+// that out much better than sqrt does. Scaled relative to the busiest
+// hotspot in *this* search rather than a fixed global max, so the full size
+// range is always used whether the area's counts run into the tens or the
 // tens-of-thousands — the tradeoff is that the same hotspot can render at a
 // different size depending on what else is nearby in the current search.
-function markerRadius(checklists, maxChecklists) {
-  if (maxChecklists <= 0) return MIN_MARKER_RADIUS;
-  const t2 = Math.log1p(checklists || 0) / Math.log1p(maxChecklists);
+function markerRadius(totalCount, maxTotalCount) {
+  if (maxTotalCount <= 0) return MIN_MARKER_RADIUS;
+  const t2 = Math.log1p(totalCount || 0) / Math.log1p(maxTotalCount);
   return MIN_MARKER_RADIUS + t2 * (MAX_MARKER_RADIUS - MIN_MARKER_RADIUS);
 }
+
+// HOTSPOT_MARKERS_DEFAULT is how many markers are plotted at once. GBIF's
+// points are dense and uncurated — a busy area can return hundreds of
+// hotspots, most of them one-off personal checklist locations rather than
+// real birding sites — so rather than dump all of them on the map, the
+// current map viewport is the filter: renderVisibleHotspots (wired to the
+// map's moveend event in initMap) always shows just the busiest few among
+// whatever's currently in view. Pan or zoom and it updates live — no
+// separate "show more" control needed.
+const HOTSPOT_MARKERS_DEFAULT = 5;
 
 async function findHotspots() {
   const lat = parseFloat($("lat").value), lng = parseFloat($("lng").value);
@@ -357,24 +375,128 @@ async function findHotspots() {
     return;
   }
 
-  clearHotspotMarkers();
   if (userMarker) map.removeLayer(userMarker);
   userMarker = L.marker([lat, lng]).addTo(map).bindPopup(t("search.youAreHere"));
 
-  const bounds = L.latLngBounds([[lat, lng]]);
-  const maxChecklists = Math.max(0, ...hotspots.map((h) => h.numChecklistsAllTime || 0));
-  for (const h of hotspots) {
+  state.hotspotsFull = hotspots;
+  // Deliberately doesn't move the map — every caller (selectPlace,
+  // useLocation, searchHere, the initial default view) already set a
+  // sensible view before calling findHotspots, and re-fitting to the whole
+  // (dense, uncurated — see ARCHITECTURE.md) result set would zoom out to
+  // fit hundreds of points just to frame the 5 actually being shown.
+  // renderVisibleHotspots derives what to plot from whatever view this is.
+  renderVisibleHotspots();
+  setStatus(tn("search.status.found", hotspots.length));
+}
+
+// renderVisibleHotspots shows the busiest HOTSPOT_MARKERS_DEFAULT hotspots
+// that fall inside the map's *current* viewport — wired to Leaflet's
+// moveend event (initMap), so panning or zooming re-filters live instead of
+// needing a manual reveal. Marker size is still scaled against the full
+// search result's busiest hotspot (state.hotspotsFull), not just what's in
+// view, so a marker's size stays stable as it comes in and out of frame.
+function renderVisibleHotspots() {
+  if (!map) return;
+  clearHotspotMarkers();
+  if (state.hotspotsFull.length === 0) return;
+
+  const bounds = map.getBounds();
+  const visible = state.hotspotsFull
+    .filter((h) => bounds.contains([h.lat, h.lng]))
+    .sort((a, b) => (b.totalCount || 0) - (a.totalCount || 0))
+    .slice(0, HOTSPOT_MARKERS_DEFAULT);
+
+  const maxTotalCount = Math.max(0, ...state.hotspotsFull.map((h) => h.totalCount || 0));
+  for (const h of visible) {
     const marker = L.circleMarker([h.lat, h.lng], {
-      radius: markerRadius(h.numChecklistsAllTime, maxChecklists),
+      radius: markerRadius(h.totalCount, maxTotalCount),
       color: "#2a7d4f",
       fillColor: "#2a7d4f",
       fillOpacity: 0.6,
     }).addTo(map).bindPopup(popupHTML(h, true));
     hotspotMarkers.push(marker);
-    bounds.extend([h.lat, h.lng]);
   }
-  if (hotspots.length > 0) map.fitBounds(bounds, { padding: [30, 30] });
-  setStatus(tn("search.status.found", hotspots.length));
+}
+
+// ---- Place search -----------------------------------------------------
+
+// Typing a place name is the front door for "what's around here" — it
+// replaces raw lat/lng entry (still present as hidden #lat/#lng inputs,
+// unchanged by the rest of the search flow) with a prefix search against
+// places.bolt (server/places_data.go), a GeoNames-derived gazetteer built
+// entirely offline. Picking a suggestion sets those hidden fields and runs
+// the same findHotspots() as the map/geolocation paths.
+let placeSearchTimer = null;
+let placeResults = [];
+
+function wirePlaceSearch() {
+  const input = $("placeQuery");
+  input.addEventListener("input", () => {
+    const q = input.value.trim();
+    clearTimeout(placeSearchTimer);
+    if (q.length < 2) { hidePlaceSuggestions(); return; }
+    placeSearchTimer = setTimeout(() => runPlaceSearch(q), 300);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { hidePlaceSuggestions(); return; }
+    if (e.key === "Enter" && placeResults.length > 0 && !$("placeSuggestions").hidden) {
+      e.preventDefault();
+      selectPlace(placeResults[0]);
+    }
+  });
+  $("placeSuggestions").addEventListener("click", (e) => {
+    const li = e.target.closest(".place-suggestion");
+    if (!li) return;
+    const p = placeResults[Number(li.dataset.index)];
+    if (p) selectPlace(p);
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".place-search")) hidePlaceSuggestions();
+  });
+}
+
+async function runPlaceSearch(q) {
+  let results;
+  try {
+    const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`);
+    if (!res.ok) { hidePlaceSuggestions(); return; }
+    results = await res.json();
+  } catch (e) {
+    hidePlaceSuggestions();
+    return;
+  }
+  renderPlaceSuggestions(results || []);
+}
+
+function renderPlaceSuggestions(results) {
+  placeResults = results;
+  const list = $("placeSuggestions");
+  if (results.length === 0) {
+    list.innerHTML = `<li class="place-suggestion-empty">${t("search.placeNoResults")}</li>`;
+    list.hidden = false;
+    return;
+  }
+  list.innerHTML = results.map((p, i) => `
+    <li class="place-suggestion" data-index="${i}">
+      <span>${escapeHtml(p.name)}</span>
+      <span class="place-suggestion-country">${escapeHtml(p.countryCode)}</span>
+    </li>`).join("");
+  list.hidden = false;
+}
+
+function hidePlaceSuggestions() {
+  const list = $("placeSuggestions");
+  list.hidden = true;
+  list.innerHTML = "";
+}
+
+function selectPlace(p) {
+  $("placeQuery").value = p.name;
+  $("lat").value = p.lat.toFixed(6);
+  $("lng").value = p.lng.toFixed(6);
+  hidePlaceSuggestions();
+  map.setView([p.lat, p.lng], 12);
+  findHotspots();
 }
 
 // ---- Favorites ------------------------------------------------------------
@@ -1056,7 +1178,7 @@ async function startQuiz() {
 // ---- Wiring ---------------------------------------------------------------
 
 function wireEvents() {
-  $("findHotspots").addEventListener("click", findHotspots);
+  wirePlaceSearch();
   $("searchHere").addEventListener("click", () => {
     const center = map.getCenter();
     $("lat").value = center.lat.toFixed(6);

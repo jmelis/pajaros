@@ -105,8 +105,9 @@ in `index.html`) rather than a bottom bar. The old deep-link shape
 (`/?locId=…&lang=…&mode=…`) still works and lands on that hotspot's view.
 
 Views: **Home** (saved hotspots, a search shortcut, progress summary — a
-welcome screen for a fresh account), **Search** (location/geolocation/map,
-"search this area"), **Hotspot** (info, save toggle, explore — by
+welcome screen for a fresh account), **Search** (place-name search,
+geolocation, map, "search this area" — see "Place-name search" below),
+**Hotspot** (info, save toggle, explore — by
 popularity/category/alphabetical — or quiz with a size picker), **Mastered**
 (mastered species as cards, same style as explore), **Settings** (language,
 secondary language, star rewards, reset, sign out).
@@ -247,6 +248,83 @@ Opening the file is close to instant (bbolt just mmaps it) regardless of
 how many hotspots it holds — this replaced an earlier design that loaded
 every hotspot into an in-memory map at startup, which took on the order of
 a minute at full worldwide scale.
+
+## Place-name search
+
+Search starts from a place name, not a hotspot — the frontend has no
+concept of "pick a hotspot ID" as an entry point, only "search this place,
+then pick from what's nearby." That two-step shape exists because of
+GBIF's point density described above: a raw nearby search inside a real
+birding area routinely returns hundreds of points, ~90%+ of them one-off
+personal checklist locations rather than real sites (Massachusetts: only
+~8% of distinct points are real eBird hotspots). No server-side ranking
+makes that honestly resolvable to a single "the" hotspot for a place, so
+the UI shows the search's own most-active-first ordering (see "bbolt
+schema" above) and lets the person pick.
+
+**Data source: GeoNames, not a live geocoder.** Place names come from
+`places.bolt`, built offline from GeoNames' `cities500` gazetteer dump
+(every place with population > 500 or that's a seat of local government,
+~185K rows worldwide) — the same "download a dataset once, build a local
+file, no upstream call at request time" shape as the GBIF pipeline above.
+It's licensed CC BY 4.0 (commercial use is fine with attribution), needs no
+API key, and keeps place search working even if the deployed server's
+outbound network access is ever restricted further. `allCountries.zip`
+(~12M rows, mostly geographic features nobody searches for by name) isn't
+used — `cities500` covers what a search box actually needs at a fraction of
+the size.
+
+### bbolt schema
+
+`places.bolt` — a separate, much smaller (tens of MB) sibling of
+`hotspots.bolt`, opened as its own mmap-backed handle. Two buckets:
+
+- **`place_by_name`**: key is the normalized (lowercased, trimmed) name
+  followed by a NUL separator and the GeoNames numeric ID, so a prefix scan
+  over the bucket's ordered keys is a name search, and colliding names
+  (there are many "San Jose"s worldwide) each keep their own entry. The
+  value is `{lat, lng, population, countryCode, displayName}`.
+- **`place_meta`**: a single count key, mirroring `hotspot_meta`'s reason
+  for existing.
+
+Most places are indexed once, under their GeoNames `asciiname`. GeoNames'
+own transliteration doesn't always match a simple accent-strip, though — its
+`asciiname` for Zürich is "Zuerich" (the German convention), not "Zurich" —
+so a place also gets a second index entry under a diacritic-folded reading
+of its display name (`é`→`e`, `ü`→`u`, etc.) whenever that differs from the
+`asciiname` key, covering the everyday English-keyboard spelling as well.
+Names outside that fold table's coverage (non-Latin scripts) are left as
+`asciiname` alone.
+
+### Search
+
+`PlaceStore.Search` (`server/places_data.go`) seeks to the query's
+normalized-name prefix and walks forward while keys still match, capped at
+a few thousand scanned candidates so a very common prefix can't make one
+request scan without bound. Candidates are then sorted by population,
+most-populous first, and truncated to the response limit — ranking
+prominence within whatever the prefix scan actually found, not a true
+"biggest place matching this prefix anywhere" guarantee once the scan cap
+is hit.
+
+### Wiring
+
+`GET /api/places?q=` (`handlePlaceSearch` in `main.go`) shares the hotspot
+search's rate limiter — same class of endpoint, a single local `bbolt`
+lookup with no upstream fan-out. On the frontend, typing into the search
+view's text input debounces into that endpoint; picking a suggestion sets
+the (now hidden, no longer user-facing) lat/lng fields and runs the
+existing `/api/hotspots` nearby search, whose full result stays client-side
+in `state.hotspotsFull`.
+
+Markers aren't just dumped on the map from that full result — the current
+map viewport is the filter. `renderVisibleHotspots` (`app.js`) shows only
+the busiest `HOTSPOT_MARKERS_DEFAULT` hotspots that fall inside
+`map.getBounds()`, and is wired to Leaflet's `moveend` event, so panning or
+zooming re-filters live rather than needing a manual "show more" step. This
+keeps whatever's on screen from being dominated by GBIF's noise without a
+second network round-trip — everything it filters is already in
+`state.hotspotsFull` from the one `/api/hotspots` call.
 
 ## Quiz mechanics
 
