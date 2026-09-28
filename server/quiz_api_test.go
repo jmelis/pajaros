@@ -41,11 +41,12 @@ func newQuizTestApp(t *testing.T) (http.Handler, *Server, *UserStore, *Auth) {
 	app.HandleFunc("PUT /api/me/language", srv.handleSetLanguage)
 	app.HandleFunc("GET /api/me/secondary-language", srv.handleGetSecondaryLanguage)
 	app.HandleFunc("PUT /api/me/secondary-language", srv.handleSetSecondaryLanguage)
-	app.HandleFunc("GET /api/me/display-mode", srv.handleGetDisplayMode)
-	app.HandleFunc("PUT /api/me/display-mode", srv.handleSetDisplayMode)
+	app.HandleFunc("GET /api/me/star-rewards", srv.handleGetStarRewards)
+	app.HandleFunc("PUT /api/me/star-rewards", srv.handleSetStarRewards)
 	app.HandleFunc("GET /api/me/progress", srv.handleGetProgress)
 	app.HandleFunc("POST /api/me/progress/{speciesCode}", srv.handleSubmitAnswer)
 	app.HandleFunc("DELETE /api/me/progress", srv.handleResetProgress)
+	app.HandleFunc("GET /api/me/mastered", srv.handleGetMastered)
 	app.HandleFunc("GET /api/hotspots/{locId}/species", srv.handleHotspotSpecies)
 	app.HandleFunc("GET /api/hotspots/{locId}/quiz", srv.handleHotspotQuiz)
 
@@ -127,8 +128,9 @@ func TestQuizAndProgressRoutesRequireAuth(t *testing.T) {
 		{http.MethodDelete, "/api/me/progress"},
 		{http.MethodGet, "/api/me/secondary-language"},
 		{http.MethodPut, "/api/me/secondary-language"},
-		{http.MethodGet, "/api/me/display-mode"},
-		{http.MethodPut, "/api/me/display-mode"},
+		{http.MethodGet, "/api/me/star-rewards"},
+		{http.MethodPut, "/api/me/star-rewards"},
+		{http.MethodGet, "/api/me/mastered"},
 	}
 	for _, c := range cases {
 		rr := httptest.NewRecorder()
@@ -322,7 +324,7 @@ func TestResetProgressClearsStatsAndQuiz(t *testing.T) {
 	}
 }
 
-func TestProfileReflectsSecondaryLanguageAndDisplayMode(t *testing.T) {
+func TestProfileReflectsSecondaryLanguageAndStarRewards(t *testing.T) {
 	app, _, store, auth := newQuizTestApp(t)
 	if _, err := store.Upsert("google", "prefs", "", ""); err != nil {
 		t.Fatal(err)
@@ -344,20 +346,20 @@ func TestProfileReflectsSecondaryLanguageAndDisplayMode(t *testing.T) {
 	}
 
 	p := readProfile()
-	if p.SecondaryLanguage != "" || p.DisplayMode != defaultDisplayMode || p.Stars != 0 || p.SpeciesMastered != 0 {
-		t.Errorf("new-account profile = %+v, want empty secondary/standard/0/0", p)
+	if p.SecondaryLanguage != "" || p.StarRewards || p.Stars != 0 || p.SpeciesMastered != 0 {
+		t.Errorf("new-account profile = %+v, want empty secondary/off/0/0", p)
 	}
 
 	// Invalid values are rejected.
-	for _, c := range []struct{ path, payload string }{
-		{"/api/me/secondary-language", `{"language":"de"}`},
-		{"/api/me/display-mode", `{"displayMode":"sparkly"}`},
-	} {
-		rr := httptest.NewRecorder()
-		app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, c.path, body(c.payload)))
-		if rr.Code != http.StatusBadRequest {
-			t.Errorf("PUT %s %s = %d, want 400", c.path, c.payload, rr.Code)
-		}
+	rr := httptest.NewRecorder()
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/secondary-language", body(`{"language":"de"}`)))
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("invalid secondary language = %d, want 400", rr.Code)
+	}
+	rr = httptest.NewRecorder()
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/star-rewards", body(`{"starRewards":"yes"}`)))
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("invalid star rewards = %d, want 400", rr.Code)
 	}
 
 	put := func(path, payload string) {
@@ -370,14 +372,14 @@ func TestProfileReflectsSecondaryLanguageAndDisplayMode(t *testing.T) {
 	}
 
 	put("/api/me/secondary-language", `{"language":"fr"}`)
-	put("/api/me/display-mode", `{"displayMode":"kid"}`)
+	put("/api/me/star-rewards", `{"starRewards":true}`)
 	p = readProfile()
-	if p.SecondaryLanguage != "fr" || p.DisplayMode != "kid" {
-		t.Errorf("profile after set = %+v, want fr/kid", p)
+	if p.SecondaryLanguage != "fr" || !p.StarRewards {
+		t.Errorf("profile after set = %+v, want fr/starRewards", p)
 	}
 
 	// The dedicated GET endpoints agree.
-	rr := httptest.NewRecorder()
+	rr = httptest.NewRecorder()
 	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodGet, "/api/me/secondary-language", nil))
 	var lang struct {
 		Language string `json:"language"`
@@ -386,12 +388,16 @@ func TestProfileReflectsSecondaryLanguageAndDisplayMode(t *testing.T) {
 		t.Errorf("GET secondary-language = %v (err %v), want fr", rr.Body.String(), err)
 	}
 	rr = httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodGet, "/api/me/display-mode", nil))
-	var mode struct {
-		DisplayMode string `json:"displayMode"`
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodGet, "/api/me/star-rewards", nil))
+	var rewards struct {
+		StarRewards bool `json:"starRewards"`
 	}
-	if err := json.Unmarshal(rr.Body.Bytes(), &mode); err != nil || mode.DisplayMode != "kid" {
-		t.Errorf("GET display-mode = %v (err %v), want kid", rr.Body.String(), err)
+	if err := json.Unmarshal(rr.Body.Bytes(), &rewards); err != nil || !rewards.StarRewards {
+		t.Errorf("GET star-rewards = %v (err %v), want true", rr.Body.String(), err)
+	}
+	put("/api/me/star-rewards", `{"starRewards":false}`)
+	if p = readProfile(); p.StarRewards {
+		t.Errorf("star rewards after disable = %v, want false", p.StarRewards)
 	}
 
 	// Empty clears the secondary language.
@@ -546,5 +552,83 @@ func TestQuizRejectsBadCount(t *testing.T) {
 	app.ServeHTTP(rr, authedRequest(t, auth, "google:count", http.MethodGet, "/api/hotspots/L1/quiz?count=0", nil))
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("count=0 = %d, want 400", rr.Code)
+	}
+}
+
+func TestProgressSummaryIncludesDueForReview(t *testing.T) {
+	app, _, store, auth := newQuizTestApp(t)
+	if _, err := store.Upsert("google", "due", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	const id = "google:due"
+
+	// A wrong answer resets the card to box 1, due immediately.
+	submitAnswer(t, app, auth, id, "sp1", false)
+
+	stats := getProgress(t, app, auth, id)
+	if stats.SpeciesLearning != 1 || stats.SpeciesMastered != 0 {
+		t.Errorf("stats = %+v, want 0 mastered / 1 learning", stats)
+	}
+	if stats.DueForReview != 1 {
+		t.Errorf("DueForReview = %d, want 1 (box 1 is due now)", stats.DueForReview)
+	}
+}
+
+func TestMasteredEndpointNamesBirdsAndFallsBack(t *testing.T) {
+	app, _, store, auth := newQuizTestApp(t)
+	if _, err := store.Upsert("google", "mastered", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	const id = "google:mastered"
+
+	// Record taxonomy for two species: one with a Spanish name, one only in
+	// English. A third species is mastered with no recorded taxonomy at all.
+	if err := store.RecordTaxa(map[string]Taxon{
+		"sp1": {SpeciesCode: "sp1", SciName: "Sci one", ComName: "Uno"},
+	}, "es"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordTaxa(map[string]Taxon{
+		"sp2": {SpeciesCode: "sp2", SciName: "Sci two", ComName: "Two"},
+	}, "en"); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 5; i++ {
+		submitAnswer(t, app, auth, id, "sp1", true)
+		submitAnswer(t, app, auth, id, "sp2", true)
+		submitAnswer(t, app, auth, id, "sp3", true)
+	}
+
+	rr := httptest.NewRecorder()
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodGet, "/api/me/mastered?lang=es", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET /api/me/mastered = %d (%s), want 200", rr.Code, rr.Body.String())
+	}
+	var birds []MasteredSpecies
+	if err := json.Unmarshal(rr.Body.Bytes(), &birds); err != nil {
+		t.Fatalf("decode mastered: %v", err)
+	}
+	if len(birds) != 3 {
+		t.Fatalf("mastered = %+v, want 3 birds", birds)
+	}
+	byCode := map[string]MasteredSpecies{}
+	for _, b := range birds {
+		byCode[b.SpeciesCode] = b
+	}
+
+	if got := byCode["sp1"]; got.ComName != "Uno" || got.SciName != "Sci one" {
+		t.Errorf("sp1 = %+v, want Uno / Sci one", got)
+	}
+	if got := byCode["sp1"]; got.Box != 5 || got.SeenCount != 5 || got.CorrectCount != 5 {
+		t.Errorf("sp1 stats = %+v, want box5/seen5/correct5", got)
+	}
+	// sp2 has no Spanish name: it falls back to English rather than vanishing.
+	if got := byCode["sp2"]; got.ComName != "Two" {
+		t.Errorf("sp2 ComName = %q, want the English fallback Two", got.ComName)
+	}
+	// sp3 has no taxonomy at all: it still appears, named by its code.
+	if got := byCode["sp3"]; got.ComName != "sp3" {
+		t.Errorf("sp3 ComName = %q, want the species code fallback", got.ComName)
 	}
 }
