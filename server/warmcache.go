@@ -30,6 +30,15 @@ import (
 // server's hostPath (see README.md) — it never needs to run inside the
 // cluster.
 func runWarmCache() error {
+	// WIKIMEDIA_RPS's default (8) favors live per-hotspot lookups (see
+	// ratelimit.go) -- wrong pace for a one-off bulk job hitting thousands
+	// of species in a row. warmcache gets its own, deliberately polite
+	// default instead, independent of whatever WIKIMEDIA_RPS is set to for
+	// live traffic (this runs as its own process, so reassigning here never
+	// touches the actual serving process's limiter).
+	wikimediaLimiter = newRateLimiter(rpsFromEnv("WARMCACHE_RPS", 1))
+	log.Printf("warmcache: rate limit %.1f req/s (override with WARMCACHE_RPS)", rpsFromEnv("WARMCACHE_RPS", 1))
+
 	dataDir := os.Getenv("HOTSPOTS_DATA_DIR")
 	if dataDir == "" {
 		dataDir = "./data"
