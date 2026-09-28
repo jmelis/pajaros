@@ -256,6 +256,12 @@ func main() {
 // registered, so a request to /login falls through to the app's 404.
 func buildRootMux(auth *Auth, appMux http.Handler, authLimiter *keyedRateLimiter) *http.ServeMux {
 	mux := http.NewServeMux()
+	// Unauthenticated on purpose: a container orchestrator's liveness/readiness
+	// probe has no session to present, and gating it would make every restart
+	// depend on eBird/OAuth being reachable rather than on this process itself.
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 	mux.Handle("/", auth.gate(appMux))
 	if auth.openMode() {
 		return mux
