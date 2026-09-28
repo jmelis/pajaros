@@ -1,11 +1,11 @@
 # Architecture
 
-How pajaros is built and why. For how to run it or refresh its data, see
+How birdquiz is built and why. For how to run it or refresh its data, see
 `README.md`.
 
 ## Overview
 
-pajaros is a Go server that serves a bird quiz app: search hotspots
+birdquiz is a Go server that serves a bird quiz app: search hotspots
 worldwide, browse the species seen at one, quiz yourself on them with
 spaced repetition, track progress per account. The frontend is a small
 vanilla-JS single-page app embedded in the binary. Accounts and progress

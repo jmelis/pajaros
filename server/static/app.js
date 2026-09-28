@@ -1,6 +1,6 @@
 "use strict";
 
-// pajaros server app. A hash-routed single page with five views: home, search,
+// birdquiz server app. A hash-routed single page with five views: home, search,
 // hotspot, mastered and settings. Hash routing survives a reload and is
 // linkable without server rewrites. All user-visible text comes from
 // i18n.json; this file holds translation keys, never literals.
@@ -13,7 +13,7 @@ const VIEW_NAMES = ["home", "search", "hotspot", "mastered", "settings"];
 // ---- Account / UI state ---------------------------------------------------
 
 const state = {
-  language: "es",
+  language: "en",
   secondaryLanguage: "",
   starRewards: false,
   stars: 0,

@@ -42,7 +42,7 @@ var validLang = map[string]bool{"es": true, "fr": true, "en": true}
 // defaultLang is the bird-name language used when neither the request nor the
 // account's stored preference selects one. Kept next to validLang so the
 // species endpoint and the store agree on what an unset preference means.
-const defaultLang = "es"
+const defaultLang = "en"
 
 // Environment variables
 // =====================
@@ -86,7 +86,7 @@ const defaultLang = "es"
 //   GOOGLE_CLIENT_ID
 //   GOOGLE_CLIENT_SECRET
 //   OAUTH_REDIRECT_BASE_URL  externally reachable base URL of this server,
-//                            e.g. "https://pajaros.example.com". Callback URLs
+//                            e.g. "https://birdquiz.example.com". Callback URLs
 //                            are <base>/auth/google/callback and
 //                            <base>/auth/apple/callback.
 //

@@ -248,8 +248,8 @@ func TestSpeciesFallsBackToStoredLanguage(t *testing.T) {
 	seedSpeciesCache(t, srv, "41.5,-70.5", "en", "English name")
 
 	// No preference yet: falls back to the hardcoded default.
-	if got := firstComName(t, app, auth, id, "/api/hotspots/41.5,-70.5/species"); got != "Nombre en español" {
-		t.Errorf("no preference: comName = %q, want the Spanish default", got)
+	if got := firstComName(t, app, auth, id, "/api/hotspots/41.5,-70.5/species"); got != "English name" {
+		t.Errorf("no preference: comName = %q, want the English default", got)
 	}
 
 	// Stored preference is used when no lang param is supplied.

@@ -50,7 +50,7 @@ type oauthEnv struct {
 	appleEnabled  bool
 
 	// RedirectBase is the externally reachable base URL of this server, e.g.
-	// "https://pajaros.example.com". Callback URLs are derived from it.
+	// "https://birdquiz.example.com". Callback URLs are derived from it.
 	redirectBase string
 
 	googleClientID     string

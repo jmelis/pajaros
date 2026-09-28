@@ -15,7 +15,7 @@ DEPLOYER ?= ../docker-compose-deployer
 MANIFEST ?= $(DEPLOYER)/k8s/applications/birdquiz/deployment.yaml
 
 build:
-	cd server && go build -o pajaros-server .
+	cd server && go build -o birdquiz-server .
 
 # Requires EBIRD_API_KEY (see .envrc); direnv exports it automatically.
 # Login is required only if GOOGLE_AUTH_ENABLED/APPLE_AUTH_ENABLED (plus their
@@ -35,7 +35,7 @@ server-open:
 # with no toolchain and lands straight in a distroless container.
 server-linux:
 	cd server && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-	  go build -ldflags='-s -w' -o pajaros-server-linux-amd64 .
+	  go build -ldflags='-s -w' -o birdquiz-server-linux-amd64 .
 
 image: server-linux
 	podman build --platform linux/amd64 -t $(IMAGE):$(TAG) -t $(IMAGE):latest .

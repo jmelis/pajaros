@@ -12,7 +12,7 @@ import (
 )
 
 // sessionCookieName is the cookie carrying the signed session token.
-const sessionCookieName = "pajaros_session"
+const sessionCookieName = "birdquiz_session"
 
 // sessionTTL is how long a login lasts before the user must sign in again.
 const sessionTTL = 30 * 24 * time.Hour

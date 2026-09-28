@@ -1,4 +1,4 @@
-# pajaros
+# birdquiz
 
 A family bird-quiz web app: search hotspots worldwide, browse the species
 seen at one, quiz yourself with spaced repetition. Go server, SQLite for

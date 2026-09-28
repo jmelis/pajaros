@@ -2,8 +2,8 @@
 /users/
 /users.db
 /users.db-*
-/pajaros-server
-/pajaros-server-linux-amd64
+/birdquiz-server
+/birdquiz-server-linux-amd64
 /server
 
 # GBIF-derived hotspot data — large (low single-digit GB), rebuilt by

@@ -40,7 +40,7 @@ func wikimediaGetJSON(apiURL string, query url.Values, out any) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", pajarosUA)
+	req.Header.Set("User-Agent", birdquizUA)
 
 	resp, err := doThrottled(wikimediaLimiter, req)
 	if err != nil {
@@ -123,14 +123,14 @@ func commonsFileInfo(fileTitle string, width int) (*ImageInfo, error) {
 		}
 		author := stripHTML(info.ExtMeta.Artist.Value)
 		if author == "" {
-			author = "Desconocido"
+			author = "Unknown"
 		}
 		if len(author) > 100 || strings.ContainsAny(author, "@") || strings.Contains(author, "http://") || strings.Contains(author, "https://") {
 			lead := strings.FieldsFunc(author, func(r rune) bool { return r == '.' || r == '(' })
 			if len(lead) > 0 && len(strings.TrimSpace(lead[0])) <= 100 {
 				author = strings.TrimSpace(lead[0])
 			} else {
-				author = "Desconocido"
+				author = "Unknown"
 			}
 		}
 		downloadURL := info.ThumbURL
@@ -225,7 +225,7 @@ func DownloadImage(downloadURL string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", pajarosUA)
+	req.Header.Set("User-Agent", birdquizUA)
 	resp, err := doThrottled(wikimediaLimiter, req)
 	if err != nil {
 		return nil, err

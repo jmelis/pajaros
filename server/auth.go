@@ -21,7 +21,7 @@ import (
 var loginPageFS embed.FS
 
 const (
-	oauthStateCookieName = "pajaros_oauth_state"
+	oauthStateCookieName = "birdquiz_oauth_state"
 	oauthStateTTL        = 10 * time.Minute
 )
 

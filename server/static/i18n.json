@@ -1,6 +1,6 @@
 {
   "en": {
-    "app.title": "pajaros",
+    "app.title": "birdquiz",
     "app.tagline": "field guide",
     "nav.aria": "Main navigation",
     "nav.home": "Home",
@@ -125,7 +125,7 @@
     "lang.es": "Español"
   },
   "fr": {
-    "app.title": "pajaros",
+    "app.title": "birdquiz",
     "app.tagline": "guide de terrain",
     "nav.aria": "Navigation principale",
     "nav.home": "Accueil",
@@ -250,7 +250,7 @@
     "lang.es": "Español"
   },
   "es": {
-    "app.title": "pajaros",
+    "app.title": "birdquiz",
     "app.tagline": "guía de campo",
     "nav.aria": "Navegación principal",
     "nav.home": "Inicio",
