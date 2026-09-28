@@ -7,9 +7,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
+	"time"
 )
 
 // The frontend is split into markup, styles, application code and
@@ -19,31 +21,20 @@ import (
 var embeddedStatic embed.FS
 
 type Server struct {
-	ebird      *EbirdClient
-	ebirdCache *EbirdCache
-	cache      *ImageCache
-	gbif       *GBIFCache
-	users      *UserStore
+	hotspots *HotspotStore
+	species  hotspotSpeciesSource
+	cache    *ImageCache
+	users    *UserStore
 }
 
-// validLocID matches eBird's hotspot location ID format (e.g. "L99381"). It
-// gates every use of the {locId} path value, both to reject junk before
-// spending an upstream call on it and because that value is also used
-// verbatim in cache file paths (see ebird_cache.go) — without this, a
-// crafted locId could walk out of the cache directory.
-var validLocID = regexp.MustCompile(`^L\d+$`).MatchString
+// validLocID matches a hotspot ID — "lat,lng" (see ebird.go's Hotspot type),
+// e.g. "41.486977,-71.0376". It gates every use of the {locId} path value
+// before it's looked up in the hotspot store.
+var validLocID = regexp.MustCompile(`^-?\d+(\.\d+)?,-?\d+(\.\d+)?$`).MatchString
 
-// validRegionCode matches eBird's region code format at any level: country
-// ("US"), subnational1 ("US-NY") or subnational2 ("US-NY-109"). Same
-// path-traversal concern as validLocID — it's used verbatim in
-// EbirdCache.HotspotsInRegion's cache file path.
-var validRegionCode = regexp.MustCompile(`^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$`).MatchString
-
-// validLang is the fixed set of bird-name languages the frontend offers
-// (see static/index.html's #lang select). Enforcing an allow-list, rather
-// than accepting any query value, closes a cache-bypass path: lang is part
-// of the species cache key, so an attacker sending a new lang value on every
-// request would otherwise force a fresh eBird fetch every time.
+// validLang is the fixed set of bird-name languages the frontend offers (see
+// static/index.html's #lang select) and the embedded taxonomy ships tables
+// for (see taxonomy_data.go).
 var validLang = map[string]bool{"es": true, "fr": true, "en": true}
 
 // defaultLang is the bird-name language used when neither the request nor the
@@ -54,13 +45,15 @@ const defaultLang = "es"
 // Environment variables
 // =====================
 //
-// Required:
-//   EBIRD_API_KEY  eBird API key (existing requirement).
+// Hotspot and taxonomy data are entirely offline (embedded at build time —
+// see hotspots_data.go, taxonomy_data.go, and cmd/gensnapshot to refresh
+// them), so there is no eBird API key or eBird rate limit to configure here
+// anymore. Species-per-hotspot still uses live GBIF occurrence data.
 //
 // Optional (existing):
 //   CACHE_DIR  on-disk upstream/image cache (default "./cache").
 //   PORT, HOST  listen address (default "8080" / "0.0.0.0").
-//   WIKIMEDIA_RPS, EBIRD_RPS, GBIF_RPS  global upstream rate limits.
+//   WIKIMEDIA_RPS, GBIF_RPS  global upstream rate limits.
 //
 // Authentication (all optional; the server starts fine without any of them):
 //   SESSION_SECRET  HMAC key for signing session cookies. If unset, a random
@@ -107,9 +100,9 @@ type SpeciesCard struct {
 	ImageURL    string `json:"imageUrl"`
 	Order       string `json:"order"`
 	Family      string `json:"family"`
-	// NearbyCount is set only in "popularity" mode: GBIF occurrence count
-	// for this species in the surrounding area (see gbif.go). nil means
-	// unmatched/no data, not zero — see PopularityCounts.
+	// NearbyCount is set only in "popularity" mode: this species' observation
+	// count at the hotspot (see hotspotSpeciesSource.PopularityCounts). nil
+	// means unmatched/no data, not zero.
 	NearbyCount *int `json:"nearbyCount,omitempty"`
 	// ImageMissing is true once a Wikimedia lookup has already confirmed no
 	// freely-licensed photo exists for this species — distinct from "not
@@ -118,10 +111,6 @@ type SpeciesCard struct {
 }
 
 func main() {
-	apiKey := os.Getenv("EBIRD_API_KEY")
-	if apiKey == "" {
-		log.Fatal("EBIRD_API_KEY is required")
-	}
 	cacheDir := os.Getenv("CACHE_DIR")
 	if cacheDir == "" {
 		cacheDir = "./cache"
@@ -139,15 +128,34 @@ func main() {
 	if err != nil {
 		log.Fatalf("cache dir %q: %v", cacheDir, err)
 	}
-	gbifCache, err := NewGBIFCache(cacheDir)
-	if err != nil {
-		log.Fatalf("cache dir %q: %v", cacheDir, err)
+
+	// GBIF-derived hotspot/species data — large (low single-digit GB),
+	// rebuilt yearly by cmd/gensnapshot, scp'd to this host rather than
+	// go:embed'd or committed to git. See docs/GBIF_DATA_PIPELINE.md.
+	dataDir := os.Getenv("HOTSPOTS_DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./data"
 	}
-	ebirdClient := NewEbirdClient(apiKey)
-	ebirdCache, err := NewEbirdCache(ebirdClient, cacheDir)
+	// Loading the full worldwide index (20M+ entries) takes tens of
+	// seconds — log before starting, not just after, so a slow startup
+	// doesn't look hung.
+	log.Printf("loading hotspot index from %s ...", dataDir)
+	loadStart := time.Now()
+	hotspots, err := loadHotspotStore(filepath.Join(dataDir, "hotspots_index.json.gz"))
 	if err != nil {
-		log.Fatalf("cache dir %q: %v", cacheDir, err)
+		log.Fatalf("hotspot index: %v", err)
 	}
+	log.Printf("loaded %d hotspots in %s", hotspots.Len(), time.Since(loadStart).Round(time.Millisecond))
+	taxonomy, err := loadTaxonomyStore()
+	if err != nil {
+		log.Fatalf("taxonomy snapshot: %v", err)
+	}
+	speciesStore, err := openSpeciesStore(filepath.Join(dataDir, "hotspots.bolt"), taxonomy)
+	if err != nil {
+		log.Fatalf("hotspot species store: %v", err)
+	}
+	defer speciesStore.Close()
+	species := NewSpeciesResolver(taxonomy, speciesStore)
 
 	// Persistence for user identity and preferences. The SQLite database is
 	// created, schema included, on first startup; see USER_DB_PATH above.
@@ -162,11 +170,10 @@ func main() {
 	defer users.Close()
 
 	srv := &Server{
-		ebird:      ebirdClient,
-		ebirdCache: ebirdCache,
-		cache:      cache,
-		gbif:       gbifCache,
-		users:      users,
+		hotspots: hotspots,
+		species:  species,
+		cache:    cache,
+		users:    users,
 	}
 
 	staticFS, err := fs.Sub(embeddedStatic, "static")
@@ -294,12 +301,7 @@ func (s *Server) handleNearbyHotspots(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	hotspots, err := s.ebird.NearbyHotspots(lat, lng, distKm)
-	if err != nil {
-		log.Printf("NearbyHotspots(%g, %g, %g): %v", lat, lng, distKm, err)
-		http.Error(w, "failed to fetch hotspots from eBird", http.StatusBadGateway)
-		return
-	}
+	hotspots := s.hotspots.Nearby(lat, lng, distKm)
 	writeJSON(w, hotspots)
 }
 
@@ -309,10 +311,9 @@ func (s *Server) handleHotspotInfo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid locId", http.StatusBadRequest)
 		return
 	}
-	hotspot, err := s.ebirdCache.HotspotInfo(locID)
-	if err != nil {
-		log.Printf("HotspotInfo(%s): %v", locID, err)
-		http.Error(w, "failed to fetch hotspot from eBird", http.StatusBadGateway)
+	hotspot, ok := s.hotspots.Info(locID)
+	if !ok {
+		http.Error(w, "hotspot not found", http.StatusNotFound)
 		return
 	}
 	writeJSON(w, hotspot)
@@ -333,10 +334,10 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 		mode = "category"
 	}
 
-	codes, taxa, err := s.ebirdCache.Species(locID, lang)
+	codes, taxa, err := s.species.Species(locID, lang)
 	if err != nil {
 		log.Printf("Species(%s, %s): %v", locID, lang, err)
-		http.Error(w, "failed to fetch species from eBird", http.StatusBadGateway)
+		http.Error(w, "failed to look up hotspot species", http.StatusNotFound)
 		return
 	}
 	s.recordTaxa(taxa, lang)
@@ -366,17 +367,11 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 
 	switch mode {
 	case "popularity":
-		hotspot, err := s.ebirdCache.HotspotInfo(locID)
-		if err != nil {
-			log.Printf("HotspotInfo(%s): %v", locID, err)
-			http.Error(w, "failed to fetch hotspot location from eBird", http.StatusBadGateway)
-			return
-		}
-		nearbyCounts, err := s.gbif.PopularityCounts(hotspot.Lat, hotspot.Lng)
+		nearbyCounts, err := s.species.PopularityCounts(locID)
 		if err != nil {
 			// Popularity data is a nice-to-have — fall back to category
 			// order rather than fail the whole request.
-			log.Printf("PopularityCounts(%g, %g): %v — falling back to category order", hotspot.Lat, hotspot.Lng, err)
+			log.Printf("PopularityCounts(%s): %v — falling back to category order", locID, err)
 		} else {
 			for i := range cards {
 				if count, ok := nearbyCounts[cards[i].SciName]; ok {

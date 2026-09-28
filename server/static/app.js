@@ -18,6 +18,7 @@ const state = {
   starRewards: false,
   stars: 0,
   favorites: [],
+  email: "",
   // speciesCode -> name in the secondary language, for the current hotspot.
   secondaryNames: {},
   // The current hotspot's species in the primary language, used to build
@@ -199,6 +200,8 @@ function syncProfile(p) {
   state.starRewards = !!p.starRewards;
   state.stars = p.stars || 0;
   state.favorites = Array.isArray(p.favorites) ? p.favorites : [];
+  state.email = p.email || "";
+  $("userEmail").textContent = state.email;
 }
 
 async function initAccount() {
@@ -454,7 +457,7 @@ function updateBookmarkButton() {
 }
 
 async function openHotspot(locId) {
-  if (!/^L\d+$/.test(locId)) { navigate("#/home"); return; }
+  if (!/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(locId)) { navigate("#/home"); return; }
 
   if (!state.hotspot || state.hotspot.locId !== locId) {
     state.hotspot = { locId, locName: "", lat: 0, lng: 0 };
@@ -1133,7 +1136,7 @@ async function init() {
   wireEvents();
 
   const locId = params.get("locId");
-  if (locId && /^L\d+$/.test(locId)) {
+  if (locId && /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(locId)) {
     history.replaceState(null, "", "#/hotspot/" + encodeURIComponent(locId));
   } else if (!location.hash) {
     history.replaceState(null, "", "#/home");

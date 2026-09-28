@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-// pajarosUA identifies this project (and gives a contact point) to every
-// upstream API it talks to. eBird and GBIF don't require it the way
-// Wikimedia's User-Agent policy does, but sending one is good etiquette and
-// gives them something to reach out to before they'd need to just block us.
+// pajarosUA identifies this project (and gives a contact point) to
+// Wikimedia — the only upstream API the deployed server still talks to;
+// eBird and GBIF are both build-time-only now (see
+// docs/GBIF_DATA_PIPELINE.md and cmd/gensnapshot).
 const pajarosUA = "PajarosServer/0.1 (+https://github.com/jmelis/pajaros; contact: j.melis@gmail.com)"
 
 // wikimediaLimiter caps the *aggregate* outbound rate to Wikipedia/Commons
@@ -25,16 +25,6 @@ const pajarosUA = "PajarosServer/0.1 (+https://github.com/jmelis/pajaros; contac
 // favors live traffic; set WIKIMEDIA_RPS low (e.g. 1) for a deliberate,
 // hours-long bulk run instead.
 var wikimediaLimiter = newRateLimiter(rpsFromEnv("WIKIMEDIA_RPS", 8))
-
-// ebirdLimiter is separate from wikimediaLimiter — eBird issues API keys
-// specifically for programmatic access like this, so it can run faster, but
-// it still deserves its own pacing rather than none at all.
-var ebirdLimiter = newRateLimiter(rpsFromEnv("EBIRD_RPS", 15))
-
-// gbifLimiter is generous by default — GBIF is a public, no-auth, widely
-// used API, and this project's usage is one request per hotspot per cache
-// miss (30-day cache, see gbif_cache.go), never a bulk job.
-var gbifLimiter = newRateLimiter(rpsFromEnv("GBIF_RPS", 5))
 
 func rpsFromEnv(envVar string, def float64) float64 {
 	if v := os.Getenv(envVar); v != "" {

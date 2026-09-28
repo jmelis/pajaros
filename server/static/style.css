@@ -110,6 +110,16 @@ a { color: var(--accent-dark); }
 .view-title { margin: 0; font-size: 1.35rem; }
 .view-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 
+.header-right { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.user-email {
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
 /* Top navigation, living in the header rather than a footer/tab bar. */
 .app-nav {
   display: flex;
@@ -137,6 +147,7 @@ a { color: var(--accent-dark); }
   .app-nav a span { display: none; }
   .app-nav a { padding: 9px; }
   .nav-icon { width: 21px; height: 21px; }
+  .user-email { display: none; }
 }
 
 /* Panels / cards */

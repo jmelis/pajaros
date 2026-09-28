@@ -1,108 +1,35 @@
 package main
 
-import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/url"
-	"sort"
-	"strings"
-)
+// api.ebird.org blocks requests from this project's cloud egress IP
+// (verified: same key, same request, works from a residential connection
+// and returns 403 from the deployed pod's address — a common anti-scraping
+// measure against hosting-provider ranges). The server makes no live calls
+// to eBird or GBIF at request time; both Hotspot and Taxon are served from
+// offline data built ahead of time — see docs/GBIF_DATA_PIPELINE.md.
 
-const ebirdAPIBase = "https://api.ebird.org/v2"
-
-type EbirdClient struct {
-	apiKey string
-}
-
-func NewEbirdClient(apiKey string) *EbirdClient {
-	return &EbirdClient{apiKey: apiKey}
-}
-
-func (c *EbirdClient) get(path string, query url.Values, out any) error {
-	u := ebirdAPIBase + path
-	if len(query) > 0 {
-		u += "?" + query.Encode()
-	}
-	req, err := http.NewRequest(http.MethodGet, u, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("X-eBirdApiToken", c.apiKey)
-	req.Header.Set("User-Agent", pajarosUA)
-
-	resp, err := doThrottled(ebirdLimiter, req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("eBird API %s: unexpected status %d", path, resp.StatusCode)
-	}
-	return json.NewDecoder(resp.Body).Decode(out)
-}
-
+// Hotspot is one GBIF-derived point (see docs/GBIF_DATA_PIPELINE.md) — the
+// server's unit of "a place with birds," not eBird's curated hotspot list.
+// ID is "lat,lng" and doubles as the key into the bbolt species store
+// (species_store.go), so no separate ID translation is needed anywhere.
+// Name is whatever eBird's own location-naming convention put in GBIF's
+// `locality` field for that point — often a real hotspot name, sometimes a
+// personal location's description. TotalCount is the summed observation
+// count across every species ever recorded there. JSON tags keep the old
+// locId/locName names (rather than matching the Go field names) purely to
+// minimize the frontend diff — static/app.js reads these field names in
+// many places, and only the ID *format* actually changed, not its role.
 type Hotspot struct {
-	LocID                string  `json:"locId"`
-	LocName              string  `json:"locName"`
-	CountryCode          string  `json:"countryCode"`
-	Lat                  float64 `json:"lat"`
-	Lng                  float64 `json:"lng"`
-	LatestObsDt          string  `json:"latestObsDt,omitempty"`
-	NumSpeciesAllTime    int     `json:"numSpeciesAllTime,omitempty"`
-	NumChecklistsAllTime int     `json:"numChecklistsAllTime,omitempty"`
+	ID         string  `json:"locId"`
+	Name       string  `json:"locName"`
+	Lat        float64 `json:"lat"`
+	Lng        float64 `json:"lng"`
+	TotalCount int     `json:"totalCount"`
 }
 
-// NearbyHotspots returns hotspots within distKm of (lat, lng), most-active first.
-func (c *EbirdClient) NearbyHotspots(lat, lng, distKm float64) ([]Hotspot, error) {
-	var hotspots []Hotspot
-	err := c.get("/ref/hotspot/geo", url.Values{
-		"lat":  {fmt.Sprintf("%g", lat)},
-		"lng":  {fmt.Sprintf("%g", lng)},
-		"dist": {fmt.Sprintf("%g", distKm)},
-		"fmt":  {"json"},
-	}, &hotspots)
-	if err != nil {
-		return nil, err
-	}
-	sort.Slice(hotspots, func(i, j int) bool {
-		return hotspots[i].NumChecklistsAllTime > hotspots[j].NumChecklistsAllTime
-	})
-	return hotspots, nil
-}
-
-// HotspotsInRegion returns every hotspot in a region (a country, e.g. "US",
-// or a subnational1/2 code, e.g. "US-NY"), unlike NearbyHotspots which is
-// limited to a 50km radius around a point.
-func (c *EbirdClient) HotspotsInRegion(regionCode string) ([]Hotspot, error) {
-	var hotspots []Hotspot
-	err := c.get(fmt.Sprintf("/ref/hotspot/%s", regionCode), url.Values{"fmt": {"json"}}, &hotspots)
-	return hotspots, err
-}
-
-// HotspotInfo resolves a single hotspot by its eBird location id — used to
-// support deep-linking directly to a hotspot (?locId=...) without first
-// doing a nearby-hotspots search.
-func (c *EbirdClient) HotspotInfo(locID string) (*Hotspot, error) {
-	var h Hotspot
-	err := c.get(fmt.Sprintf("/ref/hotspot/info/%s", locID), nil, &h)
-	if err != nil {
-		return nil, err
-	}
-	return &h, nil
-}
-
-// SpeciesList returns the all-time species codes ever recorded at a hotspot,
-// in eBird's own taxonomic order (verified: it's exactly ascending
-// taxonOrder — no frequency/commonness signal at all). Species are grouped
-// for display by family instead — see Taxon.FamilyComName and main.go.
-func (c *EbirdClient) SpeciesList(locID string) ([]string, error) {
-	var codes []string
-	err := c.get(fmt.Sprintf("/product/spplist/%s", locID), url.Values{"fmt": {"json"}}, &codes)
-	return codes, err
-}
-
+// Taxon is eBird taxonomy data for one species. ComName is the only field
+// that varies by locale (verified empirically: familyComName always comes
+// back in English regardless of locale) — see families.go for how family
+// names are translated instead.
 type Taxon struct {
 	SciName       string  `json:"sciName"`
 	ComName       string  `json:"comName"`
@@ -111,29 +38,4 @@ type Taxon struct {
 	FamilyCode    string  `json:"familyCode"`
 	FamilyComName string  `json:"familyComName"`
 	TaxonOrder    float64 `json:"taxonOrder"`
-}
-
-// Taxonomy resolves species codes to scientific + localized common names in
-// one batch call, keyed by species code. Note: `locale` only localizes
-// ComName — verified empirically that FamilyComName always comes back in
-// English regardless of locale. See families.go for how family names are
-// translated instead.
-func (c *EbirdClient) Taxonomy(speciesCodes []string, locale string) (map[string]Taxon, error) {
-	if len(speciesCodes) == 0 {
-		return map[string]Taxon{}, nil
-	}
-	var taxa []Taxon
-	err := c.get("/ref/taxonomy/ebird", url.Values{
-		"species": {strings.Join(speciesCodes, ",")},
-		"locale":  {locale},
-		"fmt":     {"json"},
-	}, &taxa)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[string]Taxon, len(taxa))
-	for _, t := range taxa {
-		out[t.SpeciesCode] = t
-	}
-	return out, nil
 }

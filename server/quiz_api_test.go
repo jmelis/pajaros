@@ -7,13 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 // newQuizTestApp wires the quiz, progress, and preference routes behind the
-// same auth gate as main.go, with a fresh database and file cache. The GBIF
-// cache is left nil so quiz session building stays offline (taxonomic order);
-// tests that need popularity order seed the caches and set srv.gbif.
+// same auth gate as main.go, with a fresh database and file cache, and a
+// fake species source so tests don't need real hotspot/bbolt/taxonomy data.
+// Popularity order stays untested unless a test calls fakeSpeciesSource's
+// setCounts explicitly (see TestQuizNewCardsFollowPopularityOrder).
 func newQuizTestApp(t *testing.T) (http.Handler, *Server, *UserStore, *Auth) {
 	t.Helper()
 
@@ -23,11 +23,7 @@ func newQuizTestApp(t *testing.T) (http.Handler, *Server, *UserStore, *Auth) {
 	if err != nil {
 		t.Fatalf("NewImageCache: %v", err)
 	}
-	ebirdCache, err := NewEbirdCache(nil, cacheDir)
-	if err != nil {
-		t.Fatalf("NewEbirdCache: %v", err)
-	}
-	srv := &Server{users: store, cache: imgCache, ebirdCache: ebirdCache}
+	srv := &Server{users: store, cache: imgCache, species: newFakeSpeciesSource()}
 
 	signer, err := newCookieSigner("test-secret")
 	if err != nil {
@@ -62,15 +58,7 @@ func quizTaxon(code, com, family, order string) Taxon {
 
 func seedHotspotSpecies(t *testing.T, srv *Server, locID, lang string, codes []string, taxa map[string]Taxon) {
 	t.Helper()
-	entry := speciesCacheEntry{FetchedAt: time.Now(), Codes: codes, Taxa: taxa}
-	data, err := json.Marshal(entry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(srv.ebirdCache.dir, "species-"+locID+"-"+lang+".json")
-	if err := writeFileAtomic(path, data); err != nil {
-		t.Fatalf("seed species cache: %v", err)
-	}
+	srv.species.(*fakeSpeciesSource).set(locID, lang, codes, taxa)
 }
 
 func getProgress(t *testing.T, app http.Handler, auth *Auth, id string) ProgressStats {
@@ -122,7 +110,7 @@ func submitAnswer(t *testing.T, app http.Handler, auth *Auth, id, speciesCode st
 func TestQuizAndProgressRoutesRequireAuth(t *testing.T) {
 	app, _, _, _ := newQuizTestApp(t)
 	cases := []struct{ method, path string }{
-		{http.MethodGet, "/api/hotspots/L1/quiz"},
+		{http.MethodGet, "/api/hotspots/41.5,-70.5/quiz"},
 		{http.MethodGet, "/api/me/progress"},
 		{http.MethodPost, "/api/me/progress/vermfly"},
 		{http.MethodDelete, "/api/me/progress"},
@@ -153,9 +141,9 @@ func TestQuizFreshHotspotAllNewMultipleChoice(t *testing.T) {
 	for _, code := range codes {
 		taxa[code] = quizTaxon(code, "Common "+code, "fam", "ord")
 	}
-	seedHotspotSpecies(t, srv, "L1", defaultLang, codes, taxa)
+	seedHotspotSpecies(t, srv, "41.5,-70.5", defaultLang, codes, taxa)
 
-	session := getQuiz(t, app, auth, id, "/api/hotspots/L1/quiz?count=5")
+	session := getQuiz(t, app, auth, id, "/api/hotspots/41.5,-70.5/quiz?count=5")
 	if len(session.Items) != 5 {
 		t.Fatalf("quiz returned %d items, want 5", len(session.Items))
 	}
@@ -198,7 +186,7 @@ func TestQuizQuestionTypeAndBoxTransitions(t *testing.T) {
 	for _, code := range codes {
 		taxa[code] = quizTaxon(code, "Common "+code, "fam", "ord")
 	}
-	seedHotspotSpecies(t, srv, "L1", defaultLang, codes, taxa)
+	seedHotspotSpecies(t, srv, "41.5,-70.5", defaultLang, codes, taxa)
 
 	// Three correct answers walk the card through boxes 1 -> 2 -> 3.
 	for wantBox := 1; wantBox <= 3; wantBox++ {
@@ -210,7 +198,7 @@ func TestQuizQuestionTypeAndBoxTransitions(t *testing.T) {
 
 	// Box 3 is due three days out, so it is mastered-not-due and excluded from
 	// the next session ("if still eligible").
-	session := getQuiz(t, app, auth, id, "/api/hotspots/L1/quiz?count=all")
+	session := getQuiz(t, app, auth, id, "/api/hotspots/41.5,-70.5/quiz?count=all")
 	for _, item := range session.Items {
 		if item.SpeciesCode == "sp1" {
 			t.Errorf("box-3 sp1 should not be in the session, got state %q", item.CardState)
@@ -221,7 +209,7 @@ func TestQuizQuestionTypeAndBoxTransitions(t *testing.T) {
 	// is included when the session has room and must be a recall question.
 	submitAnswer(t, app, auth, id, "sp2", true)
 	submitAnswer(t, app, auth, id, "sp2", true)
-	session = getQuiz(t, app, auth, id, "/api/hotspots/L1/quiz?count=all")
+	session = getQuiz(t, app, auth, id, "/api/hotspots/41.5,-70.5/quiz?count=all")
 	var found *QuizItem
 	for i := range session.Items {
 		if session.Items[i].SpeciesCode == "sp2" {
@@ -255,24 +243,24 @@ func TestQuizCrossHotspotDoesNotReintroduceKnownSpeciesAsNew(t *testing.T) {
 		taxa[code] = quizTaxon(code, "Common "+code, "fam", "ord")
 	}
 	// Both hotspots share sp1.
-	seedHotspotSpecies(t, srv, "L1", defaultLang, codes, taxa)
-	seedHotspotSpecies(t, srv, "L2", defaultLang, codes, taxa)
+	seedHotspotSpecies(t, srv, "41.5,-70.5", defaultLang, codes, taxa)
+	seedHotspotSpecies(t, srv, "42.5,-71.5", defaultLang, codes, taxa)
 
-	// Take sp1 to "known" (box 3) at L1.
+	// Take sp1 to "known" (box 3) at 41.5,-70.5.
 	for i := 0; i < 3; i++ {
 		submitAnswer(t, app, auth, id, "sp1", true)
 	}
-	session := getQuiz(t, app, auth, id, "/api/hotspots/L2/quiz?count=all")
+	session := getQuiz(t, app, auth, id, "/api/hotspots/42.5,-71.5/quiz?count=all")
 	for _, item := range session.Items {
 		if item.SpeciesCode == "sp1" && item.CardState == cardStateNew {
-			t.Error("species learned at L1 was reintroduced as new at L2")
+			t.Error("species learned at 41.5,-70.5 was reintroduced as new at 42.5,-71.5")
 		}
 	}
 
 	// A card with a row but not yet mastered (box 1, due now) still must not
 	// read as new: it comes back as a review.
 	submitAnswer(t, app, auth, id, "sp2", true) // box 1, due immediately
-	session = getQuiz(t, app, auth, id, "/api/hotspots/L2/quiz?count=all")
+	session = getQuiz(t, app, auth, id, "/api/hotspots/42.5,-71.5/quiz?count=all")
 	var found *QuizItem
 	for i := range session.Items {
 		if session.Items[i].SpeciesCode == "sp2" {
@@ -299,7 +287,7 @@ func TestResetProgressClearsStatsAndQuiz(t *testing.T) {
 	for _, code := range codes {
 		taxa[code] = quizTaxon(code, "Common "+code, "fam", "ord")
 	}
-	seedHotspotSpecies(t, srv, "L1", defaultLang, codes, taxa)
+	seedHotspotSpecies(t, srv, "41.5,-70.5", defaultLang, codes, taxa)
 
 	submitAnswer(t, app, auth, id, "sp1", true)
 	submitAnswer(t, app, auth, id, "sp1", true)
@@ -317,7 +305,7 @@ func TestResetProgressClearsStatsAndQuiz(t *testing.T) {
 		t.Fatalf("stats after reset = %+v, want all zero", stats)
 	}
 
-	for _, item := range getQuiz(t, app, auth, id, "/api/hotspots/L1/quiz?count=all").Items {
+	for _, item := range getQuiz(t, app, auth, id, "/api/hotspots/41.5,-70.5/quiz?count=all").Items {
 		if item.CardState != cardStateNew {
 			t.Errorf("after reset, item %s cardState = %q, want new", item.SpeciesCode, item.CardState)
 		}
@@ -413,9 +401,7 @@ func TestQuizNewCardsFollowPopularityOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	const id = "google:pop"
-
-	srv.gbif, _ = NewGBIFCache(srv.cache.dir)
-	const lat, lng = 50.0, 4.0
+	const locID = "50.0,4.0"
 
 	codes := []string{"sp1", "sp2", "sp3", "sp4", "sp5"}
 	taxa := map[string]Taxon{}
@@ -427,20 +413,12 @@ func TestQuizNewCardsFollowPopularityOrder(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	seedHotspotSpecies(t, srv, "L1", defaultLang, codes, taxa)
+	seedHotspotSpecies(t, srv, locID, defaultLang, codes, taxa)
 
-	// Seed the hotspot info + GBIF counts: sp3 is by far the most reported,
-	// sp1 next, the rest absent.
-	hotspotData, _ := json.Marshal(hotspotCacheEntry{FetchedAt: time.Now(), Hotspot: Hotspot{LocID: "L1", LocName: "L1", Lat: lat, Lng: lng}})
-	if err := writeFileAtomic(filepath.Join(srv.ebirdCache.dir, "hotspot-L1.json"), hotspotData); err != nil {
-		t.Fatal(err)
-	}
-	gbifData, _ := json.Marshal(gbifCacheEntry{FetchedAt: time.Now(), Counts: map[string]int{"Sci sp3": 100, "Sci sp1": 5}})
-	if err := writeFileAtomic(srv.gbif.path(lat, lng), gbifData); err != nil {
-		t.Fatal(err)
-	}
+	// sp3 is by far the most reported, sp1 next, the rest absent.
+	srv.species.(*fakeSpeciesSource).setCounts(locID, map[string]int{"Sci sp3": 100, "Sci sp1": 5})
 
-	session := getQuiz(t, app, auth, id, "/api/hotspots/L1/quiz?count=all")
+	session := getQuiz(t, app, auth, id, "/api/hotspots/"+locID+"/quiz?count=all")
 	if len(session.Items) < 2 || session.Items[0].SpeciesCode != "sp3" || session.Items[1].SpeciesCode != "sp1" {
 		t.Fatalf("quiz order = %v, want sp3 first then sp1 (popularity)", speciesCodes(session.Items))
 	}
@@ -546,10 +524,10 @@ func TestQuizRejectsBadCount(t *testing.T) {
 	if _, err := store.Upsert("google", "count", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	seedHotspotSpecies(t, srv, "L1", defaultLang, []string{"sp1"}, map[string]Taxon{"sp1": quizTaxon("sp1", "One", "fam", "ord")})
+	seedHotspotSpecies(t, srv, "41.5,-70.5", defaultLang, []string{"sp1"}, map[string]Taxon{"sp1": quizTaxon("sp1", "One", "fam", "ord")})
 
 	rr := httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, "google:count", http.MethodGet, "/api/hotspots/L1/quiz?count=0", nil))
+	app.ServeHTTP(rr, authedRequest(t, auth, "google:count", http.MethodGet, "/api/hotspots/41.5,-70.5/quiz?count=0", nil))
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("count=0 = %d, want 400", rr.Code)
 	}

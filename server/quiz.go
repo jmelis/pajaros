@@ -290,10 +290,10 @@ func buildChoices(correct quizSpecies, pool, fallback []quizSpecies, n int, rng 
 }
 
 // orderedQuizPool turns a hotspot's species codes + taxonomy into a pool of
-// quiz candidates ordered most-likely-to-be-seen first. It reuses the GBIF
-// nearby-report counts behind the species endpoint's "popularity" mode
-// unconditionally; when that data is unavailable (no GBIF cache, an upstream
-// error, or a test server) it falls back to the codes' taxonomic order.
+// quiz candidates ordered most-likely-to-be-seen first. It reuses the
+// hotspot's popularity counts behind the species endpoint's "popularity"
+// mode unconditionally; when that data is unavailable (no species source,
+// an error, or a test server) it falls back to the codes' taxonomic order.
 func (s *Server) orderedQuizPool(locID string, codes []string, taxa map[string]Taxon) []quizSpecies {
 	pool := make([]quizSpecies, 0, len(codes))
 	for _, code := range codes {
@@ -309,17 +309,12 @@ func (s *Server) orderedQuizPool(locID string, codes []string, taxa map[string]T
 			order:      t.Order,
 		})
 	}
-	if s.ebirdCache == nil || s.gbif == nil {
+	if s.species == nil {
 		return pool
 	}
-	hotspot, err := s.ebirdCache.HotspotInfo(locID)
+	counts, err := s.species.PopularityCounts(locID)
 	if err != nil {
-		log.Printf("quiz HotspotInfo(%s): %v", locID, err)
-		return pool
-	}
-	counts, err := s.gbif.PopularityCounts(hotspot.Lat, hotspot.Lng)
-	if err != nil {
-		log.Printf("quiz PopularityCounts(%g, %g): %v", hotspot.Lat, hotspot.Lng, err)
+		log.Printf("quiz PopularityCounts(%s): %v", locID, err)
 		return pool
 	}
 	// Same ordering rule as the species endpoint's "popularity" mode.
@@ -385,10 +380,10 @@ func (s *Server) handleHotspotQuiz(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	codes, taxa, err := s.ebirdCache.Species(locID, lang)
+	codes, taxa, err := s.species.Species(locID, lang)
 	if err != nil {
 		log.Printf("quiz Species(%s, %s): %v", locID, lang, err)
-		http.Error(w, "failed to fetch species from eBird", http.StatusBadGateway)
+		http.Error(w, "failed to look up hotspot species", http.StatusNotFound)
 		return
 	}
 	s.recordTaxa(taxa, lang)
