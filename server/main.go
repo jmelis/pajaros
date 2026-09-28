@@ -45,6 +45,13 @@ var validLang = map[string]bool{"es": true, "fr": true, "en": true}
 // species endpoint and the store agree on what an unset preference means.
 const defaultLang = "en"
 
+// maxNearbyDistKm caps /api/hotspots' dist query param (see
+// handleNearbyHotspots) — the frontend only ever omits it (using the
+// 25km default) or sets it from a place search, never anything close to
+// this. It exists purely so a request straight against the API can't force
+// an unbounded haversine scan/response.
+const maxNearbyDistKm = 100.0
+
 // Environment variables
 // =====================
 //
@@ -325,6 +332,16 @@ func (s *Server) handleNearbyHotspots(w http.ResponseWriter, r *http.Request) {
 		if d, err := strconv.ParseFloat(v, 64); err == nil {
 			distKm = d
 		}
+	}
+	// dist is unbounded input straight into a haversine scan over ~20
+	// million worldwide points: an unclamped large value (e.g. a
+	// hand-crafted request bypassing the frontend, which never sends this
+	// param) returns a giant slice, allocating well over a GB to marshal
+	// it as one JSON response. Clamped here rather than validated/rejected
+	// since nothing about a too-large radius is actually invalid, just
+	// resource-unsafe -- clamping degrades gracefully instead of erroring.
+	if distKm > maxNearbyDistKm {
+		distKm = maxNearbyDistKm
 	}
 
 	hotspots := s.hotspots.Nearby(lat, lng, distKm)
