@@ -1,1192 +1,150 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <title>pajaros</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>
-  :root {
-    --bg: #f8f7f4;
-    --surface: #ffffff;
-    --text: #1f2a24;
-    --muted: #6b7a72;
-    --accent: #2a7d4f;
-    --accent-dark: #216040;
-    --accent-soft: #eef4ef;
-    --border: #e4e1da;
-
-    --space-1: 8px;
-    --space-2: 16px;
-    --space-3: 24px;
-    --space-4: 32px;
-
-    --radius-sm: 8px;
-    --radius: 12px;
-
-    --shadow-sm: 0 1px 2px rgba(31, 42, 36, 0.06);
-    --shadow: 0 2px 10px rgba(31, 42, 36, 0.08);
-  }
-
-  * { box-sizing: border-box; }
-
-  body {
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 16px;
-    line-height: 1.55;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  h1, h2, h3 { line-height: 1.25; letter-spacing: -0.01em; }
-  a { color: var(--accent-dark); }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  /* Header */
-  .app-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-  }
-  .brand { display: flex; align-items: baseline; gap: var(--space-1); }
-  .brand h1 { margin: 0; font-size: 1.3rem; font-weight: 700; }
-  .brand .tagline {
-    color: var(--muted);
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .container {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    max-width: 900px;
-    margin: 0 auto;
-    padding: var(--space-3) 1rem var(--space-4);
-  }
-
-  /* Panels / cards */
-  .panel {
-    padding: var(--space-3);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-  }
-  .panel-title {
-    margin: 0 0 var(--space-2);
-    color: var(--muted);
-    font-size: 0.78rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  /* Buttons */
-  .btn {
-    font: inherit;
-    font-weight: 600;
-    font-size: 0.95rem;
-    line-height: 1;
-    padding: 10px 16px;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
-  }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: var(--accent-dark); }
-  .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
-  .btn-secondary:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
-  .btn-sm { padding: 7px 12px; font-size: 0.85rem; }
-
-  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
-
-  /* Inputs */
-  .field-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-  }
-  .field { display: flex; flex-direction: column; gap: 4px; }
-  .field > span {
-    color: var(--muted);
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  input[type=number], select {
-    width: 100%;
-    font: inherit;
-    color: inherit;
-    padding: 9px 10px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-  }
-  input[type=number]:focus, select:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(42, 125, 79, 0.15);
-  }
-  .hint { margin: var(--space-2) 0 0; color: var(--muted); font-size: 0.8rem; }
-
-  /* Map */
-  .map-panel { padding: 0; overflow: hidden; }
-  .map-toolbar { padding: var(--space-2); border-bottom: 1px solid var(--border); }
-  #map { height: 400px; }
-
-  /* Mode segmented control */
-  .segmented {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 3px;
-    padding: 3px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-  }
-  .segmented label { display: inline-flex; cursor: pointer; }
-  .segmented input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-  .segmented span {
-    display: inline-block;
-    padding: 7px 14px;
-    color: var(--muted);
-    font-size: 0.88rem;
-    font-weight: 600;
-    border-radius: 6px;
-    transition: background-color .15s ease, color .15s ease;
-  }
-  .segmented input:checked + span { background: var(--accent); color: #fff; }
-  .segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  #status { margin: var(--space-2) 0 0; color: var(--muted); font-size: 0.9rem; min-height: 1.4em; }
-
-  /* Species cards */
-  .family-heading {
-    margin: var(--space-3) 0 var(--space-2);
-    padding-bottom: var(--space-1);
-    border-bottom: 1px solid var(--border);
-    font-size: 1rem;
-    font-weight: 700;
-  }
-  .family-heading:first-child { margin-top: 0; }
-
-  .family-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: var(--space-2);
-  }
-
-  .card {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    color: inherit;
-    text-decoration: none;
-    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-  }
-  .card:hover { transform: translateY(-2px); border-color: #cdd8d0; box-shadow: var(--shadow); }
-  .card img {
-    display: block;
-    width: 100%;
-    aspect-ratio: 1;
-    object-fit: cover;
-    background: #eee;
-  }
-  .card-body { display: flex; flex-direction: column; gap: 2px; padding: var(--space-1) 10px 12px; }
-  .card .com { font-weight: 700; font-size: 0.95rem; line-height: 1.3; }
-  .card .sci { color: var(--muted); font-style: italic; font-size: 0.8rem; }
-  .card .nearby {
-    align-self: flex-start;
-    margin-top: 4px;
-    padding: 2px 9px;
-    background: var(--accent-soft);
-    color: var(--accent-dark);
-    font-size: 0.72rem;
-    font-weight: 600;
-    border-radius: 999px;
-  }
-
-  /* Leaflet popup */
-  .leaflet-popup-content { margin: 12px 14px; font-family: inherit; color: var(--text); line-height: 1.5; }
-  .leaflet-popup-content-wrapper { border-radius: var(--radius); box-shadow: var(--shadow); }
-  .popup-title { font-size: 1rem; }
-  .popup-btn {
-    margin-top: var(--space-1);
-    font: inherit;
-    font-weight: 600;
-    font-size: 0.85rem;
-    padding: 7px 12px;
-    color: #fff;
-    background: var(--accent);
-    border: 1px solid var(--accent);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-  }
-  .popup-btn:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
-
-  @media (max-width: 480px) {
-    .container { padding: var(--space-2) var(--space-2) var(--space-3); }
-    #map { height: 300px; }
-    .brand .tagline { display: none; }
-  }
-
-  /* Secondary-language subtitle under species names */
-  .card .sub { color: var(--accent-dark); font-size: 0.78rem; font-weight: 600; }
-
-  /* Quiz entry point */
-  .quiz-bar { margin-top: var(--space-2); }
-  .quiz-size { max-width: 120px; }
-
-  /* Overlays (settings + quiz) */
-  .overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-3);
-    background: rgba(20, 28, 24, 0.55);
-  }
-  .overlay[hidden] { display: none; }
-  .overlay-panel {
-    width: 100%;
-    max-width: 520px;
-    max-height: 90vh;
-    overflow: auto;
-    padding: var(--space-3);
-    background: var(--surface);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-  }
-  .overlay-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-2);
-  }
-  .overlay-head h2 { margin: 0; font-size: 1.1rem; }
-  .settings-body { display: flex; flex-direction: column; gap: var(--space-2); }
-  .settings-modes { margin: 0; padding: 0; border: 0; }
-  .settings-modes legend {
-    margin-bottom: 6px;
-    padding: 0;
-    color: var(--muted);
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  .settings-stats { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-  .settings-stats .stat {
-    padding: 8px 12px;
-    background: var(--accent-soft);
-    border-radius: var(--radius-sm);
-    font-size: 0.9rem;
-  }
-
-  /* Quiz screen */
-  .quiz-overlay {
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    padding: 0;
-    background: var(--surface);
-  }
-  .quiz-top {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--border);
-  }
-  .quiz-progress { font-weight: 700; }
-  .quiz-stars { font-weight: 700; color: #b8860b; }
-  #quizClose { margin-left: auto; }
-  .quiz-body {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    overflow: auto;
-  }
-  .quiz-image {
-    width: min(100%, 520px);
-    max-height: 46vh;
-    object-fit: contain;
-    background: #eee;
-    border-radius: var(--radius);
-  }
-  .quiz-prompt { margin: 0; font-weight: 700; }
-  .quiz-choices {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: var(--space-1);
-    width: min(100%, 640px);
-  }
-  .quiz-choice { width: 100%; padding: 14px; font-size: 1rem; }
-  .quiz-choice.quiz-choice-correct { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .quiz-choice.quiz-choice-incorrect { background: #fbeaea; border-color: #c33; color: #a33; }
-  .quiz-reveal { text-align: center; }
-  .quiz-reveal-name { font-size: 1.4rem; font-weight: 700; }
-  .quiz-reveal-sub { color: var(--accent-dark); font-weight: 600; }
-  .quiz-reveal-sci { color: var(--muted); font-style: italic; }
-  /* Only lay the grade buttons out when revealed: a bare `.quiz-grade` rule
-     would out-rank the UA [hidden] rule and show them before "Show answer". */
-  .quiz-grade:not([hidden]) { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); }
-  .quiz-summary {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-1);
-    text-align: center;
-  }
-  .quiz-score { margin: 0; font-size: 1.2rem; font-weight: 700; }
-
-  /* Kid mode: warmer palette, larger targets, reward flourishes. Mechanics
-     and difficulty are identical to standard mode. */
-  body.kid-mode {
-    --bg: #fff8e8;
-    --surface: #fffdf7;
-    --text: #3a2a12;
-    --muted: #8a7350;
-    --accent: #ef8a17;
-    --accent-dark: #c96f08;
-    --accent-soft: #fdf0d8;
-    --border: #f0dfc0;
-  }
-  body.kid-mode .btn { font-size: 1.05rem; padding: 13px 20px; }
-  body.kid-mode .quiz-choice { font-size: 1.15rem; padding: 18px; }
-  body.kid-mode .quiz-image { border-radius: 20px; }
-  .star-burst {
-    position: fixed;
-    top: 42%;
-    left: 50%;
-    z-index: 1200;
-    color: #f2a516;
-    font-size: 5rem;
-    pointer-events: none;
-    animation: star-pop 900ms ease-out forwards;
-  }
-  @keyframes star-pop {
-    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(-20deg); }
-    30% { opacity: 1; transform: translate(-50%, -50%) scale(1.3) rotate(10deg); }
-    100% { opacity: 0; transform: translate(-50%, -90%) scale(1.6) rotate(0); }
-  }
-</style>
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <header class="app-header">
   <div class="brand">
     <h1>pajaros</h1>
-    <span class="tagline">field guide</span>
+    <span class="tagline" data-i18n="app.tagline"></span>
   </div>
-  <button id="settingsBtn" class="btn btn-secondary btn-sm" type="button" aria-label="Settings" title="Settings">⚙</button>
 </header>
 
 <main class="container">
-  <section class="panel" aria-labelledby="location-title">
-    <h2 id="location-title" class="panel-title">Location</h2>
-    <div class="actions">
-      <button id="findHotspots" class="btn btn-primary" type="button">Find hotspots</button>
-      <button id="useLocation" class="btn btn-secondary" type="button">📍 Use my location</button>
+  <!-- Home -->
+  <section id="view-home" class="view" hidden>
+    <h2 class="view-title" data-i18n="home.title"></h2>
+    <div id="homeFirstRun" class="panel first-run" hidden>
+      <p data-i18n="home.firstRun"></p>
+      <div class="actions"><a class="btn btn-primary" href="#/search" data-i18n="home.find"></a></div>
     </div>
-    <div class="field-grid">
-      <label class="field"><span>Latitude</span><input id="lat" type="number" step="any" value="50.8503"></label>
-      <label class="field"><span>Longitude</span><input id="lng" type="number" step="any" value="4.3517"></label>
-    </div>
-    <p class="hint">Location access requires HTTPS or localhost — it will fail over plain http from another device.</p>
+    <section id="homeHotspotsPanel" class="panel">
+      <h3 class="panel-title" data-i18n="home.hotspots"></h3>
+      <ul id="homeFavorites" class="hotspot-list"></ul>
+      <p id="homeNoFavorites" class="hint" data-i18n="home.noFavorites" hidden></p>
+      <div class="actions"><a class="btn btn-primary" href="#/search" data-i18n="home.find"></a></div>
+    </section>
+    <section id="homeProgressPanel" class="panel">
+      <h3 class="panel-title" data-i18n="home.progress"></h3>
+      <div id="homeProgress" class="settings-stats"></div>
+      <div class="actions"><a class="btn btn-secondary" href="#/mastered" data-i18n="home.viewMastered"></a></div>
+    </section>
   </section>
 
-  <section class="panel map-panel" aria-label="Hotspot map">
-    <div class="map-toolbar">
-      <button id="searchHere" class="btn btn-secondary btn-sm" type="button">🔍 Search this area of the map</button>
-    </div>
-    <div id="map"></div>
+  <!-- Search -->
+  <section id="view-search" class="view" hidden>
+    <h2 class="view-title" data-i18n="search.title"></h2>
+    <section class="panel">
+      <div class="actions">
+        <button id="findHotspots" class="btn btn-primary" type="button" data-i18n="search.find"></button>
+        <button id="useLocation" class="btn btn-secondary" type="button" data-i18n="search.useLocation"></button>
+      </div>
+      <div class="field-grid">
+        <label class="field"><span data-i18n="search.lat"></span><input id="lat" type="number" step="any" value="50.8503"></label>
+        <label class="field"><span data-i18n="search.lng"></span><input id="lng" type="number" step="any" value="4.3517"></label>
+      </div>
+      <p class="hint" data-i18n="search.hint"></p>
+    </section>
+    <section class="panel map-panel">
+      <div class="map-toolbar">
+        <button id="searchHere" class="btn btn-secondary btn-sm" type="button" data-i18n="search.here"></button>
+      </div>
+      <div id="map" data-i18n-aria="search.mapAria"></div>
+    </section>
+    <p id="status" class="status"></p>
   </section>
 
-  <section class="panel" aria-label="Species browsing">
-    <div class="segmented" id="modeToggle" role="radiogroup" aria-label="Species browsing mode">
-      <label><input type="radio" name="mode" value="popularity" checked><span>Popularity</span></label>
-      <label><input type="radio" name="mode" value="category"><span>Category</span></label>
-      <label><input type="radio" name="mode" value="alphabetical"><span>Alphabetical</span></label>
+  <!-- Hotspot -->
+  <section id="view-hotspot" class="view" hidden>
+    <div class="view-head">
+      <h2 id="hotspotName" class="view-title"></h2>
+      <button id="bookmarkBtn" class="btn btn-secondary btn-sm" type="button" aria-pressed="false"></button>
     </div>
-    <div id="quizBar" class="actions quiz-bar" hidden>
-      <label class="field quiz-size"><span>Quiz size</span>
+    <div class="segmented" id="hotspotModeToggle" role="radiogroup" data-i18n-aria="hotspot.modeAria">
+      <label><input type="radio" name="hotspotMode" value="browse" checked><span data-i18n="hotspot.browse"></span></label>
+      <label><input type="radio" name="hotspotMode" value="quiz"><span data-i18n="hotspot.quiz"></span></label>
+    </div>
+    <p id="hotspotStatus" class="status"></p>
+    <div id="browseControls">
+      <div class="segmented" id="modeToggle" role="radiogroup" data-i18n-aria="browse.modeAria">
+        <label><input type="radio" name="mode" value="popularity" checked><span data-i18n="browse.popularity"></span></label>
+        <label><input type="radio" name="mode" value="category"><span data-i18n="browse.category"></span></label>
+        <label><input type="radio" name="mode" value="alphabetical"><span data-i18n="browse.alphabetical"></span></label>
+      </div>
+      <div id="groups"></div>
+    </div>
+    <div id="quizControls" class="actions quiz-bar" hidden>
+      <label class="field quiz-size"><span data-i18n="quiz.size"></span>
         <select id="quizCount">
           <option value="5">5</option>
           <option value="10" selected>10</option>
           <option value="15">15</option>
           <option value="20">20</option>
-          <option value="all">all</option>
+          <option value="all" data-i18n="quiz.all"></option>
         </select>
       </label>
-      <button id="quizStart" class="btn btn-primary" type="button">Quiz me on these birds</button>
+      <button id="quizStart" class="btn btn-primary" type="button" data-i18n="quiz.start"></button>
     </div>
-    <p id="status">Click a hotspot marker on the map to load its species.</p>
   </section>
 
-  <div id="groups"></div>
-</main>
-
-<div id="settingsOverlay" class="overlay" hidden>
-  <div class="overlay-panel settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-    <div class="overlay-head">
-      <h2 id="settingsTitle">Settings</h2>
-      <button id="settingsClose" class="btn btn-secondary btn-sm" type="button">Close</button>
+  <!-- Mastered -->
+  <section id="view-mastered" class="view" hidden>
+    <h2 class="view-title" data-i18n="mastered.title"></h2>
+    <p id="masteredStatus" class="status"></p>
+    <div id="masteredGrid" class="family-grid"></div>
+    <div id="masteredEmpty" class="panel" hidden>
+      <p data-i18n="mastered.empty"></p>
+      <div class="actions"><a class="btn btn-primary" href="#/search" data-i18n="home.find"></a></div>
     </div>
-    <div class="settings-body">
-      <label class="field"><span>Primary language</span>
-        <select id="primaryLang">
-          <option value="es">es</option>
-          <option value="fr">fr</option>
-          <option value="en">en</option>
-        </select>
+  </section>
+
+  <!-- Settings -->
+  <section id="view-settings" class="view" hidden>
+    <h2 class="view-title" data-i18n="settings.title"></h2>
+    <section class="panel settings-body">
+      <label class="field"><span data-i18n="settings.primary"></span>
+        <select id="primaryLang"></select>
       </label>
-      <label class="field"><span>Secondary language (optional)</span>
-        <select id="secondaryLang">
-          <option value="">None</option>
-          <option value="es">es</option>
-          <option value="fr">fr</option>
-          <option value="en">en</option>
-        </select>
+      <label class="field"><span data-i18n="settings.secondary"></span>
+        <select id="secondaryLang"></select>
       </label>
-      <fieldset class="settings-modes">
-        <legend>Look</legend>
-        <div class="segmented" role="radiogroup" aria-label="Display mode">
-          <label><input type="radio" name="displayMode" value="standard" checked><span>Standard</span></label>
-          <label><input type="radio" name="displayMode" value="kid"><span>Kid mode</span></label>
-        </div>
-      </fieldset>
+      <label class="switch">
+        <input id="starRewards" type="checkbox">
+        <span data-i18n="settings.starRewards"></span>
+      </label>
+      <p class="hint" data-i18n="settings.starRewardsHint"></p>
       <div class="settings-stats" id="settingsStats"></div>
-      <div class="actions settings-actions">
-        <button id="resetProgress" class="btn btn-secondary" type="button">Reset my progress</button>
-        <button id="logoutBtn" class="btn btn-secondary" type="button">Sign out</button>
+      <div class="actions">
+        <button id="resetProgress" class="btn btn-secondary" type="button" data-i18n="settings.reset"></button>
+        <button id="logoutBtn" class="btn btn-secondary" type="button" data-i18n="settings.signOut"></button>
       </div>
       <p id="settingsHint" class="hint" hidden></p>
-    </div>
-  </div>
-</div>
+    </section>
+  </section>
+</main>
+
+<nav class="app-nav" data-i18n-aria="nav.aria">
+  <a href="#/home" data-nav="home" data-i18n="nav.home"></a>
+  <a href="#/search" data-nav="search" data-i18n="nav.search"></a>
+  <a href="#/mastered" data-nav="mastered" data-i18n="nav.mastered"></a>
+  <a href="#/settings" data-nav="settings" data-i18n="nav.settings"></a>
+</nav>
 
 <div id="quizOverlay" class="overlay quiz-overlay" hidden>
   <div class="quiz-top">
     <span id="quizProgress" class="quiz-progress"></span>
     <span id="quizStars" class="quiz-stars" hidden></span>
-    <button id="quizClose" class="btn btn-secondary btn-sm" type="button">Close</button>
+    <button id="quizClose" class="btn btn-secondary btn-sm" type="button" data-i18n="quiz.close"></button>
   </div>
   <div id="quizBody" class="quiz-body"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-const $ = (id) => document.getElementById(id);
-
-function setStatus(msg) { $("status").textContent = msg; }
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[c]));
-}
-
-// Generic greyscale bird silhouette shown while a species' real photo is
-// still being fetched (or if it never becomes available).
-const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" fill="#e8e8e8"/>
-  <g fill="#b5b5b5">
-    <ellipse cx="45" cy="60" rx="28" ry="20"/>
-    <circle cx="72" cy="42" r="14"/>
-    <polygon points="84,42 96,38 84,48"/>
-    <polygon points="20,55 4,50 20,68"/>
-    <ellipse cx="40" cy="50" rx="14" ry="9" transform="rotate(-20 40 50)"/>
-  </g>
-  <circle cx="76" cy="38" r="2" fill="#e8e8e8"/>
-</svg>`;
-const PLACEHOLDER_URL = "data:image/svg+xml," + encodeURIComponent(PLACEHOLDER_SVG);
-
-// Shown instead of PLACEHOLDER_SVG once the server has confirmed no
-// freely-licensed photo exists for a species (sp.imageMissing) — same
-// silhouette, marked with a red X so it doesn't read as "still loading".
-const MISSING_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" fill="#e8e8e8"/>
-  <g fill="#cbcbcb">
-    <ellipse cx="45" cy="60" rx="28" ry="20"/>
-    <circle cx="72" cy="42" r="14"/>
-    <polygon points="84,42 96,38 84,48"/>
-    <polygon points="20,55 4,50 20,68"/>
-    <ellipse cx="40" cy="50" rx="14" ry="9" transform="rotate(-20 40 50)"/>
-  </g>
-  <circle cx="76" cy="38" r="2" fill="#e8e8e8"/>
-  <line x1="10" y1="10" x2="90" y2="90" stroke="#c33" stroke-width="9" stroke-linecap="round"/>
-  <line x1="90" y1="10" x2="10" y2="90" stroke="#c33" stroke-width="9" stroke-linecap="round"/>
-</svg>`;
-const MISSING_URL = "data:image/svg+xml," + encodeURIComponent(MISSING_SVG);
-
-// ---- Account state -------------------------------------------------------
-// Language, secondary language, display mode and star total are all stored
-// per account server-side; the settings panel edits them and this mirrors the
-// current values for rendering (species browser + quiz).
-const VALID_LANGS = ["es", "fr", "en"];
-const state = {
-  language: "es",
-  secondaryLanguage: "",
-  displayMode: "standard",
-  stars: 0,
-  // speciesCode -> name in the secondary language, for the current hotspot.
-  secondaryNames: {},
-  // The current hotspot's species in the primary language, used to build
-  // multiple-choice options when a recall card is requeued after a wrong answer.
-  species: [],
-};
-
-function applyDisplayMode() {
-  document.body.classList.toggle("kid-mode", state.displayMode === "kid");
-}
-
-function secondaryNameFor(speciesCode) {
-  return state.secondaryNames[speciesCode] || "";
-}
-
-// loadSecondaryNames fetches the current hotspot's species in the secondary
-// language so browsing cards and quiz reveals can show a subtitle. No-op when
-// no secondary language is set (or it equals the primary).
-async function loadSecondaryNames(locId) {
-  state.secondaryNames = {};
-  if (!state.secondaryLanguage || state.secondaryLanguage === state.language) return;
-  try {
-    const res = await fetch(`/api/hotspots/${locId}/species?lang=${state.secondaryLanguage}&mode=category`);
-    if (!res.ok) return;
-    const species = await res.json();
-    for (const sp of species) state.secondaryNames[sp.speciesCode] = sp.comName;
-  } catch (e) {
-    // A missing subtitle is not worth surfacing as an error.
-  }
-}
-
-async function initAccount() {
-  try {
-    const res = await fetch("/api/me");
-    if (!res.ok) return;
-    const p = await res.json();
-    state.language = VALID_LANGS.includes(p.language) ? p.language : "es";
-    state.secondaryLanguage = p.secondaryLanguage || "";
-    state.displayMode = p.displayMode === "kid" ? "kid" : "standard";
-    state.stars = p.stars || 0;
-  } catch (e) {
-    // Open/dev mode already works without this; keep the defaults.
-  }
-  applyDisplayMode();
-}
-
-// Images are fetched server-side in the background (see /api/hotspots/.../species),
-// so a card's imageUrl often 404s at first. Preload off-DOM and only swap the
-// visible <img> once it actually loads, retrying for a couple of minutes —
-// long enough to cover a big hotspot's background-fetch queue — before
-// giving up and leaving the placeholder in place.
-function preloadAndSwap(imgEl, url, attempt = 0) {
-  const MAX_ATTEMPTS = 40;
-  const RETRY_MS = 3000;
-  const probe = new Image();
-  probe.onload = () => { imgEl.src = url; };
-  probe.onerror = () => {
-    if (attempt < MAX_ATTEMPTS) setTimeout(() => preloadAndSwap(imgEl, url, attempt + 1), RETRY_MS);
-  };
-  probe.src = url;
-}
-
-const map = L.map("map").setView([parseFloat($("lat").value), parseFloat($("lng").value)], 12);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-}).addTo(map);
-
-let userMarker = null;
-let hotspotMarkers = [];
-
-function clearHotspotMarkers() {
-  for (const m of hotspotMarkers) map.removeLayer(m);
-  hotspotMarkers = [];
-}
-
-function loadSpeciesButton(h) {
-  return `<button class="popup-btn load-species-btn" data-locid="${h.locId}" data-locname="${escapeHtml(h.locName)}">Load species</button>`;
-}
-
-function popupHTML(h) {
-  return `
-    <strong class="popup-title">${escapeHtml(h.locName)}</strong><br>
-    ${h.numChecklistsAllTime ?? 0} checklists &middot; ${h.numSpeciesAllTime ?? 0} species<br>
-    ${loadSpeciesButton(h)}
-  `;
-}
-
-// Deep-linked hotspots come from /api/hotspots/{locId} (single-hotspot info),
-// which doesn't carry the checklist/species-count stats the nearby-search
-// endpoint does — so its popup skips that line rather than showing zeroes.
-function popupHTMLNoStats(h) {
-  return `<strong class="popup-title">${escapeHtml(h.locName)}</strong><br>${loadSpeciesButton(h)}`;
-}
-
-const MIN_MARKER_RADIUS = 5;
-const MAX_MARKER_RADIUS = 20;
-
-// Checklist counts are heavily right-skewed (a handful of hotspots run into
-// the tens of thousands, most are far smaller), so a log scale spreads that
-// out much better than sqrt does. Scaled relative to the busiest hotspot in
-// *this* search rather than a fixed global max, so the full size range is
-// always used whether the area's counts run into the tens or the
-// tens-of-thousands — the tradeoff is that the same hotspot can render at a
-// different size depending on what else is nearby in the current search.
-function markerRadius(checklists, maxChecklists) {
-  if (maxChecklists <= 0) return MIN_MARKER_RADIUS;
-  const t = Math.log1p(checklists || 0) / Math.log1p(maxChecklists);
-  return MIN_MARKER_RADIUS + t * (MAX_MARKER_RADIUS - MIN_MARKER_RADIUS);
-}
-
-async function findHotspots() {
-  const lat = parseFloat($("lat").value), lng = parseFloat($("lng").value);
-  if (Number.isNaN(lat) || Number.isNaN(lng)) { setStatus("Enter valid lat/lng."); return; }
-
-  setStatus("Loading hotspots...");
-  const res = await fetch(`/api/hotspots?lat=${lat}&lng=${lng}`);
-  if (!res.ok) { setStatus(`Error: ${res.status}`); return; }
-  const hotspots = await res.json();
-
-  clearHotspotMarkers();
-  if (userMarker) map.removeLayer(userMarker);
-  userMarker = L.marker([lat, lng]).addTo(map).bindPopup("You are here");
-
-  const bounds = L.latLngBounds([[lat, lng]]);
-  const maxChecklists = Math.max(0, ...hotspots.map((h) => h.numChecklistsAllTime || 0));
-  for (const h of hotspots) {
-    const marker = L.circleMarker([h.lat, h.lng], {
-      radius: markerRadius(h.numChecklistsAllTime, maxChecklists),
-      color: "#2a7d4f",
-      fillColor: "#2a7d4f",
-      fillOpacity: 0.6,
-    }).addTo(map).bindPopup(popupHTML(h));
-    hotspotMarkers.push(marker);
-    bounds.extend([h.lat, h.lng]);
-  }
-  if (hotspots.length > 0) map.fitBounds(bounds, { padding: [30, 30] });
-  setStatus(`${hotspots.length} hotspots found — click one on the map.`);
-}
-
-// Popup content is injected by Leaflet outside our control, so use event
-// delegation instead of binding a listener per marker.
-document.addEventListener("click", (e) => {
-  if (e.target.classList.contains("load-species-btn")) {
-    loadSpecies(e.target.dataset.locid, e.target.dataset.locname);
-  }
-});
-
-function setURLParams(params) {
-  const url = new URL(window.location);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  history.replaceState({}, "", url);
-}
-
-function speciesCard(sp) {
-  const card = document.createElement("a");
-  card.className = "card";
-  card.href = `https://ebird.org/species/${encodeURIComponent(sp.speciesCode)}`;
-  card.target = "_blank";
-  card.rel = "noopener noreferrer";
-  card.innerHTML = `
-    <img src="${sp.imageMissing ? MISSING_URL : PLACEHOLDER_URL}" alt="${escapeHtml(sp.comName)}">
-    <div class="card-body">
-      <div class="com">${escapeHtml(sp.comName)}</div>
-      ${secondaryNameFor(sp.speciesCode) ? `<div class="sub">${escapeHtml(secondaryNameFor(sp.speciesCode))}</div>` : ""}
-      <div class="sci">${escapeHtml(sp.sciName)}</div>
-      ${sp.nearbyCount != null ? `<div class="nearby">${sp.nearbyCount} nearby reports</div>` : ""}
-    </div>
-  `;
-  // imageMissing means the server already confirmed no photo exists — no
-  // point polling a URL that will never 200.
-  if (sp.imageUrl && !sp.imageMissing) preloadAndSwap(card.querySelector("img"), sp.imageUrl);
-  return card;
-}
-
-let currentHotspot = null; // { locId, locName } — so the mode toggle can re-fetch
-
-function currentMode() {
-  return document.querySelector('input[name="mode"]:checked').value;
-}
-
-async function loadSpecies(locId, locName) {
-  currentHotspot = { locId, locName };
-  const lang = state.language;
-  const mode = currentMode();
-  setURLParams({ locId, lang, mode });
-  const groups = $("groups");
-  groups.innerHTML = "";
-  // Fetch the secondary-language names first (cached after the first load) so
-  // the cards below can render their subtitles immediately.
-  await loadSecondaryNames(locId);
-
-  // popularity and alphabetical are both flat, sorted lists (server does the
-  // sorting — see main.go) — only category needs family grouping client-side.
-  const flatModeLabel = { popularity: "most reported nearby first", alphabetical: "alphabetical order" };
-  if (mode in flatModeLabel) {
-    const hint = mode === "popularity" ? " (checking nearby report counts, first load can take a few seconds)" : "";
-    setStatus(`Loading species for ${locName}${hint}...`);
-    const res = await fetch(`/api/hotspots/${locId}/species?lang=${lang}&mode=${mode}`);
-    if (!res.ok) { setStatus(`Error: ${res.status}`); return; }
-    const species = await res.json();
-    state.species = species;
-    const grid = document.createElement("div");
-    grid.className = "family-grid";
-    groups.appendChild(grid);
-    for (const sp of species) grid.appendChild(speciesCard(sp));
-    setStatus(`${species.length} species at ${locName}, ${flatModeLabel[mode]}.`);
-    $("quizBar").hidden = false;
-    return;
-  }
-
-  setStatus(`Loading species for ${locName} (fetching images on first use can take a few seconds)...`);
-  const res = await fetch(`/api/hotspots/${locId}/species?lang=${lang}&mode=category`);
-  if (!res.ok) { setStatus(`Error: ${res.status}`); return; }
-  const species = await res.json();
-  state.species = species;
-
-  // Species arrive already grouped by family (server sends eBird's
-  // taxonomic order), so a family heading just goes up whenever it changes.
-  let currentFamily = null;
-  let currentGrid = null;
-  for (const sp of species) {
-    const family = sp.family || sp.order || "Other";
-    if (family !== currentFamily) {
-      currentFamily = family;
-      const heading = document.createElement("h3");
-      heading.className = "family-heading";
-      heading.textContent = family;
-      groups.appendChild(heading);
-      currentGrid = document.createElement("div");
-      currentGrid.className = "family-grid";
-      groups.appendChild(currentGrid);
-    }
-    currentGrid.appendChild(speciesCard(sp));
-  }
-  setStatus(`${species.length} species at ${locName}, grouped by family.`);
-  $("quizBar").hidden = false;
-}
-
-for (const radio of document.querySelectorAll('input[name="mode"]')) {
-  radio.addEventListener("change", () => {
-    if (currentHotspot) loadSpecies(currentHotspot.locId, currentHotspot.locName);
-  });
-}
-
-$("findHotspots").addEventListener("click", findHotspots);
-
-$("logoutBtn").addEventListener("click", async () => {
-  await fetch("/auth/logout", { method: "POST" });
-  window.location = "/login";
-});
-
-$("searchHere").addEventListener("click", () => {
-  const center = map.getCenter();
-  $("lat").value = center.lat.toFixed(6);
-  $("lng").value = center.lng.toFixed(6);
-  findHotspots();
-});
-
-$("useLocation").addEventListener("click", () => {
-  if (!navigator.geolocation) { setStatus("Geolocation not supported by this browser."); return; }
-  setStatus("Requesting location permission...");
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      $("lat").value = pos.coords.latitude.toFixed(6);
-      $("lng").value = pos.coords.longitude.toFixed(6);
-      map.setView([pos.coords.latitude, pos.coords.longitude], 13);
-      findHotspots();
-    },
-    (err) => {
-      setStatus(`Location error: ${err.message} — geolocation needs HTTPS or localhost.`);
-    },
-    { enableHighAccuracy: true, timeout: 10000 }
-  );
-});
-
-// ---- Settings panel ------------------------------------------------------
-
-function showSettingsHint(msg) {
-  const hint = $("settingsHint");
-  hint.textContent = msg;
-  hint.hidden = false;
-}
-
-async function refreshSettings() {
-  $("settingsHint").hidden = true;
-  try {
-    const [pRes, stRes] = await Promise.all([fetch("/api/me"), fetch("/api/me/progress")]);
-    if (pRes.ok) {
-      const p = await pRes.json();
-      if (VALID_LANGS.includes(p.language)) $("primaryLang").value = p.language;
-      $("secondaryLang").value = VALID_LANGS.includes(p.secondaryLanguage) ? p.secondaryLanguage : "";
-      const radio = document.querySelector(`input[name="displayMode"][value="${p.displayMode}"]`);
-      if (radio) radio.checked = true;
-      state.language = VALID_LANGS.includes(p.language) ? p.language : "es";
-      state.secondaryLanguage = VALID_LANGS.includes(p.secondaryLanguage) ? p.secondaryLanguage : "";
-      state.displayMode = p.displayMode === "kid" ? "kid" : "standard";
-      state.stars = p.stars || 0;
-    }
-    if (stRes.ok) {
-      const st = await stRes.json();
-      state.stars = st.totalStars || 0;
-      $("settingsStats").innerHTML =
-        `<span class="stat"><strong>⭐ ${st.totalStars}</strong> stars</span>` +
-        `<span class="stat"><strong>${st.speciesMastered}</strong> mastered</span>` +
-        `<span class="stat"><strong>${st.speciesLearning}</strong> learning</span>`;
-    }
-    applyDisplayMode();
-  } catch (e) {
-    showSettingsHint("Could not load settings.");
-  }
-}
-
-$("settingsBtn").addEventListener("click", () => {
-  $("settingsOverlay").hidden = false;
-  refreshSettings();
-});
-$("settingsClose").addEventListener("click", () => { $("settingsOverlay").hidden = true; });
-$("settingsOverlay").addEventListener("click", (e) => {
-  if (e.target === $("settingsOverlay")) $("settingsOverlay").hidden = true;
-});
-
-$("primaryLang").addEventListener("change", async () => {
-  const lang = $("primaryLang").value;
-  const res = await fetch("/api/me/language", {
-    method: "PUT", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ language: lang }),
-  });
-  if (!res.ok) { showSettingsHint("Could not save the primary language."); return; }
-  state.language = lang;
-  setURLParams({ lang });
-  if (currentHotspot) loadSpecies(currentHotspot.locId, currentHotspot.locName);
-});
-
-$("secondaryLang").addEventListener("change", async () => {
-  const lang = $("secondaryLang").value;
-  const res = await fetch("/api/me/secondary-language", {
-    method: "PUT", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ language: lang }),
-  });
-  if (!res.ok) { showSettingsHint("Could not save the secondary language."); return; }
-  state.secondaryLanguage = lang;
-  if (currentHotspot) loadSpecies(currentHotspot.locId, currentHotspot.locName);
-});
-
-for (const radio of document.querySelectorAll('input[name="displayMode"]')) {
-  radio.addEventListener("change", async () => {
-    const mode = document.querySelector('input[name="displayMode"]:checked').value;
-    const res = await fetch("/api/me/display-mode", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ displayMode: mode }),
-    });
-    if (!res.ok) { showSettingsHint("Could not save the display mode."); return; }
-    state.displayMode = mode;
-    applyDisplayMode();
-  });
-}
-
-$("resetProgress").addEventListener("click", async () => {
-  if (!confirm("Reset all quiz progress and stars? This cannot be undone.")) return;
-  const res = await fetch("/api/me/progress", { method: "DELETE" });
-  if (!res.ok) { showSettingsHint("Could not reset progress."); return; }
-  state.stars = 0;
-  refreshSettings();
-});
-
-// ---- Quiz ----------------------------------------------------------------
-
-// A star burst is a kid-mode reward only; standard mode stays sober.
-function starBurst() {
-  if (state.displayMode !== "kid") return;
-  const el = document.createElement("div");
-  el.className = "star-burst";
-  el.textContent = "★";
-  $("quizOverlay").appendChild(el);
-  setTimeout(() => el.remove(), 900);
-}
-
-// multipleChoiceChoices builds a multiple-choice option set for a card being
-// re-presented after a wrong answer reset it to box 1. Recall items carry no
-// server-built choices, so distractors are drawn from the current hotspot's
-// species (the same "any other species here" source the server falls back to).
-function multipleChoiceChoices(item) {
-  const choices = [{ speciesCode: item.speciesCode, comName: item.comName }];
-  const seen = new Set([item.speciesCode]);
-  for (const sp of state.species) {
-    if (seen.has(sp.speciesCode)) continue;
-    seen.add(sp.speciesCode);
-    choices.push({ speciesCode: sp.speciesCode, comName: sp.comName });
-    if (choices.length === 4) break;
-  }
-  for (let i = choices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [choices[i], choices[j]] = [choices[j], choices[i]];
-  }
-  return choices;
-}
-
-// requeuedItem returns a copy of item whose question type matches box, the
-// card's box *after* the answer: box 2+ is recall, boxes 0-1 are multiple
-// choice. A card reset to box 1 keeps its existing choices when it has them
-// and otherwise gets a fresh set.
-function requeuedItem(item, box) {
-  const next = Object.assign({}, item);
-  next.questionType = box >= 2 ? "recall" : "multipleChoice";
-  if (next.questionType === "recall") {
-    delete next.choices;
-  } else if (!next.choices || next.choices.length < 2) {
-    next.choices = multipleChoiceChoices(item);
-  }
-  return next;
-}
-
-const quiz = {
-  queue: [],
-  index: 0,
-  answered: 0,
-  correct: 0,
-  starsEarned: 0,
-  mastered: false,
-
-  start(items) {
-    this.queue = items.slice();
-    this.index = 0;
-    this.answered = 0;
-    this.correct = 0;
-    this.starsEarned = 0;
-    this.mastered = false;
-    $("quizOverlay").hidden = false;
-    $("quizStars").hidden = state.displayMode !== "kid";
-    this.render();
-  },
-
-  finish() {
-    $("quizOverlay").hidden = true;
-  },
-
-  render() {
-    const body = $("quizBody");
-    body.innerHTML = "";
-    if (this.index >= this.queue.length) { this.renderSummary(); return; }
-    const item = this.queue[this.index];
-
-    $("quizProgress").textContent = `Question ${this.index + 1} / ${this.queue.length}`;
-    $("quizStars").textContent = state.displayMode === "kid" ? `⭐ ${state.stars}` : "";
-
-    const img = document.createElement("img");
-    img.className = "quiz-image";
-    img.alt = "";
-    img.src = item.imageMissing ? MISSING_URL : PLACEHOLDER_URL;
-    body.appendChild(img);
-    if (item.imageUrl && !item.imageMissing) preloadAndSwap(img, item.imageUrl);
-
-    if (item.questionType === "multipleChoice") {
-      const prompt = document.createElement("p");
-      prompt.className = "quiz-prompt";
-      prompt.textContent = "Which bird is this?";
-      body.appendChild(prompt);
-      const choices = document.createElement("div");
-      choices.className = "quiz-choices";
-      for (const c of item.choices || []) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "btn btn-secondary quiz-choice";
-        btn.textContent = c.comName;
-        btn.dataset.speciesCode = c.speciesCode;
-        btn.addEventListener("click", () => this.answer(item, c.speciesCode === item.speciesCode, btn));
-        choices.appendChild(btn);
-      }
-      body.appendChild(choices);
-      return;
-    }
-
-    // Recall: photo only, then reveal, then self-grade.
-    const showBtn = document.createElement("button");
-    showBtn.type = "button";
-    showBtn.className = "btn btn-primary quiz-show";
-    showBtn.textContent = "Show answer";
-
-    const reveal = document.createElement("div");
-    reveal.className = "quiz-reveal";
-    reveal.hidden = true;
-    reveal.innerHTML =
-      `<div class="quiz-reveal-name">${escapeHtml(item.comName)}</div>` +
-      (secondaryNameFor(item.speciesCode) ? `<div class="quiz-reveal-sub">${escapeHtml(secondaryNameFor(item.speciesCode))}</div>` : "") +
-      (item.sciName ? `<div class="quiz-reveal-sci">${escapeHtml(item.sciName)}</div>` : "");
-
-    const grade = document.createElement("div");
-    grade.className = "quiz-grade";
-    grade.hidden = true;
-    const rightBtn = document.createElement("button");
-    rightBtn.type = "button";
-    rightBtn.className = "btn btn-primary";
-    rightBtn.textContent = "I got it right";
-    rightBtn.addEventListener("click", () => this.answer(item, true));
-    const wrongBtn = document.createElement("button");
-    wrongBtn.type = "button";
-    wrongBtn.className = "btn btn-secondary";
-    wrongBtn.textContent = "I got it wrong";
-    wrongBtn.addEventListener("click", () => this.answer(item, false));
-    grade.append(rightBtn, wrongBtn);
-
-    showBtn.addEventListener("click", () => {
-      reveal.hidden = false;
-      showBtn.hidden = true;
-      grade.hidden = false;
-    });
-
-    body.append(showBtn, reveal, grade);
-  },
-
-  async answer(item, correct, chosenBtn) {
-    const buttons = $("quizBody").querySelectorAll("button");
-    for (const b of buttons) b.disabled = true;
-
-    // Multiple choice needs an explicit right/wrong reveal: mark the correct
-    // option green always, and the tapped option red when it was the wrong
-    // one, so a mistake is visible instead of silently moving on.
-    if (item.questionType === "multipleChoice") {
-      for (const b of buttons) {
-        if (b.dataset.speciesCode === item.speciesCode) b.classList.add("quiz-choice-correct");
-        else if (b === chosenBtn) b.classList.add("quiz-choice-incorrect");
-      }
-    }
-
-    let answer = null;
-    try {
-      const res = await fetch(`/api/me/progress/${encodeURIComponent(item.speciesCode)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correct }),
-      });
-      if (res.ok) answer = await res.json();
-    } catch (e) {
-      // A scoring failure shouldn't strand the quiz; keep going.
-    }
-
-    if (answer) {
-      state.stars = answer.totalStars;
-      this.starsEarned += answer.starsEarned;
-      if (answer.newlyMastered) this.mastered = true;
-    }
-    this.answered++;
-    if (correct) {
-      this.correct++;
-      starBurst();
-    } else {
-      // Reinsert a handful of questions later instead of right after itself,
-      // as a fresh item whose format matches the card's reset (box 1) state.
-      // A failed answer call leaves the box unknown; a wrong answer resets to
-      // box 1 regardless, so fall back to that.
-      const requeued = requeuedItem(item, answer ? answer.box : 1);
-      const pos = this.index + 4;
-      if (pos >= this.queue.length) this.queue.push(requeued);
-      else this.queue.splice(pos, 0, requeued);
-    }
-    this.index++;
-    // Multiple choice just colored the buttons above; give that a moment to
-    // register before it's replaced by the next question. Recall already
-    // showed its reveal before the self-grade tap, so it can advance at once.
-    if (item.questionType === "multipleChoice") setTimeout(() => this.render(), 1100);
-    else this.render();
-  },
-
-  renderSummary() {
-    $("quizProgress").textContent = "Session complete";
-    $("quizStars").textContent = state.displayMode === "kid" ? `⭐ ${state.stars}` : "";
-    const body = $("quizBody");
-    body.innerHTML = "";
-    const pct = this.answered ? Math.round((this.correct / this.answered) * 100) : 0;
-    const heading = state.displayMode === "kid" && this.mastered ? "🎉 You mastered a bird!" : "Session complete";
-    const wrap = document.createElement("div");
-    wrap.className = "quiz-summary";
-    wrap.innerHTML =
-      `<h2>${heading}</h2>` +
-      `<p class="quiz-score">${this.correct} / ${this.answered} correct (${pct}%)</p>` +
-      `<p class="quiz-earned">⭐ ${this.starsEarned} stars earned this session</p>` +
-      `<div class="actions">` +
-      `<button id="quizAgain" class="btn btn-primary" type="button">Quiz again</button>` +
-      `<button id="quizDone" class="btn btn-secondary" type="button">Done</button>` +
-      `</div>`;
-    body.appendChild(wrap);
-    $("quizAgain").addEventListener("click", () => startQuiz());
-    $("quizDone").addEventListener("click", () => quiz.finish());
-  },
-};
-
-async function startQuiz() {
-  if (!currentHotspot) return;
-  const count = $("quizCount").value;
-  setStatus("Building quiz...");
-  const res = await fetch(`/api/hotspots/${currentHotspot.locId}/quiz?count=${encodeURIComponent(count)}&lang=${encodeURIComponent(state.language)}`);
-  if (!res.ok) { setStatus(`Quiz error: ${res.status}`); return; }
-  const session = await res.json();
-  if (!session.items || session.items.length === 0) {
-    setStatus("No cards available for a quiz here yet.");
-    return;
-  }
-  setStatus("");
-  quiz.start(session.items);
-}
-
-$("quizStart").addEventListener("click", startQuiz);
-$("quizClose").addEventListener("click", () => quiz.finish());
-
-// Support linking straight to a hotspot: /?locId=L42808575[&lang=es]
-async function init() {
-  await initAccount();
-  const params = new URLSearchParams(window.location.search);
-  const locId = params.get("locId");
-  if (VALID_LANGS.includes(params.get("lang"))) state.language = params.get("lang");
-  if (params.get("mode")) {
-    const radio = document.querySelector(`input[name="mode"][value="${params.get("mode")}"]`);
-    if (radio) radio.checked = true;
-  }
-
-  if (locId) {
-    setStatus(`Loading hotspot ${locId}...`);
-    const res = await fetch(`/api/hotspots/${locId}`);
-    if (res.ok) {
-      const h = await res.json();
-      $("lat").value = h.lat.toFixed(6);
-      $("lng").value = h.lng.toFixed(6);
-      map.setView([h.lat, h.lng], 14);
-      L.circleMarker([h.lat, h.lng], { radius: 8, color: "#c33", fillColor: "#c33", fillOpacity: 0.8 })
-        .addTo(map).bindPopup(popupHTMLNoStats(h)).openPopup();
-      await loadSpecies(locId, h.locName);
-      return;
-    }
-    setStatus(`Hotspot ${locId} not found — showing default location instead.`);
-  }
-
-  // No (valid) deep link — load the default location's hotspots so the map
-  // isn't empty.
-  await findHotspots();
-}
-
-init();
-</script>
+<script src="/app.js"></script>
 </body>
 </html>
