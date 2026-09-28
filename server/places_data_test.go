@@ -144,6 +144,33 @@ func TestPlaceStoreSearch(t *testing.T) {
 	})
 }
 
+func TestTopPlacePerCountry(t *testing.T) {
+	rows := []struct {
+		name, ascii, cc string
+		id              uint64
+		lat, lng        float64
+		population      int
+	}{
+		{"Pozuelo del Rey", "Pozuelo del Rey", "ES", 1, 40.35, -3.29, 2400},
+		{"Pozuelo de Alarcón", "Pozuelo de Alarcon", "ES", 2, 40.43, -3.81, 86300},
+		{"San Jose", "San Jose", "US", 3, 37.34, -121.89, 1000000},
+		{"San José", "San Jose", "CR", 4, 9.93, -84.08, 342000},
+		{"Zürich", "Zurich", "CH", 5, 47.37, 8.54, 400000},
+	}
+	s := buildTestPlaceStore(t, rows)
+
+	got := s.TopPlacePerCountry()
+	want := map[string]string{"ES": "Pozuelo de Alarcón", "US": "San Jose", "CR": "San José", "CH": "Zürich"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d countries, want %d: %+v", len(got), len(want), got)
+	}
+	for cc, name := range want {
+		if got[cc].Name != name {
+			t.Errorf("%s: got %q, want %q", cc, got[cc].Name, name)
+		}
+	}
+}
+
 func TestOpenPlaceStoreMissingBucket(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "empty.bolt")
 	db, err := bolt.Open(path, 0o644, nil)

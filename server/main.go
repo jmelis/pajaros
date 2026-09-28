@@ -127,6 +127,16 @@ type SpeciesCard struct {
 }
 
 func main() {
+	// `go run . warmcache` pre-populates the image cache and exits, instead
+	// of serving — see warmcache.go for what it actually does and why it
+	// lives here rather than in cmd/gensnapshot.
+	if len(os.Args) > 1 && os.Args[1] == "warmcache" {
+		if err := runWarmCache(); err != nil {
+			log.Fatalf("warmcache: %v", err)
+		}
+		return
+	}
+
 	cacheDir := os.Getenv("CACHE_DIR")
 	if cacheDir == "" {
 		cacheDir = "./cache"

@@ -61,6 +61,28 @@ func openPlaceStore(db *bolt.DB) (*PlaceStore, error) {
 // Len returns the total number of places in the store.
 func (s *PlaceStore) Len() int { return s.count }
 
+// TopPlacePerCountry returns, for every country code seen in the store, its
+// most populous place — used to anchor "this country's best-known
+// location" for things like cache warming, where an exact busiest-point
+// lookup would need a full scan of hotspots.bolt instead of this one scan
+// of the much smaller places.bolt. A full bucket scan (not a lookup bbolt
+// is optimized for), but cmd/gensnapshot's places subcommand builds under
+// a quarter-million rows, so it's cheap as a one-off offline pass.
+func (s *PlaceStore) TopPlacePerCountry() map[string]Place {
+	best := map[string]Place{}
+	s.db.View(func(tx *bolt.Tx) error {
+		c := tx.Bucket([]byte(placeByNameBucket)).Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			p := decodePlace(v)
+			if cur, ok := best[p.CountryCode]; !ok || p.Population > cur.Population {
+				best[p.CountryCode] = p
+			}
+		}
+		return nil
+	})
+	return best
+}
+
 // maxPlaceScan bounds how many name-sorted candidates Search walks past a
 // query's prefix before stopping, so a very common prefix (e.g. "san")
 // can't make one request scan without limit. The tradeoff: an extremely
