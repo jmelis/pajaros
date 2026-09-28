@@ -5,11 +5,13 @@ all: bake
 
 # Container image, deployed via the sibling GitOps repo. Podman, never docker,
 # matching the other apps deployed the same way (see e.g. ../photosee).
-IMAGE    ?= quay.io/jmelis/pajaros
+#
+# jmelis/pajaros on quay.io defaults to private (unlike the older jmelis/*
+# repos there) and nothing in the cluster holds an imagePullSecret, so the
+# image lives in jmelis/birdquiz instead -- created public from the start.
+IMAGE    ?= quay.io/jmelis/birdquiz
 TAG      ?= $(shell git rev-parse --short HEAD)
 DEPLOYER ?= ../docker-compose-deployer
-# The deployed app is named "birdquiz" in the cluster (its public domain);
-# only the image this builds keeps the "pajaros" name.
 MANIFEST ?= $(DEPLOYER)/k8s/applications/birdquiz/deployment.yaml
 
 # Bird directory names (scientific names) contain spaces, which breaks make's
