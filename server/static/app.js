@@ -376,7 +376,11 @@ async function findHotspots() {
   }
 
   if (userMarker) map.removeLayer(userMarker);
-  userMarker = L.marker([lat, lng]).addTo(map).bindPopup(t("search.youAreHere"));
+  // autoPan: false — a popup that pans the map to fit itself fires moveend,
+  // which renderVisibleHotspots treats as "the user moved the map" and
+  // rebuilds every marker, destroying the one whose popup just opened. See
+  // the identical note on the hotspot markers below.
+  userMarker = L.marker([lat, lng]).addTo(map).bindPopup(t("search.youAreHere"), { autoPan: false });
 
   state.hotspotsFull = hotspots;
   // Deliberately doesn't move the map — every caller (selectPlace,
@@ -413,7 +417,7 @@ function renderVisibleHotspots() {
       color: "#2a7d4f",
       fillColor: "#2a7d4f",
       fillOpacity: 0.6,
-    }).addTo(map).bindPopup(popupHTML(h, true));
+    }).addTo(map).bindPopup(popupHTML(h, true), { autoPan: false });
     hotspotMarkers.push(marker);
   }
 }
