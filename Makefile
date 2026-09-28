@@ -20,10 +20,13 @@ build:
 # Requires EBIRD_API_KEY (see .envrc); direnv exports it automatically.
 # Login is required only if GOOGLE_AUTH_ENABLED/APPLE_AUTH_ENABLED (plus their
 # credentials) are set in the environment -- see server/main.go's env var docs.
+# HOST is forced to 0.0.0.0 here because many shells (macOS in particular)
+# already export HOST as the machine's hostname, which would otherwise
+# silently override main.go's own "listen on every interface" default.
 server:
-	cd server && go run .
+	cd server && HOST=0.0.0.0 go run .
 
 # Same as `server`, but forces the open/development mode (no login required)
 # regardless of any auth env vars already set, e.g. in .envrc.
 server-open:
-	cd server && GOOGLE_AUTH_ENABLED= APPLE_AUTH_ENABLED= go run .
+	cd server && HOST=0.0.0.0 GOOGLE_AUTH_ENABLED= APPLE_AUTH_ENABLED= go run .
