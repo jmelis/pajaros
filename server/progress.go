@@ -8,19 +8,9 @@ import (
 	"time"
 )
 
-// Account progress + display preferences API. Like preferences.go, every
+// Account progress + reward preferences API. Like preferences.go, every
 // route here is mounted behind Auth.require (see main.go), so handlers can
 // rely on userIDFromContext and touch only the local SQLite store.
-
-// defaultDisplayMode is the sober look every account starts in; "kid" is the
-// warmer, reward-heavy skin.
-const defaultDisplayMode = "standard"
-
-// validDisplayModes is the allow-list of display modes a PUT accepts.
-var validDisplayModes = map[string]bool{
-	defaultDisplayMode: true,
-	"kid":              true,
-}
 
 // validSpeciesCode gates the {speciesCode} path value on progress writes.
 // eBird species codes are short lowercase alphanumeric strings (e.g. "norcar");
@@ -66,52 +56,84 @@ func (s *Server) handleSetSecondaryLanguage(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleGetDisplayMode returns the account's display mode ("standard"/"kid").
-func (s *Server) handleGetDisplayMode(w http.ResponseWriter, r *http.Request) {
+// handleGetStarRewards returns the account's star-rewards preference (off by
+// default).
+func (s *Server) handleGetStarRewards(w http.ResponseWriter, r *http.Request) {
 	id := userIDFromContext(r)
-	mode, err := s.users.DisplayMode(id)
+	on, err := s.users.StarRewards(id)
 	if err != nil {
-		log.Printf("get display mode %s: %v", id, err)
-		http.Error(w, "failed to load display mode", http.StatusInternalServerError)
+		log.Printf("get star rewards %s: %v", id, err)
+		http.Error(w, "failed to load star rewards", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]string{"displayMode": mode})
+	writeJSON(w, map[string]bool{"starRewards": on})
 }
 
-// handleSetDisplayMode stores the account's display mode, enforcing the
-// standard/kid allow-list.
-func (s *Server) handleSetDisplayMode(w http.ResponseWriter, r *http.Request) {
+// handleSetStarRewards stores the account's star-rewards preference. The body
+// is a JSON boolean; quiz mechanics do not depend on it, only display.
+func (s *Server) handleSetStarRewards(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		DisplayMode string `json:"displayMode"`
+		StarRewards *bool `json:"starRewards"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<12)).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<12)).Decode(&body); err != nil || body.StarRewards == nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if !validDisplayModes[body.DisplayMode] {
-		http.Error(w, "unsupported display mode", http.StatusBadRequest)
-		return
-	}
 
 	id := userIDFromContext(r)
-	if err := s.users.SetDisplayMode(id, body.DisplayMode); err != nil {
-		log.Printf("set display mode %s: %v", id, err)
-		http.Error(w, "failed to save display mode", http.StatusInternalServerError)
+	if err := s.users.SetStarRewards(id, *body.StarRewards); err != nil {
+		log.Printf("set star rewards %s: %v", id, err)
+		http.Error(w, "failed to save star rewards", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleGetProgress returns the account's quiz summary for the settings view.
+// handleGetProgress returns the account's quiz summary for the home and
+// settings views.
 func (s *Server) handleGetProgress(w http.ResponseWriter, r *http.Request) {
 	id := userIDFromContext(r)
-	stats, err := s.users.ProgressStats(id)
+	stats, err := s.users.ProgressStats(id, time.Now())
 	if err != nil {
 		log.Printf("get progress %s: %v", id, err)
 		http.Error(w, "failed to load progress", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, stats)
+}
+
+// handleGetMastered returns the species the account has mastered, with the
+// names and photo the mastered view renders. It resolves names from the
+// durable taxonomy store and the photo URL from the local image cache, so it
+// never calls upstream.
+func (s *Server) handleGetMastered(w http.ResponseWriter, r *http.Request) {
+	lang, ok := s.resolveLang(w, r)
+	if !ok {
+		return
+	}
+	id := userIDFromContext(r)
+	secondary, err := s.users.SecondaryLanguage(id)
+	if err != nil {
+		log.Printf("mastered secondary language %s: %v", id, err)
+		http.Error(w, "failed to load mastered birds", http.StatusInternalServerError)
+		return
+	}
+	birds, err := s.users.MasteredSpecies(id, lang, secondary)
+	if err != nil {
+		log.Printf("get mastered %s: %v", id, err)
+		http.Error(w, "failed to load mastered birds", http.StatusInternalServerError)
+		return
+	}
+	if s.cache != nil {
+		for i := range birds {
+			if birds[i].SciName == "" {
+				continue
+			}
+			birds[i].ImageURL = s.cache.ImageURLFor(birds[i].SciName)
+			birds[i].ImageMissing = s.cache.IsKnownMissing(birds[i].SciName)
+		}
+	}
+	writeJSON(w, birds)
 }
 
 // handleSubmitAnswer records one quiz answer for speciesCode and returns the

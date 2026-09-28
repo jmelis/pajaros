@@ -372,12 +372,17 @@ func TestAnswerCardLeitnerStore(t *testing.T) {
 		t.Errorf("stored progress = %+v, want box5/seen6/correct6", p)
 	}
 
-	stats, err := store.ProgressStats(id)
+	stats, err := store.ProgressStats(id, now.Add(30*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if stats.TotalStars != 9 || stats.SpeciesMastered != 1 || stats.SpeciesLearning != 0 {
 		t.Errorf("stats = %+v, want 9 stars / 1 mastered / 0 learning", stats)
+	}
+	// The box-5 card's due date is 21 days out, so at this point nothing is
+	// due for review.
+	if stats.DueForReview != 0 {
+		t.Errorf("DueForReview = %d, want 0 before the box-5 due date", stats.DueForReview)
 	}
 
 	// A wrong answer resets to box 1, due immediately, with no stars.
@@ -392,8 +397,12 @@ func TestAnswerCardLeitnerStore(t *testing.T) {
 		t.Errorf("total stars after wrong answer = %d, want unchanged 9", answer.TotalStars)
 	}
 
-	stats, _ = store.ProgressStats(id)
+	stats, _ = store.ProgressStats(id, now.Add(30*time.Minute))
 	if stats.SpeciesMastered != 0 || stats.SpeciesLearning != 1 {
 		t.Errorf("stats after reset = %+v, want 0 mastered / 1 learning", stats)
+	}
+	// The wrong answer reset the card to box 1, due immediately.
+	if stats.DueForReview != 1 {
+		t.Errorf("DueForReview after reset = %d, want 1", stats.DueForReview)
 	}
 }

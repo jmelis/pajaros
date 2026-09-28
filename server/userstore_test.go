@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -161,16 +162,24 @@ func TestUserStoreFavoritesLifecyclePersists(t *testing.T) {
 	}
 
 	for _, locID := range []string{"L2", "L1", "L1"} { // L1 twice: duplicate is a no-op
-		if err := store.AddFavorite(id, locID); err != nil {
+		if err := store.AddFavorite(id, Favorite{LocID: locID}); err != nil {
 			t.Fatalf("AddFavorite(%s): %v", locID, err)
 		}
+	}
+	// Re-adding L1 with details backfills them rather than failing or
+	// duplicating the row.
+	if err := store.AddFavorite(id, Favorite{LocID: "L1", LocName: "Pond", Lat: 50.1, Lng: 4.2}); err != nil {
+		t.Fatalf("AddFavorite(L1 with details): %v", err)
 	}
 	favs, err := store.Favorites(id)
 	if err != nil {
 		t.Fatalf("Favorites: %v", err)
 	}
-	if want := []string{"L1", "L2"}; len(favs) != len(want) || favs[0] != want[0] || favs[1] != want[1] {
-		t.Fatalf("Favorites = %v, want %v (duplicate must not create a second entry)", favs, want)
+	if len(favs) != 2 || favs[0].LocID != "L1" || favs[1].LocID != "L2" {
+		t.Fatalf("Favorites = %v, want L1 then L2 (duplicate must not create a second entry)", favs)
+	}
+	if favs[0].LocName != "Pond" || favs[0].Lat != 50.1 || favs[0].Lng != 4.2 {
+		t.Errorf("L1 details = %+v, want backfilled Pond/50.1/4.2", favs[0])
 	}
 
 	if err := store.RemoveFavorite(id, "L1"); err != nil {
@@ -183,7 +192,7 @@ func TestUserStoreFavoritesLifecyclePersists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Favorites after remove: %v", err)
 	}
-	if len(favs) != 1 || favs[0] != "L2" {
+	if len(favs) != 1 || favs[0].LocID != "L2" {
 		t.Fatalf("Favorites after remove = %v, want [L2]", favs)
 	}
 
@@ -199,7 +208,7 @@ func TestUserStoreFavoritesLifecyclePersists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Favorites after reopen: %v", err)
 	}
-	if len(favs) != 1 || favs[0] != "L2" {
+	if len(favs) != 1 || favs[0].LocID != "L2" {
 		t.Fatalf("Favorites after reopen = %v, want [L2]", favs)
 	}
 }
@@ -228,7 +237,7 @@ func TestUserStoreProfileDefaultsThenReflectsPreferences(t *testing.T) {
 	if err := store.SetLanguage(id, "en"); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.AddFavorite(id, "L42"); err != nil {
+	if err := store.AddFavorite(id, Favorite{LocID: "L42", LocName: "Forty-two"}); err != nil {
 		t.Fatal(err)
 	}
 	p, ok, err = store.Profile(id)
@@ -238,11 +247,98 @@ func TestUserStoreProfileDefaultsThenReflectsPreferences(t *testing.T) {
 	if p.Language != "en" {
 		t.Errorf("Language = %q, want en", p.Language)
 	}
-	if len(p.Favorites) != 1 || p.Favorites[0] != "L42" {
-		t.Errorf("Favorites = %v, want [L42]", p.Favorites)
+	if len(p.Favorites) != 1 || p.Favorites[0].LocID != "L42" || p.Favorites[0].LocName != "Forty-two" {
+		t.Errorf("Favorites = %v, want [L42 named Forty-two]", p.Favorites)
 	}
 
 	if _, ok, err := store.Profile("google:missing"); err != nil || ok {
 		t.Fatalf("Profile missing = (ok=%v, err=%v), want (false, nil)", ok, err)
+	}
+}
+
+func TestUserStoreReconcilesLegacyPreferenceSchema(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "legacy.db")
+
+	// Build the pre-migration database shape exactly as described in the
+	// plan: user_preferences has only user_id and language, and the other
+	// tables predate loc_name/lat/lng and species_taxonomy.
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE users (
+			id TEXT PRIMARY KEY, provider TEXT NOT NULL, subject TEXT NOT NULL,
+			email TEXT NOT NULL DEFAULT '', display_name TEXT NOT NULL DEFAULT '',
+			first_seen INTEGER NOT NULL, last_seen INTEGER NOT NULL);
+		CREATE TABLE user_preferences (
+			user_id TEXT PRIMARY KEY, language TEXT NOT NULL DEFAULT '');
+		CREATE TABLE favorite_hotspots (
+			user_id TEXT NOT NULL, loc_id TEXT NOT NULL, PRIMARY KEY (user_id, loc_id));
+		CREATE TABLE card_progress (
+			user_id TEXT NOT NULL, species_code TEXT NOT NULL,
+			box INTEGER NOT NULL DEFAULT 0, due_at INTEGER NOT NULL DEFAULT 0,
+			seen_count INTEGER NOT NULL DEFAULT 0, correct_count INTEGER NOT NULL DEFAULT 0,
+			last_seen_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, species_code));
+		CREATE TABLE user_stats (user_id TEXT PRIMARY KEY, stars INTEGER NOT NULL DEFAULT 0);
+	`); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if _, err := db.Exec(
+		`INSERT INTO users (id, provider, subject, email, display_name, first_seen, last_seen)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"google:legacy", "google", "legacy", "old@example.com", "Old", now.UnixNano(), now.UnixNano(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO user_preferences (user_id, language) VALUES (?, ?)`, "google:legacy", "fr",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := NewUserStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewUserStore on legacy database: %v", err)
+	}
+	defer store.Close()
+
+	// The pre-existing language value survives the reconciliation.
+	if lang, ok, err := store.PreferredLanguage("google:legacy"); err != nil || !ok || lang != "fr" {
+		t.Fatalf("PreferredLanguage = (%q, %v, %v), want (fr, true, nil)", lang, ok, err)
+	}
+	p, ok, err := store.Profile("google:legacy")
+	if err != nil || !ok {
+		t.Fatalf("Profile = (ok=%v, err=%v)", ok, err)
+	}
+	if p.Language != "fr" || p.SecondaryLanguage != "" || p.StarRewards {
+		t.Errorf("profile = %+v, want fr/empty/off", p)
+	}
+
+	// The added columns are then writable and readable.
+	if err := store.SetSecondaryLanguage("google:legacy", "en"); err != nil {
+		t.Fatalf("SetSecondaryLanguage: %v", err)
+	}
+	if err := store.SetStarRewards("google:legacy", true); err != nil {
+		t.Fatalf("SetStarRewards: %v", err)
+	}
+	p, _, err = store.Profile("google:legacy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.SecondaryLanguage != "en" || !p.StarRewards {
+		t.Errorf("profile after writes = %+v, want en/on", p)
+	}
+
+	// Writing the pre-existing column still works too.
+	if err := store.SetLanguage("google:legacy", "es"); err != nil {
+		t.Fatalf("SetLanguage: %v", err)
+	}
+	if lang, _, _ := store.PreferredLanguage("google:legacy"); lang != "es" {
+		t.Errorf("language after write = %q, want es", lang)
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -166,7 +167,7 @@ func TestFavoriteLifecycle(t *testing.T) {
 	}
 
 	favs := getFavorites(t, app, auth, id)
-	if len(favs) != 1 || favs[0] != "L99381" {
+	if len(favs) != 1 || favs[0].LocID != "L99381" {
 		t.Fatalf("favorites after add = %v, want [L99381]", favs)
 	}
 
@@ -177,6 +178,65 @@ func TestFavoriteLifecycle(t *testing.T) {
 	}
 	if favs = getFavorites(t, app, auth, id); len(favs) != 0 {
 		t.Fatalf("favorites after remove = %v, want empty", favs)
+	}
+}
+
+func TestFavoriteCarriesDisplayNameAndEnforcesCap(t *testing.T) {
+	app, _, store, auth := newPrefsTestApp(t)
+	if _, err := store.Upsert("google", "favmeta", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	const id = "google:favmeta"
+
+	// Add with a resolvable display name and coordinates: they come back.
+	rr := httptest.NewRecorder()
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/L99381",
+		body(`{"locName":"Parc de Bruxelles","lat":50.85,"lng":4.35}`)))
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("add with name = %d (%s), want 204", rr.Code, rr.Body.String())
+	}
+	favs := getFavorites(t, app, auth, id)
+	if len(favs) != 1 || favs[0].LocName != "Parc de Bruxelles" || favs[0].Lat != 50.85 || favs[0].Lng != 4.35 {
+		t.Fatalf("favorites = %+v, want the supplied name/coords", favs)
+	}
+
+	// A hotspot whose name cannot be resolved (empty name) is still listed,
+	// with an empty LocName rather than vanishing.
+	rr = httptest.NewRecorder()
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/L4242", nil))
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("add without name = %d, want 204", rr.Code)
+	}
+	favs = getFavorites(t, app, auth, id)
+	var unresolved *Favorite
+	for i := range favs {
+		if favs[i].LocID == "L4242" {
+			unresolved = &favs[i]
+		}
+	}
+	if unresolved == nil || unresolved.LocName != "" {
+		t.Fatalf("unresolved favorite = %+v, want present with empty name", favs)
+	}
+
+	// Fill the account to the cap, then one more is rejected with 409.
+	for i := len(favs); i < maxFavorites; i++ {
+		rr = httptest.NewRecorder()
+		app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, fmt.Sprintf("/api/me/favorites/L%d", 100000+i), nil))
+		if rr.Code != http.StatusNoContent {
+			t.Fatalf("fill favorite %d = %d, want 204", i, rr.Code)
+		}
+	}
+	rr = httptest.NewRecorder()
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/L999999", nil))
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("add past cap = %d, want 409", rr.Code)
+	}
+
+	// Re-adding one that is already favorited still succeeds at the cap.
+	rr = httptest.NewRecorder()
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/L99381", nil))
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("re-add at cap = %d, want 204", rr.Code)
 	}
 }
 
@@ -216,14 +276,14 @@ func TestSpeciesFallsBackToStoredLanguage(t *testing.T) {
 
 func body(s string) io.Reader { return strings.NewReader(s) }
 
-func getFavorites(t *testing.T, app http.Handler, auth *Auth, id string) []string {
+func getFavorites(t *testing.T, app http.Handler, auth *Auth, id string) []Favorite {
 	t.Helper()
 	rr := httptest.NewRecorder()
 	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodGet, "/api/me/favorites", nil))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("GET /api/me/favorites = %d, want 200", rr.Code)
 	}
-	var favs []string
+	var favs []Favorite
 	if err := json.Unmarshal(rr.Body.Bytes(), &favs); err != nil {
 		t.Fatalf("decode favorites: %v", err)
 	}

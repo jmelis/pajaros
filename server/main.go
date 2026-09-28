@@ -12,7 +12,10 @@ import (
 	"strconv"
 )
 
-//go:embed static/index.html
+// The frontend is split into markup, styles, application code and
+// translations; all of static/ is embedded and served as a file tree.
+//
+//go:embed static
 var embeddedStatic embed.FS
 
 type Server struct {
@@ -221,11 +224,12 @@ func main() {
 	appMux.HandleFunc("PUT /api/me/language", srv.handleSetLanguage)
 	appMux.HandleFunc("GET /api/me/secondary-language", srv.handleGetSecondaryLanguage)
 	appMux.HandleFunc("PUT /api/me/secondary-language", srv.handleSetSecondaryLanguage)
-	appMux.HandleFunc("GET /api/me/display-mode", srv.handleGetDisplayMode)
-	appMux.HandleFunc("PUT /api/me/display-mode", srv.handleSetDisplayMode)
+	appMux.HandleFunc("GET /api/me/star-rewards", srv.handleGetStarRewards)
+	appMux.HandleFunc("PUT /api/me/star-rewards", srv.handleSetStarRewards)
 	appMux.HandleFunc("GET /api/me/progress", srv.handleGetProgress)
 	appMux.HandleFunc("POST /api/me/progress/{speciesCode}", srv.handleSubmitAnswer)
 	appMux.HandleFunc("DELETE /api/me/progress", srv.handleResetProgress)
+	appMux.HandleFunc("GET /api/me/mastered", srv.handleGetMastered)
 	appMux.HandleFunc("GET /api/me/favorites", srv.handleListFavorites)
 	appMux.HandleFunc("PUT /api/me/favorites/{locId}", srv.handleAddFavorite)
 	appMux.HandleFunc("DELETE /api/me/favorites/{locId}", srv.handleRemoveFavorite)
@@ -323,6 +327,7 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to fetch species from eBird", http.StatusBadGateway)
 		return
 	}
+	s.recordTaxa(taxa, lang)
 
 	// codes is already in eBird's taxonomic order (verified: ascending
 	// taxonOrder), which conveniently groups species by family/order —
@@ -406,6 +411,18 @@ func (s *Server) resolveLang(w http.ResponseWriter, r *http.Request) (string, bo
 		return "", false
 	}
 	return lang, true
+}
+
+// recordTaxa caches resolved taxonomy for later local use (the mastered
+// view). Failure is non-fatal: the request that triggered it already has the
+// data it needs.
+func (s *Server) recordTaxa(taxa map[string]Taxon, lang string) {
+	if s.users == nil {
+		return
+	}
+	if err := s.users.RecordTaxa(taxa, lang); err != nil {
+		log.Printf("record taxonomy (%s): %v", lang, err)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

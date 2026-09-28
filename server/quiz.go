@@ -391,6 +391,7 @@ func (s *Server) handleHotspotQuiz(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to fetch species from eBird", http.StatusBadGateway)
 		return
 	}
+	s.recordTaxa(taxa, lang)
 
 	pool := s.orderedQuizPool(locID, codes, taxa)
 	progress, err := s.users.AllCardProgress(userIDFromContext(r))

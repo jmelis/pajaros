@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"log"
 	"net/http"
 )
@@ -73,7 +75,9 @@ func (s *Server) handleSetLanguage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleListFavorites returns the account's favorite hotspot ids.
+// handleListFavorites returns the account's favorites, each with the display
+// name and coordinates captured when it was bookmarked. It reads only local
+// data — no upstream call per favorite.
 func (s *Server) handleListFavorites(w http.ResponseWriter, r *http.Request) {
 	id := userIDFromContext(r)
 	favs, err := s.users.Favorites(id)
@@ -85,17 +89,46 @@ func (s *Server) handleListFavorites(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, favs)
 }
 
-// handleAddFavorite adds locId to the account's favorites. Re-adding an
-// existing favorite is a success (no-op), and locId must match the same
-// pattern the hotspot endpoints accept.
+// favoriteBody is what a client may send when bookmarking: the hotspot's name
+// and coordinates, both optional. locId comes from the path and is not part
+// of the body.
+type favoriteBody struct {
+	LocName string  `json:"locName"`
+	Lat     float64 `json:"lat"`
+	Lng     float64 `json:"lng"`
+}
+
+// handleAddFavorite adds locId to the account's favorites, recording the
+// supplied name/coordinates so the home list can render it later. Re-adding
+// an existing favorite is a success (a no-op unless it supplies missing
+// details). locId must match the same pattern the hotspot endpoints accept.
+// The per-account cap returns 409 Conflict rather than growing without limit.
 func (s *Server) handleAddFavorite(w http.ResponseWriter, r *http.Request) {
 	locID := r.PathValue("locId")
 	if !validLocID(locID) {
 		http.Error(w, "invalid locId", http.StatusBadRequest)
 		return
 	}
+
+	// An absent body is fine: the client may be re-adding purely idempotently.
+	var body favoriteBody
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<12)).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
 	id := userIDFromContext(r)
-	if err := s.users.AddFavorite(id, locID); err != nil {
+	err := s.users.AddFavorite(id, Favorite{
+		LocID:   locID,
+		LocName: body.LocName,
+		Lat:     body.Lat,
+		Lng:     body.Lng,
+	})
+	if errors.Is(err, ErrFavoritesLimit) {
+		http.Error(w, "favorites limit reached", http.StatusConflict)
+		return
+	}
+	if err != nil {
 		log.Printf("add favorite %s %s: %v", id, locID, err)
 		http.Error(w, "failed to add favorite", http.StatusInternalServerError)
 		return
