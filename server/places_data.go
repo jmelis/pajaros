@@ -96,6 +96,7 @@ const maxPlaceScan = 3000
 // are sorted by normalized name, so every match sits in one contiguous
 // run) — not a substring or fuzzy search.
 func (s *PlaceStore) Search(query string, limit int) []Place {
+	defer bboltTimer("places", "search")()
 	prefix := []byte(normalizePlaceName(query))
 	if len(prefix) < 2 {
 		return nil

@@ -120,6 +120,17 @@ var (
 		Buckets:   []float64{1, 5, 10, 20, 50, 100, 200, 500},
 	}, []string{"mode"})
 
+	// bboltQueryDuration times the mmap-backed reads against hotspots.bolt
+	// and places.bolt (see hotspots_data.go, places_data.go, species_store.go)
+	// — fine buckets since these are point lookups/bounded scans expected to
+	// land well under a millisecond most of the time.
+	bboltQueryDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: metricsNamespace,
+		Name:      "bbolt_query_duration_seconds",
+		Help:      "bbolt read latency, by store and operation.",
+		Buckets:   []float64{0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+	}, []string{"store", "op"})
+
 	buildInfo = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: metricsNamespace,
 		Name:      "build_info",
@@ -204,6 +215,15 @@ func (c *dbGaugeCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- favoritesTotalDesc
 	ch <- hotspotsLoadedDesc
 	ch <- placesLoadedDesc
+}
+
+// bboltTimer starts timing a bbolt read; call the returned func (typically
+// via `defer bboltTimer(store, op)()`) when it's done to record it.
+func bboltTimer(store, op string) func() {
+	start := time.Now()
+	return func() {
+		bboltQueryDuration.WithLabelValues(store, op).Observe(time.Since(start).Seconds())
+	}
 }
 
 func (c *dbGaugeCollector) Collect(ch chan<- prometheus.Metric) {

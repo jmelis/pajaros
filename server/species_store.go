@@ -37,6 +37,7 @@ type SpeciesCount struct {
 // order cmd/gensnapshot encoded the blob in, so no runtime sort is needed
 // here. Returns an empty (not nil-error) slice for an unknown hotspot ID.
 func (s *SpeciesStore) Lookup(hotspotID string) ([]SpeciesCount, error) {
+	defer bboltTimer("species", "lookup")()
 	var out []SpeciesCount
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(speciesBucketName))

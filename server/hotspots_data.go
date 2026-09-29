@@ -143,6 +143,7 @@ func decodeHotspotEntry(buf []byte) (Hotspot, int) {
 
 // Info looks up a single hotspot by its ID ("lat,lng").
 func (s *HotspotStore) Info(id string) (Hotspot, bool) {
+	defer bboltTimer("hotspots", "info")()
 	var h Hotspot
 	var ok bool
 	s.db.View(func(tx *bolt.Tx) error {
@@ -166,6 +167,7 @@ func (s *HotspotStore) Len() int {
 // one bbolt Get per candidate cell — rather than scanning every hotspot
 // worldwide.
 func (s *HotspotStore) Nearby(lat, lng, distKm float64) []Hotspot {
+	defer bboltTimer("hotspots", "nearby")()
 	// ~111km per degree of latitude; generous enough for longitude too at
 	// the latitudes this project's test hotspots sit at. +1 cell of margin
 	// for points near a cell edge.
