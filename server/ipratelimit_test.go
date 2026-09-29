@@ -9,7 +9,7 @@ import (
 
 func TestKeyedRateLimiterPerKey(t *testing.T) {
 	// rate 0 means no refill, so the bucket is a simple burst counter.
-	l := newKeyedRateLimiter(2, 0)
+	l := newKeyedRateLimiter("test", 2, 0)
 
 	if !l.allow("acct-a") || !l.allow("acct-a") {
 		t.Fatal("first two requests for acct-a should be allowed")
@@ -24,7 +24,7 @@ func TestKeyedRateLimiterPerKey(t *testing.T) {
 }
 
 func TestKeyedRateLimiterMiddlewareUsesAccountKey(t *testing.T) {
-	l := newKeyedRateLimiter(1, 0)
+	l := newKeyedRateLimiter("test", 1, 0)
 	next := func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }
 	handler := l.middleware(accountKey, next)
 

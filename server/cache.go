@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 // imageFetchConcurrency caps how many species can be mid-fetch for their
@@ -178,7 +179,8 @@ func (c *ImageCache) enqueueFirstImage(sciName string) {
 	go func() {
 		defer c.inFlight.Delete(sciName)
 		c.sem <- struct{}{} // blocks here, in the background goroutine, not the caller
-		defer func() { <-c.sem }()
+		imageFetchInflight.WithLabelValues("first").Inc()
+		defer func() { <-c.sem; imageFetchInflight.WithLabelValues("first").Dec() }()
 		if err := c.ensureFirstImage(sciName); err != nil {
 			log.Printf("ensureFirstImage(%s): %v", sciName, err)
 			return
@@ -196,7 +198,8 @@ func (c *ImageCache) enqueueTopUp(sciName string) {
 	go func() {
 		defer c.topUpInFlight.Delete(sciName)
 		c.topUpSem <- struct{}{}
-		defer func() { <-c.topUpSem }()
+		imageFetchInflight.WithLabelValues("topup").Inc()
+		defer func() { <-c.topUpSem; imageFetchInflight.WithLabelValues("topup").Dec() }()
 		if err := c.topUpImages(sciName); err != nil {
 			log.Printf("topUpImages(%s): %v", sciName, err)
 		}
@@ -225,16 +228,34 @@ func (c *ImageCache) ensureFirstImage(sciName string) error {
 	if fileExists(c.imagePath(sciName, 0)) || fileExists(c.missingMarkerPath(sciName)) {
 		return nil
 	}
+	start := time.Now()
 	images := ResolveImages(sciName, maxImageWidth, 1)
 	if len(images) == 0 {
+		imageCacheMissingTotal.Inc()
+		imageFetchTotal.WithLabelValues("none", "first", "not_found").Inc()
+		imageFetchDuration.WithLabelValues("none", "first").Observe(time.Since(start).Seconds())
 		return os.WriteFile(c.missingMarkerPath(sciName), []byte{}, 0o644)
 	}
+	source := sourceLabel(images[0].SourceURL)
 	if err := c.downloadAndSave(sciName, images[0], 0); err != nil {
+		imageFetchTotal.WithLabelValues(source, "first", "error").Inc()
+		imageFetchDuration.WithLabelValues(source, "first").Observe(time.Since(start).Seconds())
 		// Nothing persisted — a later call retries from scratch rather than
 		// wrongly recording this species as having no image at all.
 		return err
 	}
+	imageFetchTotal.WithLabelValues(source, "first", "success").Inc()
+	imageFetchDuration.WithLabelValues(source, "first").Observe(time.Since(start).Seconds())
 	return c.writeMetadata(sciName, images)
+}
+
+// sourceLabel is the metrics label for info's source — see
+// downloadAndSave's identical check, which picks the matching rate limiter.
+func sourceLabel(sourceURL string) string {
+	if strings.Contains(sourceURL, "inaturalist.org") {
+		return "inaturalist"
+	}
+	return "wikimedia"
 }
 
 // topUpImages fetches sciName's remaining images, past whatever's already in
@@ -261,10 +282,16 @@ func (c *ImageCache) topUpImages(sciName string) error {
 		if len(final) >= maxImagesPerSpecies {
 			break
 		}
+		start := time.Now()
+		source := sourceLabel(info.SourceURL)
 		if err := c.downloadAndSave(sciName, info, len(final)); err != nil {
+			imageFetchTotal.WithLabelValues(source, "topup", "error").Inc()
+			imageFetchDuration.WithLabelValues(source, "topup").Observe(time.Since(start).Seconds())
 			log.Printf("download image %s (%s): %v", sciName, info.SourceURL, err)
 			continue
 		}
+		imageFetchTotal.WithLabelValues(source, "topup", "success").Inc()
+		imageFetchDuration.WithLabelValues(source, "topup").Observe(time.Since(start).Seconds())
 		final = append(final, info)
 	}
 	if len(final) == len(existing) {
@@ -278,7 +305,7 @@ func (c *ImageCache) topUpImages(sciName string) error {
 // sciName's slot-th image slot.
 func (c *ImageCache) downloadAndSave(sciName string, info *ImageInfo, slot int) error {
 	limiter := wikimediaLimiter
-	if strings.Contains(info.SourceURL, "inaturalist.org") {
+	if sourceLabel(info.SourceURL) == "inaturalist" {
 		limiter = inaturalistLimiter
 	}
 	imgBytes, err := downloadImage(limiter, info.DownloadURL)

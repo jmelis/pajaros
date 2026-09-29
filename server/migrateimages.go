@@ -238,8 +238,8 @@ func deslugifyGuess(slug string) string {
 // resolvers all already live in this package.
 func runMigrateImages() error {
 	rps := rpsFromEnv("MIGRATEIMAGES_RPS", 1)
-	wikimediaLimiter = newRateLimiter(rps)
-	inaturalistLimiter = newRateLimiter(rps)
+	wikimediaLimiter = newRateLimiter("wikimedia", rps)
+	inaturalistLimiter = newRateLimiter("inaturalist", rps)
 	log.Printf("migrateimages: rate limit %.1f req/s per source (override with MIGRATEIMAGES_RPS)", rps)
 
 	cacheDir := os.Getenv("CACHE_DIR")

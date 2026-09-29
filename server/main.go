@@ -14,6 +14,9 @@ import (
 	"time"
 
 	bolt "go.etcd.io/bbolt"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // The frontend is split into markup, styles, application code and
@@ -249,6 +252,8 @@ func main() {
 		users:    users,
 	}
 
+	prometheus.MustRegister(&dbGaugeCollector{users: users, hotspots: hotspots, places: places})
+
 	staticFS, err := fs.Sub(embeddedStatic, "static")
 	if err != nil {
 		log.Fatal(err)
@@ -286,36 +291,36 @@ func main() {
 	// there is no account, so it falls back to the client IP instead of the
 	// single fixed development account, which would rate-limit everyone
 	// collectively.
-	hotspotDetailLimiter := newKeyedRateLimiter(20, 10) // burst 20, 10/min sustained
-	hotspotSearchLimiter := newKeyedRateLimiter(20, 20) // burst 20, 20/min sustained
+	hotspotDetailLimiter := newKeyedRateLimiter("hotspot_detail", 20, 10) // burst 20, 10/min sustained
+	hotspotSearchLimiter := newKeyedRateLimiter("hotspot_search", 20, 20) // burst 20, 20/min sustained
 	hotspotKey := hotspotRateLimitKey(auth.openMode())
 
 	// The login/callback endpoints run before an account exists, so they keep
 	// an IP-keyed limit of their own.
-	authLimiter := newIPRateLimiter(30, 30)
+	authLimiter := newIPRateLimiter("auth", 30, 30)
 
 	appMux := http.NewServeMux()
-	appMux.HandleFunc("GET /api/hotspots", hotspotSearchLimiter.middleware(hotspotKey, srv.handleNearbyHotspots))
+	appMux.HandleFunc("GET /api/hotspots", instrumentHTTP("/api/hotspots", hotspotSearchLimiter.middleware(hotspotKey, srv.handleNearbyHotspots)))
 	// Place-name search: same class of endpoint as the hotspot search
 	// above (a single local bbolt lookup, no upstream fan-out), so it
 	// shares that limiter rather than needing one of its own.
-	appMux.HandleFunc("GET /api/places", hotspotSearchLimiter.middleware(hotspotKey, srv.handlePlaceSearch))
-	appMux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotInfo))
-	appMux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotSpecies))
+	appMux.HandleFunc("GET /api/places", instrumentHTTP("/api/places", hotspotSearchLimiter.middleware(hotspotKey, srv.handlePlaceSearch)))
+	appMux.HandleFunc("GET /api/hotspots/{locId}", instrumentHTTP("/api/hotspots/{locId}", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotInfo)))
+	appMux.HandleFunc("GET /api/hotspots/{locId}/species", instrumentHTTP("/api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotSpecies)))
 
 	// Per-account preferences. These touch only the local database, so unlike
 	// the hotspot routes they need no upstream-keyed rate limit.
-	appMux.HandleFunc("GET /api/me", srv.handleGetProfile)
-	appMux.HandleFunc("GET /api/me/language", srv.handleGetLanguage)
-	appMux.HandleFunc("PUT /api/me/language", srv.handleSetLanguage)
-	appMux.HandleFunc("GET /api/me/secondary-language", srv.handleGetSecondaryLanguage)
-	appMux.HandleFunc("PUT /api/me/secondary-language", srv.handleSetSecondaryLanguage)
-	appMux.HandleFunc("GET /api/me/favorites", srv.handleListFavorites)
-	appMux.HandleFunc("PUT /api/me/favorites/{locId}", srv.handleAddFavorite)
-	appMux.HandleFunc("DELETE /api/me/favorites/{locId}", srv.handleRemoveFavorite)
+	appMux.HandleFunc("GET /api/me", instrumentHTTP("/api/me", srv.handleGetProfile))
+	appMux.HandleFunc("GET /api/me/language", instrumentHTTP("/api/me/language", srv.handleGetLanguage))
+	appMux.HandleFunc("PUT /api/me/language", instrumentHTTP("/api/me/language", srv.handleSetLanguage))
+	appMux.HandleFunc("GET /api/me/secondary-language", instrumentHTTP("/api/me/secondary-language", srv.handleGetSecondaryLanguage))
+	appMux.HandleFunc("PUT /api/me/secondary-language", instrumentHTTP("/api/me/secondary-language", srv.handleSetSecondaryLanguage))
+	appMux.HandleFunc("GET /api/me/favorites", instrumentHTTP("/api/me/favorites", srv.handleListFavorites))
+	appMux.HandleFunc("PUT /api/me/favorites/{locId}", instrumentHTTP("/api/me/favorites/{locId}", srv.handleAddFavorite))
+	appMux.HandleFunc("DELETE /api/me/favorites/{locId}", instrumentHTTP("/api/me/favorites/{locId}", srv.handleRemoveFavorite))
 
-	appMux.Handle("GET /images/", http.StripPrefix("/images/", http.FileServer(http.Dir(cacheDir))))
-	appMux.Handle("GET /", http.FileServerFS(staticFS))
+	appMux.Handle("GET /images/", instrumentHTTP("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir(cacheDir))).ServeHTTP))
+	appMux.Handle("GET /", instrumentHTTP("/", http.FileServerFS(staticFS).ServeHTTP))
 
 	mux := buildRootMux(auth, appMux, authLimiter)
 
@@ -336,20 +341,23 @@ func buildRootMux(auth *Auth, appMux http.Handler, authLimiter *keyedRateLimiter
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
+	// Unauthenticated for the same reason as /healthz above: a scrape has no
+	// session to present, and this is what it scrapes.
+	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.Handle("/", auth.gate(appMux))
 	if auth.openMode() {
 		return mux
 	}
 
-	mux.HandleFunc("GET /login", auth.handleLoginPage)
-	mux.HandleFunc("POST /auth/logout", auth.handleLogout)
+	mux.HandleFunc("GET /login", instrumentHTTP("/login", auth.handleLoginPage))
+	mux.HandleFunc("POST /auth/logout", instrumentHTTP("/auth/logout", auth.handleLogout))
 	if p, ok := auth.byName["google"]; ok {
-		mux.HandleFunc("GET /auth/google", authLimiter.middleware(clientIP, auth.handleOAuthStart(p)))
-		mux.HandleFunc("GET /auth/google/callback", authLimiter.middleware(clientIP, auth.handleOAuthCallback(p)))
+		mux.HandleFunc("GET /auth/google", instrumentHTTP("/auth/google", authLimiter.middleware(clientIP, auth.handleOAuthStart(p))))
+		mux.HandleFunc("GET /auth/google/callback", instrumentHTTP("/auth/google/callback", authLimiter.middleware(clientIP, auth.handleOAuthCallback(p))))
 	}
 	if p, ok := auth.byName["apple"]; ok {
-		mux.HandleFunc("GET /auth/apple", authLimiter.middleware(clientIP, auth.handleOAuthStart(p)))
-		mux.HandleFunc("POST /auth/apple/callback", authLimiter.middleware(clientIP, auth.handleOAuthCallback(p)))
+		mux.HandleFunc("GET /auth/apple", instrumentHTTP("/auth/apple", authLimiter.middleware(clientIP, auth.handleOAuthStart(p))))
+		mux.HandleFunc("POST /auth/apple/callback", instrumentHTTP("/auth/apple/callback", authLimiter.middleware(clientIP, auth.handleOAuthCallback(p))))
 	}
 	return mux
 }
@@ -479,6 +487,7 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 		sort.SliceStable(cards, func(i, j int) bool { return cards[i].ComName < cards[j].ComName })
 	}
 
+	hotspotSpeciesCount.WithLabelValues(mode).Observe(float64(len(cards)))
 	writeJSON(w, cards)
 }
 

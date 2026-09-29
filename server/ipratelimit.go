@@ -26,6 +26,7 @@ import (
 // are swept periodically so memory stays bounded no matter how many distinct
 // keys show up.
 type keyedRateLimiter struct {
+	name    string // metrics label — see ratelimitRejectedTotal/ratelimitActiveKeys
 	mu      sync.Mutex
 	buckets map[string]*rateBucket
 	rate    float64 // tokens/sec
@@ -39,8 +40,9 @@ type rateBucket struct {
 
 const rateBucketIdleTTL = 30 * time.Minute
 
-func newKeyedRateLimiter(burst int, perMinute float64) *keyedRateLimiter {
+func newKeyedRateLimiter(name string, burst int, perMinute float64) *keyedRateLimiter {
 	l := &keyedRateLimiter{
+		name:    name,
 		buckets: make(map[string]*rateBucket),
 		rate:    perMinute / 60,
 		burst:   float64(burst),
@@ -51,8 +53,8 @@ func newKeyedRateLimiter(burst int, perMinute float64) *keyedRateLimiter {
 
 // newIPRateLimiter is a keyedRateLimiter keyed by client IP, used for the
 // login/callback endpoints that run before an account is known.
-func newIPRateLimiter(burst int, perMinute float64) *keyedRateLimiter {
-	return newKeyedRateLimiter(burst, perMinute)
+func newIPRateLimiter(name string, burst int, perMinute float64) *keyedRateLimiter {
+	return newKeyedRateLimiter(name, burst, perMinute)
 }
 
 func (l *keyedRateLimiter) sweepLoop() {
@@ -66,6 +68,7 @@ func (l *keyedRateLimiter) sweepLoop() {
 				delete(l.buckets, key)
 			}
 		}
+		ratelimitActiveKeys.WithLabelValues(l.name).Set(float64(len(l.buckets)))
 		l.mu.Unlock()
 	}
 }
@@ -81,6 +84,7 @@ func (l *keyedRateLimiter) allow(key string) bool {
 	if !ok {
 		b = &rateBucket{tokens: l.burst - 1, lastSeen: now}
 		l.buckets[key] = b
+		ratelimitActiveKeys.WithLabelValues(l.name).Set(float64(len(l.buckets)))
 		return true
 	}
 	elapsed := now.Sub(b.lastSeen).Seconds()
@@ -98,6 +102,7 @@ func (l *keyedRateLimiter) allow(key string) bool {
 func (l *keyedRateLimiter) middleware(keyFn func(*http.Request) string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !l.allow(keyFn(r)) {
+			ratelimitRejectedTotal.WithLabelValues(l.name).Inc()
 			w.Header().Set("Retry-After", "6")
 			http.Error(w, "too many requests, slow down", http.StatusTooManyRequests)
 			return

@@ -208,6 +208,7 @@ func (a *Auth) renderLogin(w http.ResponseWriter, status int, data loginPageData
 }
 
 func (a *Auth) handleLogout(w http.ResponseWriter, r *http.Request) {
+	authLogoutTotal.Inc()
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
@@ -289,33 +290,33 @@ func (a *Auth) handleOAuthCallback(p oauthProvider) http.HandlerFunc {
 			return
 		}
 		if err := r.ParseForm(); err != nil {
-			a.loginFailure(w, r, "Could not read the sign-in response.")
+			a.loginFailure(w, r, p.name(), "malformed_response", "Could not read the sign-in response.")
 			return
 		}
 
 		st, err := a.consumeState(w, r, p.name(), r.FormValue("state"))
 		if err != nil {
 			log.Printf("%s callback state check: %v", p.name(), err)
-			a.loginFailure(w, r, "Your sign-in session expired. Please try again.")
+			a.loginFailure(w, r, p.name(), "state_invalid", "Your sign-in session expired. Please try again.")
 			return
 		}
 
 		code := r.FormValue("code")
 		if code == "" {
-			a.loginFailure(w, r, "The provider did not return an authorization code.")
+			a.loginFailure(w, r, p.name(), "no_code", "The provider did not return an authorization code.")
 			return
 		}
 
 		idToken, err := p.exchange(r.Context(), code, st.Verifier)
 		if err != nil {
 			log.Printf("%s token exchange: %v", p.name(), err)
-			a.loginFailure(w, r, "Could not complete sign-in with the provider.")
+			a.loginFailure(w, r, p.name(), "exchange_failed", "Could not complete sign-in with the provider.")
 			return
 		}
 		claims, err := p.verifyIDToken(r.Context(), idToken, st.Nonce)
 		if err != nil {
 			log.Printf("%s id token verification: %v", p.name(), err)
-			a.loginFailure(w, r, "Could not verify the provider's sign-in response.")
+			a.loginFailure(w, r, p.name(), "verify_failed", "Could not verify the provider's sign-in response.")
 			return
 		}
 
@@ -377,14 +378,14 @@ func (a *Auth) completeLogin(w http.ResponseWriter, r *http.Request, provider st
 	_, existed, err := a.users.Get(userID(provider, claims.Subject))
 	if err != nil {
 		log.Printf("check existing account %s:%s: %v", provider, claims.Subject, err)
-		a.loginFailure(w, r, "Could not save your account.")
+		a.loginFailure(w, r, provider, "account_lookup_failed", "Could not save your account.")
 		return
 	}
 
 	user, err := a.users.Upsert(provider, claims.Subject, claims.Email, displayName)
 	if err != nil {
 		log.Printf("persist user %s:%s: %v", provider, claims.Subject, err)
-		a.loginFailure(w, r, "Could not save your account.")
+		a.loginFailure(w, r, provider, "account_save_failed", "Could not save your account.")
 		return
 	}
 
@@ -404,7 +405,7 @@ func (a *Auth) completeLogin(w http.ResponseWriter, r *http.Request, provider st
 	token, err := a.signer.issueSession(user.ID, sessionTTL)
 	if err != nil {
 		log.Printf("issue session for %s: %v", user.ID, err)
-		a.loginFailure(w, r, "Could not start your session.")
+		a.loginFailure(w, r, provider, "session_failed", "Could not start your session.")
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -416,10 +417,13 @@ func (a *Auth) completeLogin(w http.ResponseWriter, r *http.Request, provider st
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(sessionTTL.Seconds()),
 	})
+	authAttemptsTotal.WithLabelValues(provider, "success").Inc()
 	http.Redirect(w, r, sanitizeNext(next), http.StatusFound)
 }
 
-func (a *Auth) loginFailure(w http.ResponseWriter, r *http.Request, msg string) {
+func (a *Auth) loginFailure(w http.ResponseWriter, r *http.Request, provider, reason, msg string) {
+	authAttemptsTotal.WithLabelValues(provider, "failure").Inc()
+	authFailuresTotal.WithLabelValues(provider, reason).Inc()
 	http.Redirect(w, r, "/login?error="+url.QueryEscape(msg), http.StatusFound)
 }
 

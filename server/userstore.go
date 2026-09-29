@@ -432,6 +432,27 @@ func (s *UserStore) AddFavorite(id string, fav Favorite) error {
 	return err
 }
 
+// UserCount returns the total number of accounts. Used only for metrics
+// (see metrics.go), so it's fine that this is a full-table COUNT(*) — the
+// table is small and it's read at most once per scrape.
+func (s *UserStore) UserCount() (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count)
+	return count, err
+}
+
+// FavoriteCount returns the total number of favorited hotspots across every
+// account. Metrics-only, see UserCount.
+func (s *UserStore) FavoriteCount() (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM favorite_hotspots`).Scan(&count)
+	return count, err
+}
+
 // RemoveFavorite deletes locID from the account's favorites. Removing one that
 // isn't favorited is a no-op.
 func (s *UserStore) RemoveFavorite(id, locID string) error {

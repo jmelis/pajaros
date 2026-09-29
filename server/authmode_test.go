@@ -235,7 +235,7 @@ func TestOpenModeRoutesReachableWithoutSession(t *testing.T) {
 	appMux := http.NewServeMux()
 	appMux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	appMux.HandleFunc("GET /api/me", srv.handleGetProfile)
-	mux := buildRootMux(a, appMux, newIPRateLimiter(30, 30))
+	mux := buildRootMux(a, appMux, newIPRateLimiter("test", 30, 30))
 
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
@@ -270,7 +270,7 @@ func TestProviderModeLoginPageOffersOnlyEnabledProvider(t *testing.T) {
 	}
 	appMux := http.NewServeMux()
 	appMux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
-	mux := buildRootMux(a, appMux, newIPRateLimiter(30, 30))
+	mux := buildRootMux(a, appMux, newIPRateLimiter("test", 30, 30))
 
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/login", nil))
@@ -319,7 +319,7 @@ func TestHotspotRateLimitKeyUsesIPInOpenMode(t *testing.T) {
 // throttles one IP without collapsing every client into the dev account's
 // single bucket.
 func TestOpenModeRateLimiterSeparatesClientsByIP(t *testing.T) {
-	l := newKeyedRateLimiter(1, 0)
+	l := newKeyedRateLimiter("test", 1, 0)
 	h := l.middleware(hotspotRateLimitKey(true), func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})

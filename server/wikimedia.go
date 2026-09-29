@@ -273,5 +273,9 @@ func downloadImage(limiter *rateLimiter, downloadURL string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("image download failed: %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err == nil {
+		upstreamResponseBytesTotal.WithLabelValues(limiter.name).Add(float64(len(body)))
+	}
+	return body, err
 }

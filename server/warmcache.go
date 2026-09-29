@@ -36,7 +36,7 @@ func runWarmCache() error {
 	// default instead, independent of whatever WIKIMEDIA_RPS is set to for
 	// live traffic (this runs as its own process, so reassigning here never
 	// touches the actual serving process's limiter).
-	wikimediaLimiter = newRateLimiter(rpsFromEnv("WARMCACHE_RPS", 1))
+	wikimediaLimiter = newRateLimiter("wikimedia", rpsFromEnv("WARMCACHE_RPS", 1))
 	log.Printf("warmcache: rate limit %.1f req/s (override with WARMCACHE_RPS)", rpsFromEnv("WARMCACHE_RPS", 1))
 
 	dataDir := os.Getenv("HOTSPOTS_DATA_DIR")

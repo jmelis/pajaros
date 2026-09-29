@@ -24,14 +24,14 @@ const birdquizUA = "birdquiz/0.1 (+https://github.com/jmelis/pajaros; contact: j
 // cache-warming job across many hotspots (want it slow and polite). Default
 // favors live traffic; set WIKIMEDIA_RPS low (e.g. 1) for a deliberate,
 // hours-long bulk run instead.
-var wikimediaLimiter = newRateLimiter(rpsFromEnv("WIKIMEDIA_RPS", 8))
+var wikimediaLimiter = newRateLimiter("wikimedia", rpsFromEnv("WIKIMEDIA_RPS", 8))
 
 // inaturalistLimiter is wikimediaLimiter's sibling for api.inaturalist.org —
 // the fallback image source used to top up a species up to
 // maxImagesPerSpecies when Wikimedia Commons doesn't have enough on its own
 // (see images.go). iNaturalist's API guidance asks for a modest, steady
 // rate rather than bursts, so this defaults lower than Wikimedia's.
-var inaturalistLimiter = newRateLimiter(rpsFromEnv("INATURALIST_RPS", 1))
+var inaturalistLimiter = newRateLimiter("inaturalist", rpsFromEnv("INATURALIST_RPS", 1))
 
 func rpsFromEnv(envVar string, def float64) float64 {
 	if v := os.Getenv(envVar); v != "" {
@@ -43,11 +43,12 @@ func rpsFromEnv(envVar string, def float64) float64 {
 }
 
 type rateLimiter struct {
+	name   string // metrics label — see upstreamRequestsTotal/upstreamRetriesTotal
 	tokens chan struct{}
 }
 
-func newRateLimiter(perSecond float64) *rateLimiter {
-	rl := &rateLimiter{tokens: make(chan struct{}, 1)}
+func newRateLimiter(name string, perSecond float64) *rateLimiter {
+	rl := &rateLimiter{name: name, tokens: make(chan struct{}, 1)}
 	go func() {
 		ticker := time.NewTicker(time.Duration(float64(time.Second) / perSecond))
 		defer ticker.Stop()
@@ -73,11 +74,15 @@ const maxRetries = 4
 func doThrottled(limiter *rateLimiter, req *http.Request) (*http.Response, error) {
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			upstreamRetriesTotal.WithLabelValues(limiter.name).Inc()
+		}
 		limiter.wait()
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			lastErr = err
+			upstreamRequestsTotal.WithLabelValues(limiter.name, statusClass(0)).Inc()
 			sleepBackoff(attempt, 0)
 			continue
 		}
@@ -85,15 +90,18 @@ func doThrottled(limiter *rateLimiter, req *http.Request) (*http.Response, error
 			retryAfter := parseRetryAfter(resp.Header.Get("Retry-After"))
 			resp.Body.Close()
 			lastErr = errStatus(resp.StatusCode)
+			upstreamRequestsTotal.WithLabelValues(limiter.name, statusClass(resp.StatusCode)).Inc()
 			sleepBackoff(attempt, retryAfter)
 			continue
 		}
 		if resp.StatusCode >= 500 {
 			resp.Body.Close()
 			lastErr = errStatus(resp.StatusCode)
+			upstreamRequestsTotal.WithLabelValues(limiter.name, statusClass(resp.StatusCode)).Inc()
 			sleepBackoff(attempt, 0)
 			continue
 		}
+		upstreamRequestsTotal.WithLabelValues(limiter.name, statusClass(resp.StatusCode)).Inc()
 		return resp, nil
 	}
 	return nil, lastErr

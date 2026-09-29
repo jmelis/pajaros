@@ -35,7 +35,7 @@ server-open:
 # with no toolchain and lands straight in a distroless container.
 server-linux:
 	cd server && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-	  go build -ldflags='-s -w' -o birdquiz-server-linux-amd64 .
+	  go build -ldflags="-s -w -X main.version=$(TAG)" -o birdquiz-server-linux-amd64 .
 
 image: server-linux
 	podman build --platform linux/amd64 -t $(IMAGE):$(TAG) -t $(IMAGE):latest .
