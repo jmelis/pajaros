@@ -119,7 +119,28 @@ a { color: var(--accent-dark); }
 .view { display: flex; flex-direction: column; gap: var(--space-3); }
 .view[hidden] { display: none; }
 .view-title { margin: 0; font-size: 1.7rem; font-weight: 700; }
-.view-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.view-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
+.view-head .btn { flex-shrink: 0; }
+
+/* Icon-only bookmark toggle -- outline star, filled once saved, instead of
+   a "Guardado"/"Bookmark" text pill competing with the title for weight. */
+.star-btn {
+  flex-shrink: 0;
+  margin-top: 4px;
+  padding: 4px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+.star-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.star-btn[aria-pressed="true"] svg { fill: currentColor; }
+
+/* browseControls wraps the browse-mode segmented control and #groups
+   (family headings + card grids, injected by app.js) in one plain div --
+   without its own gap, they'd sit flush against each other, unlike every
+   other direct child of .view which gets space-3 from .view's own gap. */
+#browseControls { display: flex; flex-direction: column; gap: var(--space-3); }
 
 .header-right { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .user-email {
@@ -221,7 +242,11 @@ a { color: var(--accent-dark); }
 .btn-sm { padding: 8px 14px; font-size: 0.85rem; }
 .btn[disabled] { opacity: 0.4; cursor: default; }
 
-.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+/* margin-top collapses harmlessly against a preceding block's own
+   bottom margin (standard CSS sibling-margin collapsing) when .actions
+   is the first thing after content that has none of its own, e.g.
+   .settings-stats. */
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin-top: var(--space-1); }
 
 /* Inputs -- filled, borderless fields (iOS text fields sit on a filled
    surface, not an outlined box). */
@@ -346,6 +371,50 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 
 .status { margin: 0; color: var(--muted); font-size: 0.9rem; min-height: 1.4em; }
 
+/* Sort control -- a compact menu button replacing what used to be a second
+   full-width segmented control stacked under Explore/Quiz. Sort order is a
+   lightweight preference, not a co-equal mode switch, so it shouldn't carry
+   the same visual weight. */
+.sort-row { display: flex; justify-content: flex-end; }
+.sort-control { position: relative; }
+.sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-size: 0.88rem;
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) { .sort-btn { color: var(--accent-dark); } }
+.sort-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.sort-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 160px;
+}
+.sort-menu li {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+.sort-menu li:hover { background: var(--fill); }
+.sort-menu li[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+@media (prefers-color-scheme: dark) { .sort-menu li[aria-selected="true"] { color: var(--accent-dark); } }
+
 /* Species cards */
 .family-heading {
   margin: var(--space-3) 0 var(--space-2);
@@ -385,17 +454,6 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 .card-body { display: flex; flex-direction: column; gap: 2px; padding: var(--space-1) 10px 12px; }
 .card .com { font-weight: 600; font-size: 0.95rem; line-height: 1.3; }
 .card .sci { color: var(--muted); font-style: italic; font-size: 0.8rem; }
-.card .nearby {
-  align-self: flex-start;
-  margin-top: 4px;
-  padding: 2px 9px;
-  background: var(--accent-soft);
-  color: var(--accent-dark);
-  font-size: 0.72rem;
-  font-weight: 600;
-  border-radius: 999px;
-}
-@media (prefers-color-scheme: dark) { .card .nearby { color: var(--accent); } }
 .card .sub { color: var(--accent-dark); font-size: 0.78rem; font-weight: 600; }
 @media (prefers-color-scheme: dark) { .card .sub { color: var(--accent); } }
 
@@ -414,6 +472,39 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 /* Home */
 .first-run { text-align: center; }
 
+/* Hero: one headline plus plain number+label stats, deliberately not a
+   bordered .panel or colored chips -- the due-for-review count is the one
+   figure meant to draw the eye (via .accent), everything else stays quiet
+   text so a screen with genuinely little content doesn't read as busy. */
+.hero { padding: 2px 2px 0; }
+.hero-greeting { color: var(--muted); font-size: 0.92rem; margin: 0 0 4px; }
+.hero-headline { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 var(--space-2); }
+.stat-row { display: flex; gap: var(--space-3); }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat .n { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.stat .n.accent { color: var(--accent); }
+.stat .label { color: var(--muted); font-size: 0.76rem; }
+
+.section-head { display: flex; align-items: center; justify-content: space-between; padding-inline: 2px; }
+.edit-link { color: var(--accent); font-size: 0.9rem; font-weight: 500; background: none; border: none; padding: 4px 0; }
+@media (prefers-color-scheme: dark) { .edit-link { color: var(--accent-dark); } }
+
+.cta-primary {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 14px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.98rem;
+  border-radius: 999px;
+  text-decoration: none;
+}
+.cta-primary:hover { opacity: 0.88; }
+.quiet-link { color: var(--accent-dark); font-size: 0.92rem; font-weight: 500; }
+@media (prefers-color-scheme: dark) { .quiet-link { color: var(--accent-dark); } }
+
 /* Grouped list -- Settings.app style: rows share one card, separated by
    hairlines between them (not around each), no per-row shadow/radius. */
 .hotspot-list { display: flex; flex-direction: column; margin: 0 0 var(--space-2); padding: 0; list-style: none; }
@@ -427,6 +518,23 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 }
 .hotspot-item:last-child { border-bottom: none; }
 .hotspot-link { overflow: hidden; font-weight: 500; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.hotspot-item .chev { color: var(--border-strong); font-size: 1rem; flex-shrink: 0; }
+.hotspot-item .remove-btn {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--danger-border);
+  color: #fff;
+  border: none;
+  font-size: 0.9rem;
+  line-height: 1;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
 
 /* Leaflet popup */
 .leaflet-popup-content { margin: 12px 14px; font-family: inherit; color: var(--text); line-height: 1.5; }

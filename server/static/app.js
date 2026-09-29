@@ -77,6 +77,7 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     el.setAttribute("placeholder", t(el.dataset.i18nPlaceholder));
   });
+  updateSortLabel();
 }
 
 function escapeHtml(s) {
@@ -222,6 +223,9 @@ async function initAccount() {
 
 // ---- Home -----------------------------------------------------------------
 
+// renderProgress is Settings' stat-pill row (#settingsStats) — Home has its
+// own hero treatment (renderHeroStats, below) with different markup, kept
+// separate specifically so this one stays untouched.
 function renderProgress(el, st) {
   const mastered = st.speciesMastered || 0;
   const learning = st.speciesLearning || 0;
@@ -234,37 +238,75 @@ function renderProgress(el, st) {
     (state.starRewards ? `<span class="stat"><strong>⭐ ${stars}</strong> ${tn("stats.stars", stars)}</span>` : "");
 }
 
+// renderHeroStats fills Home's hero: a one-line headline plus three plain
+// number+label stats (due/learning/mastered) — deliberately not the
+// colored-chip-per-stat treatment Settings uses, so the one number that
+// should draw the eye (due for review) can actually stand out via color
+// instead of competing with two other equally-loud chips.
+function renderHeroStats(el, st) {
+  const mastered = st.speciesMastered || 0;
+  const learning = st.speciesLearning || 0;
+  const due = st.dueForReview || 0;
+  $("homeHeadline").textContent =
+    due > 0 ? tn("home.headline.due", due)
+    : learning > 0 ? t("home.headline.learning")
+    : mastered > 0 ? t("home.headline.mastered")
+    : t("home.headline.default");
+  el.innerHTML =
+    `<div class="stat"><span class="n${due > 0 ? " accent" : ""}">${due}</span><span class="label">${tn("stats.due", due)}</span></div>` +
+    `<div class="stat"><span class="n">${learning}</span><span class="label">${tn("stats.learning", learning)}</span></div>` +
+    `<div class="stat"><span class="n">${mastered}</span><span class="label">${tn("stats.mastered", mastered)}</span></div>`;
+}
+
+// homeEditing toggles whether homeFavorites renders remove controls (iOS
+// Reminders/Notes-style "Edit" mode) instead of a permanent remove button
+// next to every single row.
+let homeEditing = false;
+
 function renderHomeFavorites() {
   const list = $("homeFavorites");
   list.innerHTML = "";
   for (const f of state.favorites) {
     const li = document.createElement("li");
-    li.className = "hotspot-item";
+    li.className = "hotspot-item" + (homeEditing ? " editing" : "");
     const a = document.createElement("a");
     a.className = "hotspot-link";
     a.href = "#/hotspot/" + encodeURIComponent(f.locId);
     a.textContent = f.locName || f.locId;
-    const remove = document.createElement("button");
-    remove.className = "btn btn-secondary btn-sm";
-    remove.type = "button";
-    remove.textContent = t("home.unbookmark");
-    remove.addEventListener("click", async () => {
-      try {
-        await deleteFavorite(f.locId);
-      } catch (e) {
-        showSettingsHint(t("search.bookmarkError"));
-        return;
-      }
-      renderHomeFavorites();
-      $("homeNoFavorites").hidden = state.favorites.length > 0;
-    });
-    li.append(a, remove);
+    li.appendChild(a);
+    if (homeEditing) {
+      const remove = document.createElement("button");
+      remove.className = "remove-btn";
+      remove.type = "button";
+      remove.setAttribute("aria-label", t("home.unbookmark"));
+      remove.textContent = "−";
+      remove.addEventListener("click", async () => {
+        try {
+          await deleteFavorite(f.locId);
+        } catch (e) {
+          showSettingsHint(t("search.bookmarkError"));
+          return;
+        }
+        renderHomeFavorites();
+      });
+      li.appendChild(remove);
+    } else {
+      const chev = document.createElement("span");
+      chev.className = "chev";
+      chev.setAttribute("aria-hidden", "true");
+      chev.textContent = "›";
+      li.appendChild(chev);
+    }
     list.appendChild(li);
   }
   $("homeNoFavorites").hidden = state.favorites.length > 0;
+  const editToggle = $("homeEditToggle");
+  editToggle.hidden = state.favorites.length === 0;
+  editToggle.textContent = homeEditing ? t("home.editDone") : t("home.edit");
 }
 
 async function renderHome() {
+  homeEditing = false;
   let profile, stats;
   try {
     const [pRes, stRes] = await Promise.all([fetch("/api/me"), fetch("/api/me/progress")]);
@@ -277,7 +319,8 @@ async function renderHome() {
     $("homeProgressPanel").hidden = false;
     $("homeFavorites").innerHTML = "";
     $("homeNoFavorites").hidden = true;
-    $("homeProgress").innerHTML = `<span class="stat">${t("home.loadFailed")}</span>`;
+    $("homeHeadline").textContent = t("home.loadFailed");
+    $("homeProgress").innerHTML = "";
     return;
   }
 
@@ -290,7 +333,7 @@ async function renderHome() {
   $("homeHotspotsPanel").hidden = firstRun;
   $("homeProgressPanel").hidden = firstRun;
   renderHomeFavorites();
-  renderProgress($("homeProgress"), stats);
+  renderHeroStats($("homeProgress"), stats);
 }
 
 // ---- Search ---------------------------------------------------------------
@@ -323,11 +366,13 @@ function clearHotspotMarkers() {
   hotspotMarkers = [];
 }
 
-function popupHTML(h, withStats) {
+function popupHTML(h) {
   const saved = state.favorites.some((f) => f.locId === h.locId);
-  const stats = withStats ? `<br>${tn("search.observations", h.totalCount || 0)}` : "";
+  // GBIF's totalCount is an all-time cumulative figure with no notion of
+  // season -- not shown as a number (marker radius, in addHotspotMarkers/
+  // renderVisibleHotspots, is the "how busy is this place" signal instead).
   return `
-    <strong class="popup-title">${escapeHtml(h.locName)}</strong>${stats}
+    <strong class="popup-title">${escapeHtml(h.locName)}</strong>
     <div class="popup-actions">
       <button class="popup-btn open-hotspot-btn" type="button" data-locid="${h.locId}" data-locname="${escapeHtml(h.locName)}" data-lat="${h.lat}" data-lng="${h.lng}">${t("search.open")}</button>
       <button class="popup-btn popup-btn-secondary bookmark-hotspot-btn" type="button" data-locid="${h.locId}" data-locname="${escapeHtml(h.locName)}" data-lat="${h.lat}" data-lng="${h.lng}"${saved ? " disabled" : ""}>${saved ? t("search.bookmarked") : t("search.bookmark")}</button>
@@ -417,7 +462,7 @@ function renderVisibleHotspots() {
       color: "#007aff",
       fillColor: "#007aff",
       fillOpacity: 0.6,
-    }).addTo(map).bindPopup(popupHTML(h, true), { autoPan: false });
+    }).addTo(map).bindPopup(popupHTML(h), { autoPan: false });
     hotspotMarkers.push(marker);
   }
 }
@@ -563,6 +608,46 @@ function currentBrowseMode() {
   return r ? r.value : "category";
 }
 
+// The sort menu (#sortBtn/#sortMenu) is the visible control; the original
+// #modeToggle radios (now hidden) stay the actual source of truth so every
+// existing consumer of currentBrowseMode()/the radios' change event and the
+// ?mode= deep-link keeps working unchanged.
+function updateSortLabel() {
+  const label = $("sortBtnLabel");
+  if (!label) return;
+  const mode = currentBrowseMode();
+  label.textContent = t("browse." + mode);
+  for (const li of document.querySelectorAll("#sortMenu li[data-value]")) {
+    li.setAttribute("aria-selected", String(li.dataset.value === mode));
+  }
+}
+
+function wireSortMenu() {
+  const btn = $("sortBtn");
+  const menu = $("sortMenu");
+  const close = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+  btn.addEventListener("click", () => {
+    const opening = menu.hidden;
+    menu.hidden = !opening;
+    btn.setAttribute("aria-expanded", String(opening));
+  });
+  menu.addEventListener("click", (e) => {
+    const li = e.target.closest("li[data-value]");
+    if (!li) return;
+    const radio = document.querySelector(`input[name="mode"][value="${li.dataset.value}"]`);
+    if (radio && !radio.checked) {
+      radio.checked = true;
+      radio.dispatchEvent(new Event("change"));
+    }
+    updateSortLabel();
+    close();
+  });
+  document.addEventListener("click", (e) => {
+    if (!menu.hidden && !e.target.closest(".sort-control")) close();
+  });
+  updateSortLabel();
+}
+
 function currentHotspotMode() {
   const r = document.querySelector('input[name="hotspotMode"]:checked');
   return r ? r.value : "browse";
@@ -578,8 +663,10 @@ function updateBookmarkButton() {
   if (!state.hotspot) return;
   const saved = state.favorites.some((f) => f.locId === state.hotspot.locId);
   const btn = $("bookmarkBtn");
-  btn.textContent = saved ? t("hotspot.bookmarked") : t("hotspot.bookmark");
+  // Icon-only: filled star when saved (via [aria-pressed], see style.css),
+  // outline otherwise. aria-label carries the same info textContent used to.
   btn.setAttribute("aria-pressed", saved ? "true" : "false");
+  btn.setAttribute("aria-label", saved ? t("hotspot.bookmarked") : t("hotspot.bookmark"));
 }
 
 async function openHotspot(locId) {
@@ -633,7 +720,6 @@ function speciesCard(sp) {
       <div class="com">${escapeHtml(sp.comName)}</div>
       ${secondaryNameFor(sp.speciesCode) ? `<div class="sub">${escapeHtml(secondaryNameFor(sp.speciesCode))}</div>` : ""}
       <div class="sci">${escapeHtml(sp.sciName)}</div>
-      ${sp.nearbyCount != null ? `<div class="nearby">${escapeHtml(tn("browse.nearbyReports", sp.nearbyCount))}</div>` : ""}
     </div>
   `;
   // imageMissing means the server already confirmed no photo exists — no
@@ -1202,6 +1288,11 @@ async function startQuiz() {
 
 function wireEvents() {
   wirePlaceSearch();
+  wireSortMenu();
+  $("homeEditToggle").addEventListener("click", () => {
+    homeEditing = !homeEditing;
+    renderHomeFavorites();
+  });
   $("searchHere").addEventListener("click", () => {
     const center = map.getCenter();
     $("lat").value = center.lat.toFixed(6);

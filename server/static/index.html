@@ -22,22 +22,31 @@
 <main class="container">
   <!-- Home -->
   <section id="view-home" class="view" hidden>
-    <h2 class="view-title" data-i18n="home.title"></h2>
     <div id="homeFirstRun" class="panel first-run" hidden>
       <p data-i18n="home.firstRun"></p>
       <div class="actions"><a class="btn btn-primary" href="#/search" data-i18n="home.find"></a></div>
     </div>
-    <section id="homeHotspotsPanel" class="panel">
-      <h3 class="panel-title" data-i18n="home.hotspots"></h3>
+
+    <section id="homeProgressPanel" class="hero">
+      <p class="hero-greeting" data-i18n="home.greeting"></p>
+      <p id="homeHeadline" class="hero-headline"></p>
+      <div id="homeProgress" class="stat-row"></div>
+    </section>
+
+    <section id="homeHotspotsPanel">
+      <div class="section-head">
+        <h2 class="panel-title" data-i18n="home.hotspots"></h2>
+        <button id="homeEditToggle" class="edit-link" type="button" hidden></button>
+      </div>
       <ul id="homeFavorites" class="hotspot-list"></ul>
       <p id="homeNoFavorites" class="hint" data-i18n="home.noFavorites" hidden></p>
-      <div class="actions"><a class="btn btn-primary" href="#/search" data-i18n="home.find"></a></div>
     </section>
-    <section id="homeProgressPanel" class="panel">
-      <h3 class="panel-title" data-i18n="home.progress"></h3>
-      <div id="homeProgress" class="settings-stats"></div>
-      <div class="actions"><a class="btn btn-secondary" href="#/mastered" data-i18n="home.viewMastered"></a></div>
-    </section>
+
+    <a class="cta-primary" href="#/search" data-i18n="home.find"></a>
+
+    <div class="actions">
+      <a class="quiet-link" href="#/mastered" data-i18n="home.viewMastered"></a>
+    </div>
   </section>
 
   <!-- Search -->
@@ -68,7 +77,9 @@
   <section id="view-hotspot" class="view" hidden>
     <div class="view-head">
       <h2 id="hotspotName" class="view-title"></h2>
-      <button id="bookmarkBtn" class="btn btn-secondary btn-sm" type="button" aria-pressed="false"></button>
+      <button id="bookmarkBtn" class="star-btn" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 2.9 6.26L21.5 9l-5 4.87L17.8 21 12 17.6 6.2 21l1.3-7.13-5-4.87 6.6-.74Z"/></svg>
+      </button>
     </div>
     <div class="segmented" id="hotspotModeToggle" role="radiogroup" data-i18n-aria="hotspot.modeAria">
       <label><input type="radio" name="hotspotMode" value="browse" checked><span data-i18n="hotspot.browse"></span></label>
@@ -76,7 +87,20 @@
     </div>
     <p id="hotspotStatus" class="status"></p>
     <div id="browseControls">
-      <div class="segmented" id="modeToggle" role="radiogroup" data-i18n-aria="browse.modeAria">
+      <div class="sort-row">
+        <div class="sort-control">
+          <button id="sortBtn" class="sort-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+            <span id="sortBtnLabel"></span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <ul id="sortMenu" class="sort-menu" role="listbox" hidden>
+            <li role="option" data-value="popularity" data-i18n="browse.popularity"></li>
+            <li role="option" data-value="category" data-i18n="browse.category"></li>
+            <li role="option" data-value="alphabetical" data-i18n="browse.alphabetical"></li>
+          </ul>
+        </div>
+      </div>
+      <div class="segmented" id="modeToggle" role="radiogroup" data-i18n-aria="browse.modeAria" hidden>
         <label><input type="radio" name="mode" value="popularity" checked><span data-i18n="browse.popularity"></span></label>
         <label><input type="radio" name="mode" value="category"><span data-i18n="browse.category"></span></label>
         <label><input type="radio" name="mode" value="alphabetical"><span data-i18n="browse.alphabetical"></span></label>
