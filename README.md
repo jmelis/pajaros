@@ -34,18 +34,24 @@ every startup, before it starts listening (see "Learn mode and species
 images" in `ARCHITECTURE.md`) — local disk I/O only, done in well under a
 second, logged to both stdout and `<CACHE_DIR>/migration.log`.
 
-Two offline modes of the same binary are there for when you want more than
+Three offline modes of the same binary are there for when you want more than
 that automatic minimum:
 
 ```
-go run . warmcache       # pre-fetch images for a high-value species subset
-go run . migrateimages    # eagerly top every species up to the full image
-                          # count now, instead of waiting on live traffic
+go run . warmcache          # pre-fetch images for a high-value species subset
+go run . migrateimages       # eagerly top every species up to the full image
+                             # count now, instead of waiting on live traffic
+go run . revalidateimages    # drop any cached Wikimedia image that isn't a
+                             # species' current Wikipedia infobox photo, and
+                             # top back up from iNaturalist -- e.g. after a
+                             # sourcing policy change; fetching never
+                             # re-checks a species once it's resolved
 ```
 
-Run either against a local `CACHE_DIR`, then `rsync` the resulting `cache/`
-directory up to the deployed server's host path — see `server/warmcache.go`
-and `server/migrateimages.go` for what each one actually does.
+Run any of them against a local `CACHE_DIR`, then `rsync` the resulting
+`cache/` directory up to the deployed server's host path — see
+`server/warmcache.go`, `server/migrateimages.go`, and
+`server/revalidateimages.go` for what each one actually does.
 
 ## Refresh the bird data
 

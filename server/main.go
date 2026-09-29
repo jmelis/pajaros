@@ -144,6 +144,15 @@ func main() {
 		}
 		return
 	}
+	// `go run . revalidateimages` re-checks every already-cached species'
+	// Wikimedia images against the current filters and replaces/drops any
+	// that no longer pass — see revalidateimages.go.
+	if len(os.Args) > 1 && os.Args[1] == "revalidateimages" {
+		if err := runRevalidateImages(); err != nil {
+			log.Fatalf("revalidateimages: %v", err)
+		}
+		return
+	}
 
 	cacheDir := os.Getenv("CACHE_DIR")
 	if cacheDir == "" {
