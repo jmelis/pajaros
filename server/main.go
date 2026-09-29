@@ -192,6 +192,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("taxonomy snapshot: %v", err)
 	}
+	geoip, err := loadGeoIPStore()
+	if err != nil {
+		log.Fatalf("geoip snapshot: %v", err)
+	}
 	speciesStore := openSpeciesStore(hotspotsDB, taxonomy)
 	species := NewSpeciesResolver(taxonomy, speciesStore)
 
@@ -227,7 +231,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	auth, err := newAuth(loadOAuthEnv(), users, signer)
+	auth, err := newAuth(loadOAuthEnv(), users, signer, geoip)
 	if err != nil {
 		log.Fatal(err)
 	}

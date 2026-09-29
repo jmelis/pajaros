@@ -9,6 +9,7 @@
 //	EBIRD_API_KEY=... go run ./cmd/gensnapshot taxonomy
 //	go run ./cmd/gensnapshot hotspots <gbif-download.zip | gbif.tsv>
 //	go run ./cmd/gensnapshot places <geonames-cities500.zip | cities500.txt>
+//	go run ./cmd/gensnapshot geoip <dbip-country-lite.csv.gz | .csv>
 //
 // eBird blocks requests from this project's cloud deployment, so taxonomy
 // must be run from an unblocked connection (a home network works) and the
@@ -24,6 +25,9 @@
 //
 // places consumes a GeoNames gazetteer dump (see places.go/ARCHITECTURE.md)
 // straight from its downloaded .zip, the same way hotspots does.
+//
+// geoip consumes db-ip.com's free IP-to-country database (see
+// geoip.go/server/geoip_data.go) straight from its downloaded .csv.gz.
 package main
 
 import (
@@ -42,7 +46,7 @@ var taxonLangs = []string{"en", "es", "fr"}
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: gensnapshot <taxonomy|hotspots|places>")
+		fmt.Fprintln(os.Stderr, "usage: gensnapshot <taxonomy|hotspots|places|geoip>")
 		os.Exit(2)
 	}
 
@@ -62,6 +66,12 @@ func main() {
 			os.Exit(2)
 		}
 		err = runPlaces(os.Args[2])
+	case "geoip":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: gensnapshot geoip <dbip-country-lite-dump>")
+			os.Exit(2)
+		}
+		err = runGeoIP(os.Args[2])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown subcommand %q\n", os.Args[1])
 		os.Exit(2)

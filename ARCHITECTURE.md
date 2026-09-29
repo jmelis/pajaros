@@ -50,6 +50,18 @@ fixed account (`dev:local`) so the account-preference routes still work
 locally. `make server-open` forces this regardless of what's in the
 environment; `make server` honors whatever's actually set.
 
+A brand-new account's language preference is seeded from its signup IP's
+geolocated country — Spanish-speaking, French-speaking, or (everything
+else, including a lookup miss) English — via an embedded, offline-built
+IP-to-country table (`server/geoip_data.go`; see "Hotspot and species data"
+below for the same offline-snapshot pattern applied here). This only ever
+runs once, at `completeLogin` in `server/auth.go`, when the account row
+doesn't already exist; every later login leaves an existing preference (set
+this way or explicitly in settings) untouched. Lookup misses — most
+countries, since the table only records the Spanish/French ones — and IPs
+outside the table both resolve the same way: no preference is set, so the
+account falls back to `defaultLang` (English) same as always.
+
 Sessions are signed cookies (`server/session.go`), keyed by `SESSION_SECRET`
 — if unset, a random key is generated at startup, so sessions don't survive
 a restart (fine for local dev, not for production). The login page

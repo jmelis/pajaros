@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -42,20 +43,26 @@ const (
 )
 
 // Auth owns the login gate: the session cookie signer, the persisted user
-// store, and the configured OAuth providers.
+// store, the configured OAuth providers, and the geoip table used to pick a
+// brand-new account's default language.
 type Auth struct {
 	signer    *cookieSigner
 	users     *UserStore
 	providers []oauthProvider
 	byName    map[string]oauthProvider
 	loginTmpl *template.Template
+	geoip     *GeoIPStore
 }
 
 // newAuth builds the login gate from the environment. A provider is included
 // only when its enable flag is truthy and its credentials are complete; an
 // enabled-but-incomplete provider is a fatal configuration error. With no
 // enabled provider the returned Auth runs in open mode (see gate).
-func newAuth(env oauthEnv, users *UserStore, signer *cookieSigner) (*Auth, error) {
+//
+// geoip may be nil (its lookups then always report not-found, i.e. English)
+// — callers that don't care about default-language-by-country, such as
+// tests, can leave it out.
+func newAuth(env oauthEnv, users *UserStore, signer *cookieSigner, geoip *GeoIPStore) (*Auth, error) {
 	var providers []oauthProvider
 	if env.googleEnabled {
 		p := newGoogleProvider(env)
@@ -94,6 +101,7 @@ func newAuth(env oauthEnv, users *UserStore, signer *cookieSigner) (*Auth, error
 		providers: providers,
 		byName:    byName,
 		loginTmpl: tmpl,
+		geoip:     geoip,
 	}
 
 	// Open mode has no real login, so seed the fixed development account the
@@ -363,11 +371,35 @@ func (a *Auth) clearStateCookie(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *Auth) completeLogin(w http.ResponseWriter, r *http.Request, provider string, claims *idTokenClaims, displayName, next string) {
+	// Checked before Upsert so it reflects whether the account existed
+	// before *this* login, not after — Upsert alone can't tell new accounts
+	// from returning ones.
+	_, existed, err := a.users.Get(userID(provider, claims.Subject))
+	if err != nil {
+		log.Printf("check existing account %s:%s: %v", provider, claims.Subject, err)
+		a.loginFailure(w, r, "Could not save your account.")
+		return
+	}
+
 	user, err := a.users.Upsert(provider, claims.Subject, claims.Email, displayName)
 	if err != nil {
 		log.Printf("persist user %s:%s: %v", provider, claims.Subject, err)
 		a.loginFailure(w, r, "Could not save your account.")
 		return
+	}
+
+	// A brand-new account gets a language guessed from its signup IP's
+	// country (Spanish/French-speaking -> that language, else English);
+	// settings can always override it afterward. Best-effort: geoip is
+	// never authoritative enough to be worth failing the login over.
+	if !existed {
+		if ip := net.ParseIP(clientIP(r)); ip != nil {
+			if lang, ok := a.geoip.LangForIP(ip); ok {
+				if err := a.users.SetLanguage(user.ID, lang); err != nil {
+					log.Printf("set default language for new account %s: %v", user.ID, err)
+				}
+			}
+		}
 	}
 	token, err := a.signer.issueSession(user.ID, sessionTTL)
 	if err != nil {

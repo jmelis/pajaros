@@ -24,7 +24,7 @@ func newAuthForTest(t *testing.T, env oauthEnv) (*Auth, *UserStore, error) {
 	if err != nil {
 		t.Fatalf("newCookieSigner: %v", err)
 	}
-	a, err := newAuth(env, users, signer)
+	a, err := newAuth(env, users, signer, nil)
 	return a, users, err
 }
 

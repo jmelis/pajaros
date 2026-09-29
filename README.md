@@ -34,6 +34,7 @@ request time by the deployed server:
 | eBird taxonomy API | species names (en/es/fr), classification | yes |
 | GBIF (EOD dataset) | which birds occur where, how often | no — `scp`'d |
 | GeoNames (cities500) | place names for search, worldwide | no — `scp`'d |
+| db-ip (IP to Country Lite) | default UI language for a new account | yes |
 
 ### Taxonomy (seconds)
 
@@ -99,3 +100,20 @@ account or key needed — GeoNames' dumps are a plain public download.
 `cities500.zip` (every place with population > 500 or that's a seat of
 local government, ~185K rows) is the right file, not `allCountries.zip`
 (~12M rows, mostly geographic features no one searches for by name).
+
+### Default-language geoip table (db-ip, seconds)
+
+```
+curl -sL -o dbip-country-lite.csv.gz "https://download.db-ip.com/free/dbip-country-lite-<YYYY>-<MM>.csv.gz"
+cd server
+go run ./cmd/gensnapshot geoip dbip-country-lite.csv.gz   # writes data/geoip_country.json.gz
+git add data/geoip_country.json.gz && git commit -m "Refresh geoip country table"
+```
+
+The exact filename (with the current year/month) is on
+[db-ip.com/db/download/ip-to-country-lite](https://db-ip.com/db/download/ip-to-country-lite).
+It's a free, monthly-refreshed, CC-BY-4.0 IP-to-country database; the
+`geoip` subcommand keeps only the rows for the Spanish/French-speaking
+countries listed in `server/cmd/gensnapshot/geoip.go` — everything else
+maps to English by default, so there's no need to ship the whole world.
+See ARCHITECTURE.md's "Authentication" section for how the result is used.

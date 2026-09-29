@@ -49,6 +49,102 @@ func TestGoogleCallbackCreatesUserAndSession(t *testing.T) {
 	}
 }
 
+// TestGoogleCallbackSetsDefaultLanguageFromIP checks that a brand-new
+// account's first login seeds its language preference from the signup IP's
+// geolocated country, and that a returning account's login never overwrites
+// whatever preference (including none) it already has.
+func TestGoogleCallbackSetsDefaultLanguageFromIP(t *testing.T) {
+	geoip, err := loadGeoIPStore()
+	if err != nil {
+		t.Fatalf("loadGeoIPStore: %v", err)
+	}
+	// Verified against data/geoip_country.json.gz.
+	const spanishIP = "1.178.22.10:5555"
+	const frenchIP = "1.178.90.5:5555"
+
+	key, jwksURL := testJWKS(t)
+
+	login := func(a *Auth, google *googleProvider, sub, remoteAddr string) *httptest.ResponseRecorder {
+		state, st, stateCookie, _ := startOAuth(t, a, google)
+		idToken := testIDToken(t, key, map[string]any{
+			"iss":            "https://accounts.google.com",
+			"aud":            "client-id",
+			"sub":            sub,
+			"email":          sub + "@example.com",
+			"email_verified": true,
+			"nonce":          st.Nonce,
+			"exp":            time.Now().Add(time.Hour).Unix(),
+		})
+		google.conf.Endpoint.TokenURL = testTokenServer(t, idToken)
+
+		req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=code123&state="+url.QueryEscape(state), nil)
+		req.AddCookie(stateCookie)
+		req.RemoteAddr = remoteAddr
+		rr := httptest.NewRecorder()
+		a.handleOAuthCallback(google).ServeHTTP(rr, req)
+		if rr.Code != http.StatusFound {
+			t.Fatalf("callback code = %d (%s), want 302", rr.Code, rr.Body.String())
+		}
+		return rr
+	}
+
+	t.Run("new account from spanish IP gets es", func(t *testing.T) {
+		google := configuredGoogle(t)
+		google.verifier = newJWTVerifier(jwksURL, []string{"https://accounts.google.com"}, "client-id")
+		a := newTestAuth(t, google)
+		a.geoip = geoip
+
+		login(a, google, "es-sub", spanishIP)
+
+		lang, ok, err := a.users.PreferredLanguage("google:es-sub")
+		if err != nil {
+			t.Fatalf("PreferredLanguage: %v", err)
+		}
+		if !ok || lang != "es" {
+			t.Errorf("PreferredLanguage = (%q, %v), want (\"es\", true)", lang, ok)
+		}
+	})
+
+	t.Run("new account from unrecorded IP gets no preference", func(t *testing.T) {
+		google := configuredGoogle(t)
+		google.verifier = newJWTVerifier(jwksURL, []string{"https://accounts.google.com"}, "client-id")
+		a := newTestAuth(t, google)
+		a.geoip = geoip
+
+		login(a, google, "unrecorded-sub", "192.0.2.1:5555") // TEST-NET-1, not in the table
+
+		_, ok, err := a.users.PreferredLanguage("google:unrecorded-sub")
+		if err != nil {
+			t.Fatalf("PreferredLanguage: %v", err)
+		}
+		if ok {
+			t.Errorf("PreferredLanguage ok = true, want false (falls back to defaultLang)")
+		}
+	})
+
+	t.Run("returning account's login never overwrites its preference", func(t *testing.T) {
+		google := configuredGoogle(t)
+		google.verifier = newJWTVerifier(jwksURL, []string{"https://accounts.google.com"}, "client-id")
+		a := newTestAuth(t, google)
+		a.geoip = geoip
+
+		login(a, google, "returning-sub", spanishIP) // first login: seeds "es"
+		if err := a.users.SetLanguage("google:returning-sub", "fr"); err != nil {
+			t.Fatalf("SetLanguage: %v", err)
+		}
+
+		login(a, google, "returning-sub", frenchIP) // second login, from a different country
+
+		lang, ok, err := a.users.PreferredLanguage("google:returning-sub")
+		if err != nil {
+			t.Fatalf("PreferredLanguage: %v", err)
+		}
+		if !ok || lang != "fr" {
+			t.Errorf("PreferredLanguage = (%q, %v), want (\"fr\", true) — login must not override an existing preference", lang, ok)
+		}
+	})
+}
+
 func TestGoogleCallbackRejectsStateMismatch(t *testing.T) {
 	key, jwksURL := testJWKS(t)
 	google := configuredGoogle(t)
