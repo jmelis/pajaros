@@ -10,7 +10,13 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
+
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
 
 // runTaxonomy rebuilds all three embedded taxonomy files server/taxonomy_data.go
@@ -270,13 +276,36 @@ func iso6391(gbifCode string) (string, bool) {
 	return code, ok
 }
 
-// pickCanonical picks one name out of several candidate strings, by vote
-// count first, then shortest, then alphabetically — a fixed total order so
-// the result doesn't depend on map iteration order.
+// pickCanonical picks one name out of several candidate strings and their
+// vote counts. GBIF's contributing checklists don't agree on capitalization
+// or accenting for the same name (e.g. "Ánade azulón", "ánade azulón", and
+// "Anade Azulón" for Anas platyrhynchos), so counting raw strings splits one
+// name's votes across several spellings and can let a less-supported but
+// consistently-spelled rival win outright — that's exactly how "Pato de
+// collar" (a Latin-American name, 4 identical votes) used to beat "Ánade
+// azulón" (the standard name, 6 votes split three ways). Votes are first
+// pooled by a case/diacritic-folded key to find the winning name; the
+// most-voted exact spelling within that group is then returned, so the
+// output stays a real observed string rather than a synthesized casing.
 func pickCanonical(votes map[string]int) string {
+	pooled := map[string]int{}
+	for name, count := range votes {
+		pooled[foldForVoting(name)] += count
+	}
+	bestKey := ""
+	bestKeyCount := -1
+	for key, count := range pooled {
+		if bestKey == "" || count > bestKeyCount || (count == bestKeyCount && isBetterTiebreak(key, bestKey)) {
+			bestKey, bestKeyCount = key, count
+		}
+	}
+
 	best := ""
 	bestCount := -1
 	for name, count := range votes {
+		if foldForVoting(name) != bestKey {
+			continue
+		}
 		if best == "" || count > bestCount || (count == bestCount && isBetterTiebreak(name, best)) {
 			best, bestCount = name, count
 		}
@@ -289,6 +318,21 @@ func isBetterTiebreak(a, b string) bool {
 		return len(a) < len(b)
 	}
 	return a < b
+}
+
+// foldDiacritics strips combining marks after Unicode NFD decomposition,
+// e.g. "á" (a + combining acute) -> "a".
+var foldDiacritics = transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
+
+// foldForVoting normalizes a name for vote-pooling: case-folded and
+// diacritic-stripped, so spelling variants of the same name collapse into
+// one vote bucket. Not used for the returned name itself — see pickCanonical.
+func foldForVoting(name string) string {
+	folded, _, err := transform.String(foldDiacritics, name)
+	if err != nil {
+		folded = name
+	}
+	return strings.ToLower(folded)
 }
 
 func printCoverage(coverage map[string]float64) {

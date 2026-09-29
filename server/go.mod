@@ -6,6 +6,7 @@ require (
 	go.etcd.io/bbolt v1.5.0
 	golang.org/x/image v0.30.0
 	golang.org/x/oauth2 v0.36.0
+	golang.org/x/text v0.28.0
 	modernc.org/sqlite v1.59.0
 )
 
