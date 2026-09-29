@@ -75,6 +75,44 @@ func (s *Server) handleSetLanguage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleGetSecondaryLanguage returns the account's optional second subtitle
+// language, or "" when none is set.
+func (s *Server) handleGetSecondaryLanguage(w http.ResponseWriter, r *http.Request) {
+	id := userIDFromContext(r)
+	lang, err := s.users.SecondaryLanguage(id)
+	if err != nil {
+		log.Printf("get secondary language %s: %v", id, err)
+		http.Error(w, "failed to load secondary language", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]string{"language": lang})
+}
+
+// handleSetSecondaryLanguage stores (or, for "", clears) the account's second
+// subtitle language. Unlike the primary language, an empty value is valid and
+// means "unset".
+func (s *Server) handleSetSecondaryLanguage(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Language string `json:"language"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<12)).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if body.Language != "" && !validLang[body.Language] {
+		http.Error(w, "unsupported language", http.StatusBadRequest)
+		return
+	}
+
+	id := userIDFromContext(r)
+	if err := s.users.SetSecondaryLanguage(id, body.Language); err != nil {
+		log.Printf("set secondary language %s: %v", id, err)
+		http.Error(w, "failed to save secondary language", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleListFavorites returns the account's favorites, each with the display
 // name and coordinates captured when it was bookmarked. It reads only local
 // data — no upstream call per favorite.

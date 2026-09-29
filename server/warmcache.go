@@ -82,8 +82,7 @@ func runWarmCache() error {
 	topPlaces := places.TopPlacePerCountry()
 	log.Printf("warmcache: %d countries in places.bolt", len(topPlaces))
 
-	type nameInfo struct{ comName string }
-	toWarm := map[string]nameInfo{} // sciName -> its English common name
+	toWarm := map[string]bool{} // sciName set
 
 	hit := 0
 	for cc, place := range topPlaces {
@@ -103,7 +102,7 @@ func runWarmCache() error {
 			if t.SciName == "" {
 				continue
 			}
-			toWarm[t.SciName] = nameInfo{comName: t.ComName}
+			toWarm[t.SciName] = true
 		}
 	}
 	log.Printf("warmcache: %d/%d countries had a hotspot within %.0fkm; %d distinct species to warm",
@@ -111,9 +110,9 @@ func runWarmCache() error {
 
 	start := time.Now()
 	i := 0
-	for sciName, info := range toWarm {
+	for sciName := range toWarm {
 		i++
-		if err := cache.EnsureFetched(sciName, defaultLang, info.comName); err != nil {
+		if err := cache.EnsureFetched(sciName); err != nil {
 			log.Printf("warmcache: EnsureFetched(%s): %v", sciName, err)
 		}
 		if i%50 == 0 || i == len(toWarm) {

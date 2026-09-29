@@ -141,6 +141,7 @@ a { color: var(--accent-dark); }
    without its own gap, they'd sit flush against each other, unlike every
    other direct child of .view which gets space-3 from .view's own gap. */
 #browseControls { display: flex; flex-direction: column; gap: var(--space-3); }
+#browseControls[hidden] { display: none; }
 
 .header-right { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .user-email {
@@ -207,18 +208,6 @@ a { color: var(--accent-dark); }
   letter-spacing: 0.02em;
 }
 
-/* Stat pills */
-.settings-stats { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.settings-stats .stat {
-  padding: 8px 12px;
-  background: var(--accent-soft);
-  color: var(--accent-dark);
-  border-radius: var(--radius-sm);
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-@media (prefers-color-scheme: dark) { .settings-stats .stat { color: var(--accent); } }
-
 /* Buttons -- filled pill (primary) / tinted fill, no border (secondary),
    the two iOS button styles used almost everywhere in system UI. */
 .btn {
@@ -242,10 +231,6 @@ a { color: var(--accent-dark); }
 .btn-sm { padding: 8px 14px; font-size: 0.85rem; }
 .btn[disabled] { opacity: 0.4; cursor: default; }
 
-/* margin-top collapses harmlessly against a preceding block's own
-   bottom margin (standard CSS sibling-margin collapsing) when .actions
-   is the first thing after content that has none of its own, e.g.
-   .settings-stats. */
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); margin-top: var(--space-1); }
 
 /* Inputs -- filled, borderless fields (iOS text fields sit on a filled
@@ -340,7 +325,7 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 .status { margin: 0; color: var(--muted); font-size: 0.9rem; min-height: 1.4em; }
 
 /* Sort control -- a compact menu button replacing what used to be a second
-   full-width segmented control stacked under Explore/Quiz. Sort order is a
+   full-width segmented control stacked under Explore/Learn. Sort order is a
    lightweight preference, not a co-equal mode switch, so it shouldn't carry
    the same visual weight. */
 .sort-row { display: flex; justify-content: flex-end; }
@@ -425,33 +410,12 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 .card .sub { color: var(--accent-dark); font-size: 0.78rem; font-weight: 600; }
 @media (prefers-color-scheme: dark) { .card .sub { color: var(--accent); } }
 
-/* Mastered stats */
-.mastered-stats { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.mastered-stats span {
-  padding: 2px 8px;
-  background: var(--accent-soft);
-  color: var(--accent-dark);
-  font-size: 0.72rem;
-  font-weight: 600;
-  border-radius: 999px;
-}
-@media (prefers-color-scheme: dark) { .mastered-stats span { color: var(--accent); } }
-
 /* Home */
 .first-run { text-align: center; }
 
-/* Hero: one headline plus plain number+label stats, deliberately not a
-   bordered .panel or colored chips -- the due-for-review count is the one
-   figure meant to draw the eye (via .accent), everything else stays quiet
-   text so a screen with genuinely little content doesn't read as busy. */
+/* Hero: just a quiet greeting line above the favorites list. */
 .hero { padding: 2px 2px 0; }
-.hero-greeting { color: var(--muted); font-size: 0.92rem; margin: 0 0 4px; }
-.hero-headline { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 var(--space-2); }
-.stat-row { display: flex; gap: var(--space-3); }
-.stat { display: flex; flex-direction: column; gap: 2px; }
-.stat .n { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-.stat .n.accent { color: var(--accent); }
-.stat .label { color: var(--muted); font-size: 0.76rem; }
+.hero-greeting { color: var(--muted); font-size: 0.92rem; margin: 0 0 var(--space-2); }
 
 .section-head { display: flex; align-items: center; justify-content: space-between; padding-inline: 2px; }
 .edit-link { color: var(--accent); font-size: 0.9rem; font-weight: 500; background: none; border: none; padding: 4px 0; }
@@ -525,7 +489,7 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 @media (prefers-color-scheme: dark) { .popup-btn-secondary { color: var(--accent); } }
 .popup-btn-secondary:hover { background: var(--fill-strong); }
 
-/* Overlays (quiz) */
+/* Overlays */
 .overlay {
   position: fixed;
   inset: 0;
@@ -538,86 +502,136 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 }
 .overlay[hidden] { display: none; }
 
-/* Quiz screen -- presented as a sheet rising from the bottom (rounded top
-   corners, a grab-handle glyph) rather than a centered modal rectangle,
-   the standard iOS presentation for a focused full-screen task. */
-.quiz-overlay {
-  align-items: flex-end;
+/* Learn screen -- true fullscreen (fills the whole viewport, no backdrop or
+   centered card) rather than a modal, so each species card can itself fill
+   the entire screen. */
+.learn-overlay {
+  flex-direction: column;
+  align-items: stretch;
   justify-content: stretch;
   padding: 0;
+  background: var(--bg);
 }
-.quiz-overlay .quiz-sheet {
+.learn-top {
   display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-height: 92vh;
-  background: var(--surface);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  padding-bottom: env(safe-area-inset-bottom);
-  overflow: hidden;
-}
-.quiz-sheet::before {
-  content: "";
-  display: block;
-  width: 36px;
-  height: 5px;
-  margin: 10px auto 0;
-  background: var(--border-strong);
-  border-radius: 999px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: calc(var(--space-2) + env(safe-area-inset-top)) var(--space-2) var(--space-2);
   flex-shrink: 0;
 }
-.quiz-top {
+.learn-progress { flex: 1; text-align: center; font-weight: 600; color: var(--muted); font-size: 0.85rem; }
+.learn-icon-btn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 0.5px solid var(--border);
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--text);
+  cursor: pointer;
 }
-.quiz-progress { font-weight: 600; }
-#quizClose { margin-left: auto; }
-.quiz-body {
-  display: flex;
+.learn-icon-btn:hover { background: var(--fill-strong); }
+.learn-icon-btn svg { width: 20px; height: 20px; }
+.learn-icon-btn[aria-pressed="false"] { color: var(--muted); }
+
+.learn-body {
   flex: 1;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  overflow: auto;
+  display: flex;
+  min-height: 0;
+  padding: 0 var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom));
 }
-.quiz-image {
-  width: min(100%, 520px);
-  max-height: 42vh;
-  object-fit: contain;
+.learn-card {
+  position: relative;
+  flex: 1;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
   background: var(--img-bg);
-  border-radius: var(--radius);
+  touch-action: none; /* the card is a drag surface, not a scroll container */
+  user-select: none;
 }
-.quiz-prompt { margin: 0; font-weight: 600; }
-.quiz-choices {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--space-1);
-  width: min(100%, 640px);
+.learn-slides { position: absolute; inset: 0; }
+.learn-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity .6s ease;
 }
-.quiz-choice { width: 100%; padding: 14px; font-size: 1rem; border-radius: var(--radius-sm); background: var(--fill); color: var(--text); }
-.quiz-choice.quiz-choice-correct { background: var(--accent); color: #fff; }
-.quiz-choice.quiz-choice-incorrect { background: var(--danger-bg); color: var(--danger-text); }
-.quiz-reveal { text-align: center; }
-.quiz-reveal-name { font-size: 1.4rem; font-weight: 700; }
-.quiz-reveal-sub { color: var(--accent-dark); font-weight: 600; }
-@media (prefers-color-scheme: dark) { .quiz-reveal-sub { color: var(--accent); } }
-.quiz-reveal-sci { color: var(--muted); font-style: italic; }
-.quiz-grade:not([hidden]) { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); }
-.quiz-summary {
+.learn-image-active { opacity: 1; }
+
+.learn-dots {
+  position: absolute;
+  top: var(--space-2);
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  z-index: 2;
+}
+.learn-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, 0.5); }
+.learn-dot.active { background: #fff; }
+
+.learn-names {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  padding: var(--space-4) var(--space-2) var(--space-2);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+  color: #fff;
+  pointer-events: none;
+}
+.learn-com { font-size: 1.4rem; font-weight: 700; }
+.learn-sub { font-weight: 600; opacity: 0.9; }
+.learn-sci { font-style: italic; opacity: 0.75; }
+
+.learn-chevron {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+}
+.learn-chevron:hover { background: rgba(0, 0, 0, 0.5); }
+.learn-chevron svg { width: 22px; height: 22px; }
+.learn-chevron-left { left: var(--space-2); }
+.learn-chevron-right { right: var(--space-2); }
+
+@keyframes learn-bounce {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-14px); }
+}
+.learn-bounce { animation: learn-bounce .25s ease; }
+
+.learn-done {
+  margin: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
   text-align: center;
+  color: var(--muted);
+  font-weight: 600;
 }
-.quiz-score { margin: 0; font-size: 1.2rem; font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) {
-  .card, .btn, .segmented span { transition: none; }
+  .card, .btn, .segmented span, .learn-image, .learn-bounce { transition: none; animation: none; }
 }
 
 @media (max-width: 480px) {

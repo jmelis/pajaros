@@ -5,20 +5,20 @@ How birdquiz is built and why. For how to run it or refresh its data, see
 
 ## Overview
 
-birdquiz is a Go server that serves a bird quiz app: search hotspots
-worldwide, browse the species seen at one, quiz yourself on them with
-spaced repetition, track progress per account. The frontend is a small
-vanilla-JS single-page app embedded in the binary. Accounts and progress
-live in SQLite; hotspot and species-popularity data live in a separately
-distributed `bbolt` file, built offline from a GBIF dataset. The only
-upstream call the deployed server makes at request time is to Wikimedia,
-for species card images.
+birdquiz is a Go server that serves a bird learning app: search hotspots
+worldwide, browse the species seen at one, and learn them in a full-screen
+swipeable card deck (Learn mode). The frontend is a small vanilla-JS
+single-page app embedded in the binary. Accounts and preferences live in
+SQLite; hotspot and species-popularity data live in a separately distributed
+`bbolt` file, built offline from a GBIF dataset. The only upstream calls the
+deployed server makes at request time are to Wikimedia and iNaturalist, for
+species card images.
 
 ## Stack
 
 - **Server**: Go, standard library `net/http` with Go 1.22+ method/path
   routing (`server/main.go`).
-- **Accounts & progress**: SQLite via `modernc.org/sqlite` (pure Go, no
+- **Accounts & preferences**: SQLite via `modernc.org/sqlite` (pure Go, no
   cgo) — `server/userstore.go`.
 - **Hotspot & species data**: `bbolt`, an embedded ordered key-value store,
   mmap-backed — `server/hotspots_data.go`, `server/species_store.go`. See
@@ -28,8 +28,11 @@ for species card images.
   (family names). See "Taxonomy and common names" below.
 - **Frontend**: `server/static/` — plain HTML/CSS/JS, no bundler, no build
   step, served via `go:embed`.
-- **Images**: fetched from Wikimedia Commons on demand and cached to disk
-  (`server/cache.go`, `server/wikimedia.go`).
+- **Images**: up to four per species, fetched from Wikimedia Commons and
+  (to top up) iNaturalist on demand and cached to disk, bucketed across
+  subdirectories (`server/cache.go`, `server/wikimedia.go`,
+  `server/inaturalist.go`, `server/images.go`). See "Learn mode and species
+  images" below.
 - **Deploy**: a `distroless/static` container (`Containerfile`) holding just
   the statically-linked binary, built and pushed via the root `Makefile`
   to a sibling GitOps repo.
@@ -76,16 +79,11 @@ GET  /healthz                                    liveness/readiness, ungated
 
 GET  /api/hotspots                               nearby search (lat, lng, dist)
 GET  /api/hotspots/{locId}                        hotspot info
-GET  /api/hotspots/{locId}/species                 species list (category/popularity/alphabetical)
-GET  /api/hotspots/{locId}/quiz                    build a quiz session
+GET  /api/hotspots/{locId}/species                 species list (category/popularity/alphabetical) — Learn's card deck too
 
 GET  /api/me                                      profile
 GET  /PUT /api/me/language                        primary bird-name + UI language
 GET  /PUT /api/me/secondary-language               optional subtitle language
-GET  /api/me/progress                             quiz progress
-POST /api/me/progress/{speciesCode}                submit a quiz answer
-DELETE /api/me/progress                            reset all progress
-GET  /api/me/mastered                             mastered species (local data only)
 GET  /api/me/favorites                            saved hotspots (capped at 100/account)
 PUT/DELETE /api/me/favorites/{locId}               save/remove a hotspot
 
@@ -110,19 +108,19 @@ Four pieces served straight from `server/static/`, embedded in the binary,
 no build step: `index.html` (markup), `style.css`, `app.js`, `i18n.json`
 (en/es/fr UI strings).
 
-Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`, `#/mastered`,
-`#/settings`) so every view survives a reload and is linkable without any
-server-side routing. Navigation lives in the header (`<nav class="app-nav">`
-in `index.html`) rather than a bottom bar. The old deep-link shape
-(`/?locId=…&lang=…&mode=…`) still works and lands on that hotspot's view.
+Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`, `#/settings`)
+so every view survives a reload and is linkable without any server-side
+routing. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
+`index.html`), the canonical iOS primary-navigation placement. The old
+deep-link shape (`/?locId=…&lang=…&mode=…`) still works and lands on that
+hotspot's view.
 
-Views: **Home** (saved hotspots, a search shortcut, progress summary — a
-welcome screen for a fresh account), **Search** (place-name search,
-geolocation, map, "search this area" — see "Place-name search" below),
-**Hotspot** (info, save toggle, explore — by
-popularity/category/alphabetical — or quiz with a size picker), **Mastered**
-(mastered species as cards, same style as explore), **Settings** (language,
-secondary language, reset, sign out).
+Views: **Home** (saved hotspots, a search shortcut — a welcome screen for a
+fresh account), **Search** (place-name search, geolocation, map, "search
+this area" — see "Place-name search" below), **Hotspot** (info, save
+toggle, explore — by popularity/category/alphabetical — or Learn's
+full-screen card deck, see "Learn mode and species images" below),
+**Settings** (language, secondary language, sign out).
 
 Two independent language preferences: the **primary** language drives both
 bird names (the `lang` query param) and UI text — there's no separate
@@ -306,9 +304,9 @@ close to it (grid-level state):
 `*bbolt.DB` handle: `HotspotStore` answers `Info`/`Nearby`/`Len` from its
 three buckets, `SpeciesStore` answers `Lookup(hotspotID)` from the sibling
 bucket. `SpeciesResolver` sits on top of `SpeciesStore`, implementing the
-`hotspotSpeciesSource` interface `main.go`/`quiz.go` call against — an
-interface purely for testability, so quiz/progress tests can hand the
-server made-up species codes without touching real data. A hotspot's ID is
+`hotspotSpeciesSource` interface `main.go` calls against — an interface
+purely for testability, so tests can hand the server made-up species codes
+without touching real data. A hotspot's ID is
 its `"lat,lng"` string, which is both its `bbolt` key (in every
 hotspot-keyed bucket) and its API path segment (`/api/hotspots/{locId}`) —
 no separate ID translation anywhere.
@@ -395,15 +393,79 @@ keeps whatever's on screen from being dominated by GBIF's noise without a
 second network round-trip — everything it filters is already in
 `state.hotspotsFull` from the one `/api/hotspots` call.
 
-## Quiz mechanics
+## Learn mode and species images
 
-A 5-box Leitner spaced-repetition system over eBird species codes
-(`server/quiz.go`). Card identity is the species code; progress is global
-per account, not scoped to a hotspot (`userstore.go`'s `card_progress`
-table). Box → next-due interval: `[0, 0, 1, 3, 7, 21]` days — box 1 is due
-next session, box 5 is "mastered". A session mixes due cards with new ones,
-ordering new cards by the hotspot's popularity data so a quiz favors
-commonly-seen species first.
+Learn is a full-screen, swipeable deck of a hotspot's species — pure
+browsing, no scoring or spaced repetition. The frontend fetches
+`GET /api/hotspots/{locId}/species?mode=popularity` (the same endpoint and
+ordering Browse's popularity mode uses) and drives its own card, dot-index,
+and drag/press/arrow-key navigation client-side (`static/app.js`'s `learn`
+object) — there's no separate session endpoint or server-side state for it.
+
+Each card shows up to `maxImagesPerSpecies` (4) images, sourced from two
+upstreams and cached to disk: Wikimedia Commons first (`server/wikimedia.go`
+— the Wikipedia infobox photo, then other Commons category files, filtered
+to redistributable licenses and non-map/illustration filenames), topped up
+from iNaturalist (`server/inaturalist.go`) when Commons doesn't supply
+enough — research-grade observations, community-vote-ordered, filtered to
+the same license set, one photo per observation so a single photographer's
+observation can't crowd out a species' image set. `images.go`'s
+`ResolveImages` orchestrates the two; `cache.go` downloads, resizes
+(`imageresize.go`, capped to `maxImageWidth`/1600px regardless of source),
+and caches the results under `server/cache/<bucket>/`, sharded into
+`cacheBucketCount` (256) hash-based subdirectories so one directory never
+has to hold every species' files directly.
+
+**Fetching is two-tier**, so a live request is never stuck behind a whole
+species' worth of image fetching. A Browse/Learn request for a hotspot's
+species list (`handleHotspotSpecies`) calls `EnsureFetchedAsync` per
+species, which dispatches into one of two independent background queues
+rather than blocking the request:
+- **First image** (`imageFetchConcurrency`, 8 concurrent): a species with no
+  cached image yet gets just its first one fetched here — cheap, one source
+  lookup and one download, so a hotspot full of never-seen species starts
+  showing *something* for every card as fast as possible.
+- **Top-up** (`topUpConcurrency`, 3 concurrent, its own semaphore): once a
+  species has its first image, it's handed to this smaller, lower-priority
+  queue to fetch the rest (up to `maxImagesPerSpecies`) — several source
+  lookups and downloads, deliberately not competing with other species'
+  first-image fetches for the same 8 hot-path slots. A `.topped` marker
+  records that a species' top-up was attempted (whether or not it reached
+  the full count), so a species that naturally has fewer than
+  `maxImagesPerSpecies` available isn't re-queued on every later request.
+
+`EnsureFetched` (no `Async`) is the synchronous version of the same two
+steps, for offline batch tools (`warmcache`, `migrateimages`) that want a
+species fully resolved before moving to the next one rather than firing
+into the background.
+
+An existing cache built before per-species multi-image support (one image
+directly under `server/cache/`, no buckets) is upgraded automatically, every
+time the server starts (`migrateOldCacheLayout` in `server/migrateimages.go`,
+called from `main()` right after the cache opens, before the server starts
+listening): each already-downloaded image is moved into its bucket — a
+rename, no re-fetching, no network call at all — leaving that species
+exactly as if it had just gotten its first image live, so the existing
+background top-up queue picks up the rest once it's actually viewed. This is
+pure local disk I/O, so it finishes in well under a second even for
+hundreds of species — the deployment's own readiness probe is the only
+"maintenance window" this needs; nothing else has to wait for it. Idempotent
+and silent once there's nothing old-format left: a species whose bucket
+already has its first image is left alone (its now-redundant old flat file
+is just removed), and a cache with no old-format entries at all returns
+immediately without logging anything.
+
+Every rename/removal is logged twice — via the normal logger (`kubectl
+logs` etc.) and appended to `<CACHE_DIR>/migration.log`, timestamped — so a
+migration stays auditable, and reversible by hand, even after pod logs have
+rotated away or the pod that ran it is gone.
+
+`go run . migrateimages` is the same logic run as a one-off CLI mode,
+for when you'd rather eagerly top every migrated species up toward
+`maxImagesPerSpecies` from both sources right away (including species that
+used to carry a permanent "no image found" marker from the Wikimedia-only
+era, since iNaturalist may now find something) instead of waiting for
+organic traffic to view them.
 
 ## Accounts & persistence
 
@@ -411,9 +473,7 @@ commonly-seen species first.
 and idempotently: it creates any missing tables and adds missing columns
 via `ALTER TABLE`, without touching existing rows — so a database whose
 `user_preferences` predates a later column (e.g. `secondary_language`)
-repairs itself on the next startup, no migration step needed. Resolved
-taxonomy (`species_taxonomy`) is persisted too, so the mastered view never
-needs a network call.
+repairs itself on the next startup, no migration step needed.
 
 ## Deployment
 

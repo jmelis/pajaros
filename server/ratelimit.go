@@ -9,8 +9,8 @@ import (
 )
 
 // birdquizUA identifies this project (and gives a contact point) to
-// Wikimedia — the only upstream API the deployed server still talks to;
-// eBird and GBIF are both build-time-only now (see
+// Wikimedia and iNaturalist — the only upstream APIs the deployed server
+// still talks to; eBird and GBIF are both build-time-only now (see
 // ARCHITECTURE.md and cmd/gensnapshot).
 const birdquizUA = "birdquiz/0.1 (+https://github.com/jmelis/pajaros; contact: j.melis@gmail.com)"
 
@@ -25,6 +25,13 @@ const birdquizUA = "birdquiz/0.1 (+https://github.com/jmelis/pajaros; contact: j
 // favors live traffic; set WIKIMEDIA_RPS low (e.g. 1) for a deliberate,
 // hours-long bulk run instead.
 var wikimediaLimiter = newRateLimiter(rpsFromEnv("WIKIMEDIA_RPS", 8))
+
+// inaturalistLimiter is wikimediaLimiter's sibling for api.inaturalist.org —
+// the fallback image source used to top up a species up to
+// maxImagesPerSpecies when Wikimedia Commons doesn't have enough on its own
+// (see images.go). iNaturalist's API guidance asks for a modest, steady
+// rate rather than bursts, so this defaults lower than Wikimedia's.
+var inaturalistLimiter = newRateLimiter(rpsFromEnv("INATURALIST_RPS", 1))
 
 func rpsFromEnv(envVar string, def float64) float64 {
 	if v := os.Getenv(envVar); v != "" {

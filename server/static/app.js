@@ -1,14 +1,14 @@
 "use strict";
 
-// birdquiz server app. A hash-routed single page with five views: home, search,
-// hotspot, mastered and settings. Hash routing survives a reload and is
+// birdquiz server app. A hash-routed single page with four views: home,
+// search, hotspot and settings. Hash routing survives a reload and is
 // linkable without server rewrites. All user-visible text comes from
 // i18n.json; this file holds translation keys, never literals.
 
 const $ = (id) => document.getElementById(id);
 const VALID_LANGS = ["cs", "de", "en", "eo", "es", "fi", "fr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
 const BROWSE_MODES = ["popularity", "category", "alphabetical"];
-const VIEW_NAMES = ["home", "search", "hotspot", "mastered", "settings"];
+const VIEW_NAMES = ["home", "search", "hotspot", "settings"];
 
 // ---- Account / UI state ---------------------------------------------------
 
@@ -19,8 +19,8 @@ const state = {
   email: "",
   // speciesCode -> name in the secondary language, for the current hotspot.
   secondaryNames: {},
-  // The current hotspot's species in the primary language, used to build
-  // multiple-choice options when a recall card is requeued after a wrong answer.
+  // The current hotspot's species in the primary language (Browse's current
+  // sort order).
   species: [],
   // { locId, locName, lat, lng } — the hotspot the hotspot view is showing.
   hotspot: null,
@@ -181,19 +181,13 @@ async function renderRoute() {
   if (route.name === "home") await renderHome();
   else if (route.name === "search") showSearch();
   else if (route.name === "hotspot") await openHotspot(route.locId);
-  else if (route.name === "mastered") await renderMastered();
   else if (route.name === "settings") await renderSettings();
 }
 
 async function onHashChange() {
   const next = parseRoute();
-  if (quiz.active && !(next.name === "hotspot" && next.locId === quiz.locId)) {
-    if (!confirm(t("quiz.leave"))) {
-      // Restore the hotspot URL without firing another hashchange.
-      history.replaceState(null, "", "#/hotspot/" + encodeURIComponent(quiz.locId));
-      return;
-    }
-    quiz.finish();
+  if (learn.active && !(next.name === "hotspot" && next.locId === learn.locId)) {
+    learn.finish();
   }
   await renderRoute();
 }
@@ -218,39 +212,6 @@ async function initAccount() {
 }
 
 // ---- Home -----------------------------------------------------------------
-
-// renderProgress is Settings' stat-pill row (#settingsStats) — Home has its
-// own hero treatment (renderHeroStats, below) with different markup, kept
-// separate specifically so this one stays untouched.
-function renderProgress(el, st) {
-  const mastered = st.speciesMastered || 0;
-  const learning = st.speciesLearning || 0;
-  const due = st.dueForReview || 0;
-  el.innerHTML =
-    `<span class="stat"><strong>${mastered}</strong> ${tn("stats.mastered", mastered)}</span>` +
-    `<span class="stat"><strong>${learning}</strong> ${tn("stats.learning", learning)}</span>` +
-    `<span class="stat"><strong>${due}</strong> ${tn("stats.due", due)}</span>`;
-}
-
-// renderHeroStats fills Home's hero: a one-line headline plus three plain
-// number+label stats (due/learning/mastered) — deliberately not the
-// colored-chip-per-stat treatment Settings uses, so the one number that
-// should draw the eye (due for review) can actually stand out via color
-// instead of competing with two other equally-loud chips.
-function renderHeroStats(el, st) {
-  const mastered = st.speciesMastered || 0;
-  const learning = st.speciesLearning || 0;
-  const due = st.dueForReview || 0;
-  $("homeHeadline").textContent =
-    due > 0 ? tn("home.headline.due", due)
-    : learning > 0 ? t("home.headline.learning")
-    : mastered > 0 ? t("home.headline.mastered")
-    : t("home.headline.default");
-  el.innerHTML =
-    `<div class="stat"><span class="n${due > 0 ? " accent" : ""}">${due}</span><span class="label">${tn("stats.due", due)}</span></div>` +
-    `<div class="stat"><span class="n">${learning}</span><span class="label">${tn("stats.learning", learning)}</span></div>` +
-    `<div class="stat"><span class="n">${mastered}</span><span class="label">${tn("stats.mastered", mastered)}</span></div>`;
-}
 
 // homeEditing toggles whether homeFavorites renders remove controls (iOS
 // Reminders/Notes-style "Edit" mode) instead of a permanent remove button
@@ -301,33 +262,27 @@ function renderHomeFavorites() {
 
 async function renderHome() {
   homeEditing = false;
-  let profile, stats;
+  let profile;
   try {
-    const [pRes, stRes] = await Promise.all([fetch("/api/me"), fetch("/api/me/progress")]);
-    if (!pRes.ok || !stRes.ok) throw new Error("load");
-    profile = await pRes.json();
-    stats = await stRes.json();
+    const res = await fetch("/api/me");
+    if (!res.ok) throw new Error("load");
+    profile = await res.json();
   } catch (e) {
     $("homeFirstRun").hidden = true;
     $("homeHotspotsPanel").hidden = false;
-    $("homeProgressPanel").hidden = false;
+    $("homeGreetingPanel").hidden = false;
     $("homeFavorites").innerHTML = "";
     $("homeNoFavorites").hidden = true;
-    $("homeHeadline").textContent = t("home.loadFailed");
-    $("homeProgress").innerHTML = "";
     return;
   }
 
   syncProfile(profile);
-  const hasFavorites = state.favorites.length > 0;
-  const hasProgress = (stats.speciesMastered || 0) + (stats.speciesLearning || 0) > 0;
-  const firstRun = !hasFavorites && !hasProgress;
+  const firstRun = state.favorites.length === 0;
 
   $("homeFirstRun").hidden = !firstRun;
   $("homeHotspotsPanel").hidden = firstRun;
-  $("homeProgressPanel").hidden = firstRun;
+  $("homeGreetingPanel").hidden = firstRun;
   renderHomeFavorites();
-  renderHeroStats($("homeProgress"), stats);
 }
 
 // ---- Search ---------------------------------------------------------------
@@ -648,9 +603,9 @@ function currentHotspotMode() {
 }
 
 function applyHotspotMode() {
-  const quizMode = currentHotspotMode() === "quiz";
-  $("browseControls").hidden = quizMode;
-  $("quizControls").hidden = !quizMode;
+  const learnMode = currentHotspotMode() === "learn";
+  $("browseControls").hidden = learnMode;
+  $("learnControls").hidden = !learnMode;
 }
 
 function updateBookmarkButton() {
@@ -789,71 +744,6 @@ async function loadSpecies() {
   setHotspotStatus(tn("browse.loadedCategory", species.length, { name: hs.locName }));
 }
 
-// ---- Mastered -------------------------------------------------------------
-
-function masteredCard(b) {
-  const card = document.createElement("a");
-  card.className = "card";
-  card.href = `https://ebird.org/species/${encodeURIComponent(b.speciesCode)}`;
-  card.target = "_blank";
-  card.rel = "noopener noreferrer";
-
-  const img = document.createElement("img");
-  img.alt = b.comName;
-  img.src = b.imageMissing ? MISSING_URL : PLACEHOLDER_URL;
-  card.appendChild(img);
-
-  const body = document.createElement("div");
-  body.className = "card-body";
-  const com = document.createElement("div");
-  com.className = "com";
-  com.textContent = b.comName;
-  body.appendChild(com);
-  if (b.secondaryName) {
-    const sub = document.createElement("div");
-    sub.className = "sub";
-    sub.textContent = b.secondaryName;
-    body.appendChild(sub);
-  }
-  if (b.sciName) {
-    const sci = document.createElement("div");
-    sci.className = "sci";
-    sci.textContent = b.sciName;
-    body.appendChild(sci);
-  }
-  const stats = document.createElement("div");
-  stats.className = "mastered-stats";
-  for (const text of [t("mastered.box", { box: b.box }), tn("mastered.seen", b.seenCount), tn("mastered.correct", b.correctCount)]) {
-    const span = document.createElement("span");
-    span.textContent = text;
-    stats.appendChild(span);
-  }
-  body.appendChild(stats);
-  card.appendChild(body);
-
-  if (b.imageUrl && !b.imageMissing) preloadAndSwap(img, b.imageUrl);
-  return card;
-}
-
-async function renderMastered() {
-  $("masteredGrid").innerHTML = "";
-  $("masteredEmpty").hidden = true;
-  $("masteredStatus").textContent = t("mastered.loading");
-
-  let birds;
-  try {
-    const res = await fetch(`/api/me/mastered?lang=${encodeURIComponent(state.language)}`);
-    if (!res.ok) { $("masteredStatus").textContent = t("mastered.error"); return; }
-    birds = await res.json();
-  } catch (e) {
-    $("masteredStatus").textContent = t("mastered.error");
-    return;
-  }
-  $("masteredStatus").textContent = "";
-  if (!birds || birds.length === 0) { $("masteredEmpty").hidden = false; return; }
-  for (const b of birds) $("masteredGrid").appendChild(masteredCard(b));
-}
-
 // ---- Settings -------------------------------------------------------------
 
 function buildLanguageSelects() {
@@ -886,10 +776,8 @@ async function renderSettings() {
   $("settingsHint").hidden = true;
   buildLanguageSelects();
   try {
-    const [pRes, stRes] = await Promise.all([fetch("/api/me"), fetch("/api/me/progress")]);
-    if (pRes.ok) syncProfile(await pRes.json());
-    if (stRes.ok) renderProgress($("settingsStats"), await stRes.json());
-    else $("settingsStats").innerHTML = "";
+    const res = await fetch("/api/me");
+    if (res.ok) syncProfile(await res.json());
   } catch (e) {
     showSettingsHint(t("settings.loadError"));
   }
@@ -913,7 +801,6 @@ async function onPrimaryLanguageChange() {
   applyI18n();
   buildLanguageSelects();
   if (currentRoute.name === "home") await renderHome();
-  else if (currentRoute.name === "mastered") await renderMastered();
   else if (currentRoute.name === "hotspot") await loadSpecies();
   else if (currentRoute.name === "settings") await renderSettings();
 }
@@ -935,18 +822,6 @@ async function onSecondaryLanguageChange() {
   if (currentRoute.name === "hotspot") await loadSpecies();
 }
 
-async function onResetProgress() {
-  if (!confirm(t("settings.confirmReset"))) return;
-  try {
-    const res = await fetch("/api/me/progress", { method: "DELETE" });
-    if (!res.ok) throw new Error(String(res.status));
-  } catch (e) {
-    showSettingsHint(t("settings.errorReset"));
-    return;
-  }
-  await renderSettings();
-}
-
 async function onLogout() {
   try {
     await fetch("/auth/logout", { method: "POST" });
@@ -956,263 +831,272 @@ async function onLogout() {
   window.location = "/login";
 }
 
-// ---- Quiz -----------------------------------------------------------------
+// ---- Learn ------------------------------------------------------------
 
-// multipleChoiceChoices builds a multiple-choice option set for a card being
-// re-presented after a wrong answer reset it to box 1. Recall items carry no
-// server-built choices, so distractors are drawn from the current hotspot's
-// species (the same "any other species here" source the server falls back to).
-function multipleChoiceChoices(item) {
-  const choices = [{ speciesCode: item.speciesCode, comName: item.comName }];
-  const seen = new Set([item.speciesCode]);
-  for (const sp of state.species) {
-    if (seen.has(sp.speciesCode)) continue;
-    seen.add(sp.speciesCode);
-    choices.push({ speciesCode: sp.speciesCode, comName: sp.comName });
-    if (choices.length === 4) break;
-  }
-  for (let i = choices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [choices[i], choices[j]] = [choices[j], choices[i]];
-  }
-  return choices;
+// A Learn card's image slides: index 0 shares imageMissing's "the server
+// already confirmed this" signal with Browse's cards (see preloadAndSwap),
+// so it gets the same generous retry budget. A secondary slide (1-3) has no
+// such signal — the species may simply not have that many images cached —
+// so it gives up much sooner and is dropped from rotation instead of
+// polling a URL that may never 200.
+const LEARN_PRIMARY_RETRIES = 40;
+const LEARN_SECONDARY_RETRIES = 5;
+const LEARN_RETRY_MS = 3000;
+const LEARN_ROTATE_MS = 4000;
+const LEARN_DRAG_THRESHOLD = 80;
+
+function learnLoadSlide(imgEl, url, maxAttempts, onGiveUp, attempt = 0) {
+  const probe = new Image();
+  probe.onload = () => { imgEl.src = url; imgEl.dataset.loaded = "1"; };
+  probe.onerror = () => {
+    if (attempt < maxAttempts) setTimeout(() => learnLoadSlide(imgEl, url, maxAttempts, onGiveUp, attempt + 1), LEARN_RETRY_MS);
+    else if (onGiveUp) onGiveUp();
+  };
+  probe.src = url;
 }
 
-// requeuedItem returns a copy of item whose question type matches box, the
-// card's box *after* the answer: box 2+ is recall, boxes 0-1 are multiple
-// choice. A card reset to box 1 keeps its existing choices when it has them
-// and otherwise gets a fresh set.
-function requeuedItem(item, box) {
-  const next = Object.assign({}, item);
-  next.questionType = box >= 2 ? "recall" : "multipleChoice";
-  if (next.questionType === "recall") {
-    delete next.choices;
-  } else if (!next.choices || next.choices.length < 2) {
-    next.choices = multipleChoiceChoices(item);
-  } else {
-    // Object.assign is a shallow copy — next.choices is still item's own
-    // array here, not a clone. Requeuing must not leave two queue entries
-    // sharing one mutable choices array.
-    next.choices = next.choices.slice();
-  }
-  return next;
-}
-
-const quiz = {
+// learn drives the full-screen card deck: cards is the hotspot's species in
+// popularity order (see startLearn), and index just moves through it — no
+// scoring, no server round-trip per card. namesVisible is a per-session
+// display toggle, not account data, so it isn't persisted anywhere.
+const learn = {
   active: false,
   locId: "",
-  queue: [],
+  cards: [],
   index: 0,
-  answered: 0,
-  correct: 0,
-  // Handle for the delayed re-render answer() schedules after a
-  // multiple-choice question, so start()/finish() can cancel it — an
-  // uncancelled timer firing after the quiz has moved on (closed and
-  // reopened, or otherwise reset) would repaint whatever question happens
-  // to be current at that later moment instead of the one it was for.
-  renderTimer: null,
+  done: false,
+  namesVisible: true,
+  rotateTimer: null,
+  keyHandler: null,
 
-  start(items, locId) {
-    clearTimeout(this.renderTimer);
-    this.renderTimer = null;
-    this.queue = items.slice();
+  start(cards, locId) {
+    this.cards = cards.slice();
     this.locId = locId;
     this.index = 0;
-    this.answered = 0;
-    this.correct = 0;
+    this.done = false;
     this.active = true;
-    $("quizOverlay").hidden = false;
+    $("learnOverlay").hidden = false;
+    this.keyHandler = (e) => this.onKeyDown(e);
+    document.addEventListener("keydown", this.keyHandler);
     this.render();
   },
 
   finish() {
-    clearTimeout(this.renderTimer);
-    this.renderTimer = null;
+    clearInterval(this.rotateTimer);
+    this.rotateTimer = null;
     this.active = false;
-    $("quizOverlay").hidden = true;
+    $("learnOverlay").hidden = true;
+    if (this.keyHandler) document.removeEventListener("keydown", this.keyHandler);
+    this.keyHandler = null;
+  },
+
+  onKeyDown(e) {
+    if (e.key === "ArrowRight") this.go(1);
+    else if (e.key === "ArrowLeft") this.go(-1);
+    else if (e.key === "Escape") this.finish();
+  },
+
+  // go advances (delta > 0) or goes back (delta < 0) one card. Past either
+  // end of the deck it's a no-op (a small bounce on the last card) rather
+  // than wrapping — closing is always one tap away via the top bar.
+  go(delta) {
+    if (this.done) {
+      if (delta < 0) { this.done = false; this.render(); }
+      return;
+    }
+    const next = this.index + delta;
+    if (next < 0) { this.bounce(); return; }
+    if (next >= this.cards.length) { this.done = true; this.render(); return; }
+    this.index = next;
+    this.render();
+  },
+
+  bounce() {
+    const card = $("learnBody").querySelector(".learn-card");
+    if (!card) return;
+    card.classList.remove("learn-bounce");
+    void card.offsetWidth; // restart the animation on repeated presses
+    card.classList.add("learn-bounce");
+  },
+
+  toggleNames() {
+    this.namesVisible = !this.namesVisible;
+    const names = $("learnBody").querySelector(".learn-names");
+    if (names) names.hidden = !this.namesVisible;
+    const btn = $("learnToggleNames");
+    btn.setAttribute("aria-pressed", String(this.namesVisible));
+    btn.setAttribute("aria-label", t(this.namesVisible ? "learn.hideNames" : "learn.showNames"));
   },
 
   render() {
-    const body = $("quizBody");
+    clearInterval(this.rotateTimer);
+    this.rotateTimer = null;
+    const body = $("learnBody");
     body.innerHTML = "";
-    if (this.index >= this.queue.length) { this.renderSummary(); return; }
-    const item = this.queue[this.index];
 
-    $("quizProgress").textContent = t("quiz.question", { i: this.index + 1, n: this.queue.length });
-
-    const img = document.createElement("img");
-    img.className = "quiz-image";
-    img.alt = "";
-    img.src = item.imageMissing ? MISSING_URL : PLACEHOLDER_URL;
-    body.appendChild(img);
-    if (item.imageUrl && !item.imageMissing) preloadAndSwap(img, item.imageUrl);
-
-    if (item.questionType === "multipleChoice") {
-      const prompt = document.createElement("p");
-      prompt.className = "quiz-prompt";
-      prompt.textContent = t("quiz.which");
-      body.appendChild(prompt);
-      const choices = document.createElement("div");
-      choices.className = "quiz-choices";
-      for (const c of item.choices || []) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "btn btn-secondary quiz-choice";
-        btn.textContent = c.comName;
-        btn.dataset.speciesCode = c.speciesCode;
-        btn.addEventListener("click", () => this.answer(item, c.speciesCode === item.speciesCode, btn));
-        choices.appendChild(btn);
-      }
-      body.appendChild(choices);
+    if (this.done) {
+      $("learnProgress").textContent = "";
+      const wrap = document.createElement("div");
+      wrap.className = "learn-done";
+      const heading = document.createElement("p");
+      heading.textContent = t("learn.done");
+      const close = document.createElement("button");
+      close.type = "button";
+      close.className = "btn btn-primary";
+      close.textContent = t("learn.close");
+      close.addEventListener("click", () => this.finish());
+      wrap.append(heading, close);
+      body.appendChild(wrap);
       return;
     }
 
-    // Recall: photo only, then reveal, then self-grade.
-    const showBtn = document.createElement("button");
-    showBtn.type = "button";
-    showBtn.className = "btn btn-primary quiz-show";
-    showBtn.textContent = t("quiz.show");
+    const item = this.cards[this.index];
+    $("learnProgress").textContent = t("learn.progress", { i: this.index + 1, n: this.cards.length });
 
-    const reveal = document.createElement("div");
-    reveal.className = "quiz-reveal";
-    reveal.hidden = true;
-    reveal.innerHTML =
-      `<div class="quiz-reveal-name">${escapeHtml(item.comName)}</div>` +
-      (secondaryNameFor(item.speciesCode) ? `<div class="quiz-reveal-sub">${escapeHtml(secondaryNameFor(item.speciesCode))}</div>` : "") +
-      (item.sciName ? `<div class="quiz-reveal-sci">${escapeHtml(item.sciName)}</div>` : "");
+    const card = document.createElement("div");
+    card.className = "learn-card";
 
-    const grade = document.createElement("div");
-    grade.className = "quiz-grade";
-    grade.hidden = true;
-    const rightBtn = document.createElement("button");
-    rightBtn.type = "button";
-    rightBtn.className = "btn btn-primary";
-    rightBtn.textContent = t("quiz.right");
-    rightBtn.addEventListener("click", () => this.answer(item, true));
-    const wrongBtn = document.createElement("button");
-    wrongBtn.type = "button";
-    wrongBtn.className = "btn btn-secondary";
-    wrongBtn.textContent = t("quiz.wrong");
-    wrongBtn.addEventListener("click", () => this.answer(item, false));
-    grade.append(rightBtn, wrongBtn);
-
-    showBtn.addEventListener("click", () => {
-      reveal.hidden = false;
-      showBtn.hidden = true;
-      grade.hidden = false;
-    });
-
-    body.append(showBtn, reveal, grade);
-  },
-
-  async answer(item, correct, chosenBtn) {
-    const buttons = $("quizBody").querySelectorAll("button");
-    for (const b of buttons) b.disabled = true;
-
-    // Multiple choice needs an explicit right/wrong reveal: mark the correct
-    // option green always, and the tapped option red when it was the wrong
-    // one, so a mistake is visible instead of silently moving on.
-    if (item.questionType === "multipleChoice") {
-      for (const b of buttons) {
-        if (b.dataset.speciesCode === item.speciesCode) b.classList.add("quiz-choice-correct");
-        else if (b === chosenBtn) b.classList.add("quiz-choice-incorrect");
-      }
-    }
-
-    let answer = null;
-    try {
-      const res = await fetch(`/api/me/progress/${encodeURIComponent(item.speciesCode)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correct }),
+    const slidesWrap = document.createElement("div");
+    slidesWrap.className = "learn-slides";
+    const urls = item.imageMissing ? [] : (item.imageUrls && item.imageUrls.length ? item.imageUrls : (item.imageUrl ? [item.imageUrl] : []));
+    const slides = [];
+    if (urls.length === 0) {
+      const img = document.createElement("img");
+      img.className = "learn-image";
+      img.alt = "";
+      img.src = item.imageMissing ? MISSING_URL : PLACEHOLDER_URL;
+      slidesWrap.appendChild(img);
+    } else {
+      urls.forEach((url, i) => {
+        const img = document.createElement("img");
+        img.className = "learn-image" + (i === 0 ? " learn-image-active" : "");
+        img.alt = "";
+        img.src = PLACEHOLDER_URL;
+        slidesWrap.appendChild(img);
+        slides.push(img);
+        learnLoadSlide(img, url, i === 0 ? LEARN_PRIMARY_RETRIES : LEARN_SECONDARY_RETRIES, () => { img.dataset.gaveUp = "1"; });
       });
-      if (res.ok) answer = await res.json();
-    } catch (e) {
-      // A scoring failure shouldn't strand the quiz; keep going.
+    }
+    card.appendChild(slidesWrap);
+
+    const dots = document.createElement("div");
+    if (slides.length > 1) {
+      dots.className = "learn-dots";
+      slides.forEach((_, i) => {
+        const dot = document.createElement("span");
+        dot.className = "learn-dot" + (i === 0 ? " active" : "");
+        dots.appendChild(dot);
+      });
+      card.appendChild(dots);
     }
 
-    this.answered++;
-    if (correct) {
-      this.correct++;
-    } else {
-      // Reinsert a handful of questions later instead of right after itself,
-      // as a fresh item whose format matches the card's reset (box 1) state.
-      // A failed answer call leaves the box unknown; a wrong answer resets to
-      // box 1 regardless, so fall back to that.
-      const requeued = requeuedItem(item, answer ? answer.box : 1);
-      const pos = this.index + 4;
-      if (pos >= this.queue.length) this.queue.push(requeued);
-      else this.queue.splice(pos, 0, requeued);
-    }
-    this.index++;
-    // Multiple choice just colored the buttons above; give that a moment to
-    // register before it's replaced by the next question. Recall already
-    // showed its reveal before the self-grade tap, so it can advance at once.
-    if (item.questionType === "multipleChoice") {
-      clearTimeout(this.renderTimer);
-      this.renderTimer = setTimeout(() => { this.renderTimer = null; this.render(); }, 1100);
-    } else {
-      this.render();
+    const names = document.createElement("div");
+    names.className = "learn-names";
+    names.hidden = !this.namesVisible;
+    names.innerHTML =
+      `<div class="learn-com">${escapeHtml(item.comName)}</div>` +
+      (secondaryNameFor(item.speciesCode) ? `<div class="learn-sub">${escapeHtml(secondaryNameFor(item.speciesCode))}</div>` : "") +
+      (item.sciName ? `<div class="learn-sci">${escapeHtml(item.sciName)}</div>` : "");
+    card.appendChild(names);
+
+    const prevBtn = document.createElement("button");
+    prevBtn.type = "button";
+    prevBtn.className = "learn-chevron learn-chevron-left";
+    prevBtn.setAttribute("aria-label", t("learn.previous"));
+    prevBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>`;
+    prevBtn.addEventListener("click", () => this.go(-1));
+    card.appendChild(prevBtn);
+
+    const nextBtn = document.createElement("button");
+    nextBtn.type = "button";
+    nextBtn.className = "learn-chevron learn-chevron-right";
+    nextBtn.setAttribute("aria-label", t("learn.next"));
+    nextBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>`;
+    nextBtn.addEventListener("click", () => this.go(1));
+    card.appendChild(nextBtn);
+
+    body.appendChild(card);
+    this.wireDrag(card);
+
+    // Auto-crossfade a multi-image card's own slides — deliberately not
+    // swipe-controlled, so the one horizontal drag gesture stays
+    // unambiguous ("advance/go back through the deck").
+    if (slides.length > 1) {
+      let shown = 0;
+      this.rotateTimer = setInterval(() => {
+        const usable = slides.filter((s) => s.dataset.loaded === "1" && s.dataset.gaveUp !== "1");
+        if (usable.length < 2) return;
+        let next = shown;
+        do {
+          next = (next + 1) % slides.length;
+        } while (slides[next].dataset.loaded !== "1" || slides[next].dataset.gaveUp === "1");
+        slides[shown].classList.remove("learn-image-active");
+        slides[next].classList.add("learn-image-active");
+        dots.children[shown].classList.remove("active");
+        dots.children[next].classList.add("active");
+        shown = next;
+      }, LEARN_ROTATE_MS);
     }
   },
 
-  renderSummary() {
-    $("quizProgress").textContent = t("quiz.complete");
-    const body = $("quizBody");
-    body.innerHTML = "";
-    const pct = this.answered ? Math.round((this.correct / this.answered) * 100) : 0;
+  // wireDrag lets the card be dragged left/right with the pointer, snapping
+  // back short of LEARN_DRAG_THRESHOLD or flying off-screen and advancing/
+  // going back past it — dragging left advances (matching the common
+  // swipe-left-for-next photo-gallery convention), dragging right goes back.
+  wireDrag(card) {
+    let startX = 0, dx = 0, dragging = false;
 
-    const wrap = document.createElement("div");
-    wrap.className = "quiz-summary";
+    const onDown = (e) => {
+      if (e.target.closest(".learn-chevron")) return;
+      dragging = true;
+      startX = e.clientX;
+      card.setPointerCapture(e.pointerId);
+    };
+    const onMove = (e) => {
+      if (!dragging) return;
+      dx = e.clientX - startX;
+      card.style.transform = `translateX(${dx}px) rotate(${dx / 20}deg)`;
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      card.style.transition = "transform .2s ease";
+      if (Math.abs(dx) > LEARN_DRAG_THRESHOLD) {
+        const delta = dx < 0 ? 1 : -1;
+        card.style.transform = `translateX(${dx < 0 ? "-120%" : "120%"}) rotate(${dx / 20}deg)`;
+        setTimeout(() => this.go(delta), 180);
+      } else {
+        card.style.transform = "";
+      }
+      dx = 0;
+    };
 
-    const heading = document.createElement("h2");
-    heading.textContent = t("quiz.complete");
-
-    const score = document.createElement("p");
-    score.className = "quiz-score";
-    score.textContent = t("quiz.score", { correct: this.correct, answered: this.answered, pct });
-
-    wrap.appendChild(heading);
-    wrap.appendChild(score);
-
-    const actions = document.createElement("div");
-    actions.className = "actions";
-    const again = document.createElement("button");
-    again.type = "button";
-    again.className = "btn btn-primary";
-    again.textContent = t("quiz.again");
-    again.addEventListener("click", () => startQuiz());
-    const done = document.createElement("button");
-    done.type = "button";
-    done.className = "btn btn-secondary";
-    done.textContent = t("quiz.done");
-    done.addEventListener("click", () => quiz.finish());
-    actions.append(again, done);
-
-    wrap.appendChild(actions);
-    body.appendChild(wrap);
+    card.addEventListener("pointerdown", onDown);
+    card.addEventListener("pointermove", onMove);
+    card.addEventListener("pointerup", onUp);
+    card.addEventListener("pointercancel", onUp);
   },
 };
 
-async function startQuiz() {
+async function startLearn() {
   if (!state.hotspot) return;
-  const count = $("quizCount").value;
-  setHotspotStatus(t("quiz.building"));
-  let session;
+  setHotspotStatus(t("learn.building"));
+  let species;
   try {
-    const res = await fetch(`/api/hotspots/${encodeURIComponent(state.hotspot.locId)}/quiz?count=${encodeURIComponent(count)}&lang=${encodeURIComponent(state.language)}`);
-    if (!res.ok) { setHotspotStatus(t("quiz.error", { status: res.status })); return; }
-    session = await res.json();
+    const res = await fetch(`/api/hotspots/${encodeURIComponent(state.hotspot.locId)}/species?lang=${encodeURIComponent(state.language)}&mode=popularity`);
+    if (!res.ok) { setHotspotStatus(t("learn.error", { status: res.status })); return; }
+    species = await res.json();
   } catch (e) {
-    setHotspotStatus(t("quiz.error", { status: "?" }));
+    setHotspotStatus(t("learn.error", { status: "?" }));
     return;
   }
-  if (!session.items || session.items.length === 0) {
-    setHotspotStatus(t("quiz.none"));
+  if (!species || species.length === 0) {
+    setHotspotStatus(t("learn.none"));
     return;
   }
+  await loadSecondaryNames(state.hotspot.locId);
   setHotspotStatus("");
-  quiz.start(session.items, state.hotspot.locId);
+  learn.start(species, state.hotspot.locId);
 }
 
 // ---- Wiring ---------------------------------------------------------------
@@ -1270,12 +1154,12 @@ function wireEvents() {
     radio.addEventListener("change", applyHotspotMode);
   }
 
-  $("quizStart").addEventListener("click", startQuiz);
-  $("quizClose").addEventListener("click", () => quiz.finish());
+  $("learnStart").addEventListener("click", startLearn);
+  $("learnClose").addEventListener("click", () => learn.finish());
+  $("learnToggleNames").addEventListener("click", () => learn.toggleNames());
 
   $("primaryLang").addEventListener("change", onPrimaryLanguageChange);
   $("secondaryLang").addEventListener("change", onSecondaryLanguageChange);
-  $("resetProgress").addEventListener("click", onResetProgress);
   $("logoutBtn").addEventListener("click", onLogout);
 }
 

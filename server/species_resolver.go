@@ -6,16 +6,15 @@ import "fmt"
 // taxonomic order, plus their taxonomy and (separately) their popularity —
 // all from the offline GBIF-derived bbolt data (see ARCHITECTURE.md), no
 // live eBird or GBIF call involved. It's an interface (rather than a
-// concrete *SpeciesResolver field on Server) purely for testability:
-// quiz/progress tests want to hand the server a fixed set of made-up
-// species codes without going through real hotspot/bbolt/taxonomy data at
-// all.
+// concrete *SpeciesResolver field on Server) purely for testability: tests
+// want to hand the server a fixed set of made-up species codes without
+// going through real hotspot/bbolt/taxonomy data at all.
 type hotspotSpeciesSource interface {
 	Species(locID, lang string) (codes []string, taxa map[string]Taxon, err error)
 	// PopularityCounts returns each species' observation count at a
 	// hotspot, keyed by scientific name (matching how callers already look
-	// species up elsewhere — see main.go's "popularity" mode and quiz.go's
-	// orderedQuizPool).
+	// species up elsewhere — see main.go's "popularity" mode, also what
+	// Learn's card deck orders by).
 	PopularityCounts(locID string) (map[string]int, error)
 }
 

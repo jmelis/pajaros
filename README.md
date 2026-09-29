@@ -1,9 +1,9 @@
 # birdquiz
 
-A family bird-quiz web app: search hotspots worldwide, browse the species
-seen at one, quiz yourself with spaced repetition. Go server, SQLite for
-accounts, offline GBIF-derived data for hotspots/species. See
-`ARCHITECTURE.md` for how it's built.
+A family bird-learning web app: search hotspots worldwide, browse the
+species seen at one, learn them in a full-screen swipeable card deck. Go
+server, SQLite for accounts, offline GBIF-derived data for
+hotspots/species. See `ARCHITECTURE.md` for how it's built.
 
 ## Run locally
 
@@ -23,6 +23,29 @@ services required. Full env var list is documented at the top of
 make image-push   # build + push the container image
 make deploy        # ...and point the GitOps manifest at the new tag
 ```
+
+## Species image cache
+
+Learn card photos are fetched on demand from Wikimedia/iNaturalist and
+cached to disk (`CACHE_DIR`, default `./cache`) — nothing to refresh or
+migrate manually in normal operation. If `CACHE_DIR` has leftovers from an
+older cache layout, the server folds them into the current one itself, on
+every startup, before it starts listening (see "Learn mode and species
+images" in `ARCHITECTURE.md`) — local disk I/O only, done in well under a
+second, logged to both stdout and `<CACHE_DIR>/migration.log`.
+
+Two offline modes of the same binary are there for when you want more than
+that automatic minimum:
+
+```
+go run . warmcache       # pre-fetch images for a high-value species subset
+go run . migrateimages    # eagerly top every species up to the full image
+                          # count now, instead of waiting on live traffic
+```
+
+Run either against a local `CACHE_DIR`, then `rsync` the resulting `cache/`
+directory up to the deployed server's host path — see `server/warmcache.go`
+and `server/migrateimages.go` for what each one actually does.
 
 ## Refresh the bird data
 

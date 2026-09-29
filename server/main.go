@@ -109,8 +109,12 @@ type SpeciesCard struct {
 	SciName     string `json:"sciName"`
 	ComName     string `json:"comName"`
 	ImageURL    string `json:"imageUrl"`
-	Order       string `json:"order"`
-	Family      string `json:"family"`
+	// ImageURLs is up to maxImagesPerSpecies candidate image URLs for this
+	// species (ImageURL is always ImageURLs[0]) — the Learn card's photo
+	// gallery; Browse only ever renders ImageURL.
+	ImageURLs []string `json:"imageUrls,omitempty"`
+	Order     string   `json:"order"`
+	Family    string   `json:"family"`
 	// NearbyCount is set only in "popularity" mode: this species' observation
 	// count at the hotspot (see hotspotSpeciesSource.PopularityCounts). nil
 	// means unmatched/no data, not zero.
@@ -131,6 +135,15 @@ func main() {
 		}
 		return
 	}
+	// `go run . migrateimages` upgrades an existing on-disk image cache to
+	// the current bucketed, multi-image-per-species layout — see
+	// migrateimages.go.
+	if len(os.Args) > 1 && os.Args[1] == "migrateimages" {
+		if err := runMigrateImages(); err != nil {
+			log.Fatalf("migrateimages: %v", err)
+		}
+		return
+	}
 
 	cacheDir := os.Getenv("CACHE_DIR")
 	if cacheDir == "" {
@@ -148,6 +161,18 @@ func main() {
 	cache, err := NewImageCache(cacheDir)
 	if err != nil {
 		log.Fatalf("cache dir %q: %v", cacheDir, err)
+	}
+	// Fold any leftover old-format cache entries into the current bucketed
+	// layout before serving — pure local disk I/O (renames), no network
+	// calls, so even a large backlog finishes well before the readiness
+	// probe's first check; that natural gate is the only "maintenance
+	// window" this needs. Non-fatal: live traffic already self-heals
+	// anything left behind (see cache.go's EnsureFetchedAsync), so a
+	// migration hiccup here shouldn't keep the server from starting.
+	if migrated, err := migrateOldCacheLayout(cache, cacheDir); err != nil {
+		log.Printf("cache layout migration: %v (continuing — live traffic will self-heal)", err)
+	} else if len(migrated) > 0 {
+		log.Printf("cache layout migration: moved %d species into the bucketed cache layout at startup", len(migrated))
 	}
 
 	// GBIF-derived hotspot/species data — low single-digit GB, rebuilt
@@ -267,10 +292,6 @@ func main() {
 	appMux.HandleFunc("GET /api/places", hotspotSearchLimiter.middleware(hotspotKey, srv.handlePlaceSearch))
 	appMux.HandleFunc("GET /api/hotspots/{locId}", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotInfo))
 	appMux.HandleFunc("GET /api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotSpecies))
-	// The quiz builder reuses the species/taxonomy cache but also reaches for
-	// the same offline popularity data a detail view can, so it shares that
-	// limiter.
-	appMux.HandleFunc("GET /api/hotspots/{locId}/quiz", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotQuiz))
 
 	// Per-account preferences. These touch only the local database, so unlike
 	// the hotspot routes they need no upstream-keyed rate limit.
@@ -279,10 +300,6 @@ func main() {
 	appMux.HandleFunc("PUT /api/me/language", srv.handleSetLanguage)
 	appMux.HandleFunc("GET /api/me/secondary-language", srv.handleGetSecondaryLanguage)
 	appMux.HandleFunc("PUT /api/me/secondary-language", srv.handleSetSecondaryLanguage)
-	appMux.HandleFunc("GET /api/me/progress", srv.handleGetProgress)
-	appMux.HandleFunc("POST /api/me/progress/{speciesCode}", srv.handleSubmitAnswer)
-	appMux.HandleFunc("DELETE /api/me/progress", srv.handleResetProgress)
-	appMux.HandleFunc("GET /api/me/mastered", srv.handleGetMastered)
 	appMux.HandleFunc("GET /api/me/favorites", srv.handleListFavorites)
 	appMux.HandleFunc("PUT /api/me/favorites/{locId}", srv.handleAddFavorite)
 	appMux.HandleFunc("DELETE /api/me/favorites/{locId}", srv.handleRemoveFavorite)
@@ -399,7 +416,6 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to look up hotspot species", http.StatusNotFound)
 		return
 	}
-	s.recordTaxa(taxa, lang)
 
 	// codes is already in eBird's taxonomic order (verified: ascending
 	// taxonOrder), which conveniently groups species by family/order —
@@ -415,11 +431,12 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 			Family:      FamilyName(taxon.FamilyCode, lang),
 		}
 		if taxon.SciName != "" {
-			cards[i].ImageURL = s.cache.ImageURLFor(taxon.SciName)
+			cards[i].ImageURLs = s.cache.ImageURLsFor(taxon.SciName)
+			cards[i].ImageURL = cards[i].ImageURLs[0]
 			if s.cache.IsKnownMissing(taxon.SciName) {
 				cards[i].ImageMissing = true
 			} else {
-				s.cache.EnsureFetchedAsync(taxon.SciName, lang, taxon.ComName)
+				s.cache.EnsureFetchedAsync(taxon.SciName)
 			}
 		}
 	}
@@ -477,18 +494,6 @@ func (s *Server) resolveLang(w http.ResponseWriter, r *http.Request) (string, bo
 		return "", false
 	}
 	return lang, true
-}
-
-// recordTaxa caches resolved taxonomy for later local use (the mastered
-// view). Failure is non-fatal: the request that triggered it already has the
-// data it needs.
-func (s *Server) recordTaxa(taxa map[string]Taxon, lang string) {
-	if s.users == nil {
-		return
-	}
-	if err := s.users.RecordTaxa(taxa, lang); err != nil {
-		log.Printf("record taxonomy (%s): %v", lang, err)
-	}
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

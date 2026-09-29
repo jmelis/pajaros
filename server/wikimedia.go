@@ -17,16 +17,10 @@ import (
 var allowedLicenseRe = regexp.MustCompile(`(?i)^(cc0|cc[- ]by(-sa)?[- ]?[\d.]*|public domain|pd)`)
 var excludeFilenameRe = regexp.MustCompile(`(?i)(map|range|distribution|egg|nest|skeleton|anatomy|illustration|drawing|painting|sound|spectrogram|call\b|song\b|vocali|logo|stamp|coin|taxonomy|cladogram)`)
 
+// ImageInfo is one candidate (or already-cached) image for a species,
+// however many of them the cache keeps — see cache.go's per-species image
+// slots and maxImagesPerSpecies in images.go.
 type ImageInfo struct {
-	// SciName is the species this image belongs to, carried in the cache
-	// metadata so the image-cache fallback distractor pool (see cache.go's
-	// CachedSpecies) can show a real name instead of a slug.
-	SciName string
-	// Names maps an eBird locale code ("es", "fr", "en") to this species'
-	// common name in that locale. The image cache is keyed by scientific name
-	// and has no other species data, so the fallback distractor pool relies on
-	// these to show proper, localized common names (see CachedSpecies).
-	Names       map[string]string
 	Title       string
 	DownloadURL string
 	Author      string
@@ -194,39 +188,53 @@ func categoryFileTitles(sciName string) ([]string, error) {
 	return titles, nil
 }
 
-// ResolvePrincipalImage finds a freely-licensed principal photo for a
-// species: prefer the Wikipedia infobox image, else the first suitable photo
-// in its Commons category. Returns nil (not an error) if none qualifies.
-func ResolvePrincipalImage(sciName string, width int) (*ImageInfo, error) {
-	if infobox, err := wikipediaInfoboxFile(sciName); err == nil && infobox != "" {
-		if info, err := commonsFileInfo(infobox, width); err == nil && info != nil {
-			return info, nil
+// commonsImages finds up to max freely-licensed candidate photos for a
+// species from Wikimedia: the Wikipedia infobox image first (usually the
+// best single representative photo), then its Commons category's other
+// files, in listing order. A single bad title (missing, wrong license, a
+// transient API error) is skipped rather than aborting the whole lookup, so
+// one problem file can't cost the rest of the species' images.
+func commonsImages(sciName string, width, max int) []*ImageInfo {
+	var out []*ImageInfo
+	seen := map[string]bool{}
+
+	add := func(title string) {
+		if len(out) >= max || seen[title] {
+			return
 		}
-	}
-	titles, err := categoryFileTitles(sciName)
-	if err != nil {
-		return nil, err
-	}
-	for _, title := range titles {
+		seen[title] = true
 		info, err := commonsFileInfo(title, width)
-		if err != nil {
-			return nil, err
+		if err != nil || info == nil {
+			return
 		}
-		if info != nil {
-			return info, nil
+		out = append(out, info)
+	}
+
+	if infobox, err := wikipediaInfoboxFile(sciName); err == nil && infobox != "" {
+		add(infobox)
+	}
+	if len(out) < max {
+		if titles, err := categoryFileTitles(sciName); err == nil {
+			for _, title := range titles {
+				if len(out) >= max {
+					break
+				}
+				add(title)
+			}
 		}
 	}
-	return nil, nil
+	return out
 }
 
-// DownloadImage fetches the image bytes from a Wikimedia URL.
-func DownloadImage(downloadURL string) ([]byte, error) {
+// downloadImage fetches image bytes from downloadURL, throttled through
+// limiter (wikimediaLimiter or inaturalistLimiter — see ratelimit.go).
+func downloadImage(limiter *rateLimiter, downloadURL string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, downloadURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", birdquizUA)
-	resp, err := doThrottled(wikimediaLimiter, req)
+	resp, err := doThrottled(limiter, req)
 	if err != nil {
 		return nil, err
 	}

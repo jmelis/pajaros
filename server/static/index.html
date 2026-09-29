@@ -27,10 +27,8 @@
       <div class="actions"><a class="btn btn-primary" href="#/search" data-i18n="home.find"></a></div>
     </div>
 
-    <section id="homeProgressPanel" class="hero">
+    <section id="homeGreetingPanel" class="hero">
       <p class="hero-greeting" data-i18n="home.greeting"></p>
-      <p id="homeHeadline" class="hero-headline"></p>
-      <div id="homeProgress" class="stat-row"></div>
     </section>
 
     <section id="homeHotspotsPanel">
@@ -43,10 +41,6 @@
     </section>
 
     <a class="cta-primary" href="#/search" data-i18n="home.find"></a>
-
-    <div class="actions">
-      <a class="quiet-link" href="#/mastered" data-i18n="home.viewMastered"></a>
-    </div>
   </section>
 
   <!-- Search -->
@@ -83,7 +77,7 @@
     </div>
     <div class="segmented" id="hotspotModeToggle" role="radiogroup" data-i18n-aria="hotspot.modeAria">
       <label><input type="radio" name="hotspotMode" value="browse" checked><span data-i18n="hotspot.browse"></span></label>
-      <label><input type="radio" name="hotspotMode" value="quiz"><span data-i18n="hotspot.quiz"></span></label>
+      <label><input type="radio" name="hotspotMode" value="learn"><span data-i18n="hotspot.learn"></span></label>
     </div>
     <p id="hotspotStatus" class="status"></p>
     <div id="browseControls">
@@ -107,28 +101,8 @@
       </div>
       <div id="groups"></div>
     </div>
-    <div id="quizControls" class="actions quiz-bar" hidden>
-      <label class="field quiz-size"><span data-i18n="quiz.size"></span>
-        <select id="quizCount">
-          <option value="5">5</option>
-          <option value="10" selected>10</option>
-          <option value="15">15</option>
-          <option value="20">20</option>
-          <option value="all" data-i18n="quiz.all"></option>
-        </select>
-      </label>
-      <button id="quizStart" class="btn btn-primary" type="button" data-i18n="quiz.start"></button>
-    </div>
-  </section>
-
-  <!-- Mastered -->
-  <section id="view-mastered" class="view" hidden>
-    <h2 class="view-title" data-i18n="mastered.title"></h2>
-    <p id="masteredStatus" class="status"></p>
-    <div id="masteredGrid" class="family-grid"></div>
-    <div id="masteredEmpty" class="panel" hidden>
-      <p data-i18n="mastered.empty"></p>
-      <div class="actions"><a class="btn btn-primary" href="#/search" data-i18n="home.find"></a></div>
+    <div id="learnControls" class="actions" hidden>
+      <button id="learnStart" class="btn btn-primary" type="button" data-i18n="learn.start"></button>
     </div>
   </section>
 
@@ -142,9 +116,7 @@
       <label class="field"><span data-i18n="settings.secondary"></span>
         <select id="secondaryLang"></select>
       </label>
-      <div class="settings-stats" id="settingsStats"></div>
       <div class="actions">
-        <button id="resetProgress" class="btn btn-secondary" type="button" data-i18n="settings.reset"></button>
         <button id="logoutBtn" class="btn btn-secondary" type="button" data-i18n="settings.signOut"></button>
       </div>
       <p id="settingsHint" class="hint" hidden></p>
@@ -161,24 +133,23 @@
     <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
     <span data-i18n="nav.search"></span>
   </a>
-  <a href="#/mastered" data-nav="mastered">
-    <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 2.9 6.26L21.5 9l-5 4.87L17.8 21 12 17.6 6.2 21l1.3-7.13-5-4.87 6.6-.74Z"/></svg>
-    <span data-i18n="nav.mastered"></span>
-  </a>
   <a href="#/settings" data-nav="settings">
     <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
     <span data-i18n="nav.settings"></span>
   </a>
 </nav>
 
-<div id="quizOverlay" class="overlay quiz-overlay" hidden>
-  <div class="quiz-sheet">
-    <div class="quiz-top">
-      <span id="quizProgress" class="quiz-progress"></span>
-      <button id="quizClose" class="btn btn-secondary btn-sm" type="button" data-i18n="quiz.close"></button>
-    </div>
-    <div id="quizBody" class="quiz-body"></div>
+<div id="learnOverlay" class="overlay learn-overlay" hidden>
+  <div class="learn-top">
+    <button id="learnClose" class="learn-icon-btn" type="button" data-i18n-aria="learn.close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+    <span id="learnProgress" class="learn-progress"></span>
+    <button id="learnToggleNames" class="learn-icon-btn" type="button" data-i18n-aria="learn.hideNames" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
   </div>
+  <div id="learnBody" class="learn-body"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

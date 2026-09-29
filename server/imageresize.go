@@ -10,12 +10,13 @@ import (
 )
 
 // maxImageWidth is what we ask Wikimedia to pre-scale thumbnails to (see
-// ResolvePrincipalImage's caller in cache.go) — plenty for the ~140px cards
-// this project renders, even at high DPI. capImageWidth is the local
-// backstop for the rare case a downloaded image is wider than that anyway
-// (Wikimedia won't upscale past the source, but a mismatched/odd source
-// could still come back larger); we'd rather resize once here than serve
-// and store an oversized file indefinitely.
+// images.go's ResolveImages and cache.go's saveImages) — plenty for both the
+// ~140px Browse cards and the full-screen Learn card this project renders,
+// even at high DPI. capImageWidth is the local backstop for the rare case a
+// downloaded image is wider than that anyway (Wikimedia won't upscale past
+// the source, but a mismatched/odd source — or an iNaturalist original —
+// could still come back larger); we'd rather resize once here than serve and
+// store an oversized file indefinitely.
 const maxImageWidth = 1600
 
 const resizedJPEGQuality = 85
