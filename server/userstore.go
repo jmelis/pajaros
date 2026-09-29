@@ -41,18 +41,14 @@ type User struct {
 // brand-new account renders as a clean default rather than JSON nulls.
 //
 // SecondaryLanguage is "" when unset (the app's optional second subtitle
-// language). StarRewards is the reward-mechanic preference (off by default):
-// it gates stars, the star-burst flourish, the visible star counter and the
-// mastery celebration, and nothing else. Stars and SpeciesMastered summarize
-// the account's quiz progress; see ProgressStats.
+// language). SpeciesMastered summarizes the account's quiz progress; see
+// ProgressStats.
 type Profile struct {
 	ID                string     `json:"id"`
 	Email             string     `json:"email"`
 	DisplayName       string     `json:"displayName"`
 	Language          string     `json:"language"`
 	SecondaryLanguage string     `json:"secondaryLanguage"`
-	StarRewards       bool       `json:"starRewards"`
-	Stars             int        `json:"stars"`
 	SpeciesMastered   int        `json:"speciesMastered"`
 	Favorites         []Favorite `json:"favorites"`
 }
@@ -113,7 +109,6 @@ type CardProgress struct {
 // due time has arrived, mastered or not. The caller passes now in (rather
 // than the store reading the clock) so the summary stays testable.
 type ProgressStats struct {
-	TotalStars      int `json:"totalStars"`
 	SpeciesMastered int `json:"speciesMastered"`
 	SpeciesLearning int `json:"speciesLearning"`
 	DueForReview    int `json:"dueForReview"`
@@ -141,10 +136,12 @@ type schemaTable struct {
 // rows and values survive untouched. This is deliberately not a general
 // migration framework (see the plan's non-goals).
 //
-// An older database's user_preferences may still carry the retired
-// display_mode column. It is left in place, unread and unwritten: the
-// standard/kid display mode it held is replaced by star_rewards. Timestamps
-// are stored as Unix nanoseconds.
+// An older database's user_preferences may still carry retired columns —
+// display_mode (the old standard/kid display mode) and star_rewards (the
+// retired star-reward toggle). They are left in place, unread and unwritten.
+// An older database's user_stats table, once the running star total, is
+// likewise left in place, unread and unwritten. Timestamps are stored as Unix
+// nanoseconds.
 var schemaTables = []schemaTable{
 	{
 		name: "users",
@@ -164,7 +161,6 @@ var schemaTables = []schemaTable{
 			{"user_id", "TEXT PRIMARY KEY"},
 			{"language", "TEXT NOT NULL DEFAULT ''"},
 			{"secondary_language", "TEXT NOT NULL DEFAULT ''"},
-			{"star_rewards", "INTEGER NOT NULL DEFAULT 0"},
 		},
 	},
 	{
@@ -190,13 +186,6 @@ var schemaTables = []schemaTable{
 			{"last_seen_at", "INTEGER NOT NULL DEFAULT 0"},
 		},
 		primaryKey: "PRIMARY KEY (user_id, species_code)",
-	},
-	{
-		name: "user_stats",
-		columns: []schemaColumn{
-			{"user_id", "TEXT PRIMARY KEY"},
-			{"stars", "INTEGER NOT NULL DEFAULT 0"},
-		},
 	},
 	{
 		// Durable taxonomy resolved from eBird on hotspot species loads and
@@ -564,19 +553,16 @@ func (s *UserStore) Profile(id string) (*Profile, bool, error) {
 	defer s.mu.Unlock()
 
 	var (
-		p           Profile
-		lang        string
-		starRewards int
+		p    Profile
+		lang string
 	)
 	err := s.db.QueryRow(
 		`SELECT id, email, display_name,
 		        COALESCE((SELECT language FROM user_preferences WHERE user_id = users.id), ''),
 		        COALESCE((SELECT secondary_language FROM user_preferences WHERE user_id = users.id), ''),
-		        COALESCE((SELECT star_rewards FROM user_preferences WHERE user_id = users.id), 0),
-		        COALESCE((SELECT stars FROM user_stats WHERE user_id = users.id), 0),
 		        (SELECT COUNT(*) FROM card_progress WHERE user_id = users.id AND box >= 5)
 		 FROM users WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Email, &p.DisplayName, &lang, &p.SecondaryLanguage, &starRewards, &p.Stars, &p.SpeciesMastered)
+	).Scan(&p.ID, &p.Email, &p.DisplayName, &lang, &p.SecondaryLanguage, &p.SpeciesMastered)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
@@ -588,7 +574,6 @@ func (s *UserStore) Profile(id string) (*Profile, bool, error) {
 	if p.Language == "" {
 		p.Language = defaultLang
 	}
-	p.StarRewards = starRewards != 0
 	p.Favorites, err = s.favorites(id)
 	if err != nil {
 		return nil, false, err
@@ -624,9 +609,9 @@ func (s *UserStore) AllCardProgress(id string) (map[string]CardProgress, error) 
 }
 
 // AnswerCard applies one answer to speciesCode for id, updating the card's
-// Leitner box/due date and adding any earned stars to the account's running
-// total. now is passed in (rather than read here) so callers and tests control
-// the clock. The returned CardAnswer reports the post-answer state.
+// Leitner box/due date. now is passed in (rather than read here) so callers
+// and tests control the clock. The returned CardAnswer reports the
+// post-answer state.
 func (s *UserStore) AnswerCard(id, speciesCode string, correct bool, now time.Time) (CardAnswer, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -646,7 +631,7 @@ func (s *UserStore) AnswerCard(id, speciesCode string, correct bool, now time.Ti
 		return CardAnswer{}, err
 	}
 
-	box, dueAt, earned, newlyMastered := leitnerTransition(prevBox, correct, now)
+	box, dueAt := leitnerTransition(prevBox, correct, now)
 	seen := prev.SeenCount + 1
 	correctCount := prev.CorrectCount
 	if correct {
@@ -667,38 +652,10 @@ func (s *UserStore) AnswerCard(id, speciesCode string, correct bool, now time.Ti
 	if err != nil {
 		return CardAnswer{}, err
 	}
-	if earned > 0 {
-		_, err = s.db.Exec(
-			`INSERT INTO user_stats (user_id, stars) VALUES (?, ?)
-			 ON CONFLICT(user_id) DO UPDATE SET stars = stars + excluded.stars`,
-			id, earned,
-		)
-		if err != nil {
-			return CardAnswer{}, err
-		}
-	}
-	total, err := s.stars(id)
-	if err != nil {
-		return CardAnswer{}, err
-	}
 	return CardAnswer{
-		Box:           box,
-		DueAt:         dueAt.UnixNano(),
-		StarsEarned:   earned,
-		TotalStars:    total,
-		NewlyMastered: newlyMastered,
+		Box:   box,
+		DueAt: dueAt.UnixNano(),
 	}, nil
-}
-
-// stars returns the account's running star total, 0 when it has never earned
-// any. Unlocked read; callers must hold s.mu.
-func (s *UserStore) stars(id string) (int, error) {
-	var stars int
-	err := s.db.QueryRow(`SELECT stars FROM user_stats WHERE user_id = ?`, id).Scan(&stars)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil
-	}
-	return stars, err
 }
 
 // ProgressStats summarizes the account's quiz progress for the home and
@@ -709,10 +666,6 @@ func (s *UserStore) ProgressStats(id string, now time.Time) (ProgressStats, erro
 	defer s.mu.Unlock()
 
 	var st ProgressStats
-	var err error
-	if st.TotalStars, err = s.stars(id); err != nil {
-		return st, err
-	}
 	if err := s.db.QueryRow(
 		`SELECT COUNT(*) FROM card_progress WHERE user_id = ? AND box >= 5`, id,
 	).Scan(&st.SpeciesMastered); err != nil {
@@ -731,25 +684,14 @@ func (s *UserStore) ProgressStats(id string, now time.Time) (ProgressStats, erro
 	return st, nil
 }
 
-// ResetProgress clears every progress row for id and resets its star total to
-// zero. This is the "reset my progress" action; it is not reversible.
+// ResetProgress clears every progress row for id. This is the "reset my
+// progress" action; it is not reversible.
 func (s *UserStore) ResetProgress(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if _, err := tx.Exec(`DELETE FROM card_progress WHERE user_id = ?`, id); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`DELETE FROM user_stats WHERE user_id = ?`, id); err != nil {
-		return err
-	}
-	return tx.Commit()
+	_, err := s.db.Exec(`DELETE FROM card_progress WHERE user_id = ?`, id)
+	return err
 }
 
 // SecondaryLanguage returns the account's optional second subtitle language,
@@ -781,45 +723,6 @@ func (s *UserStore) SetSecondaryLanguage(id, lang string) error {
 		id, lang,
 	)
 	return err
-}
-
-// StarRewards returns the account's star-rewards preference, false when it has
-// never been set (which is the default for a new account).
-func (s *UserStore) StarRewards(id string) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var on int
-	err := s.db.QueryRow(
-		`SELECT star_rewards FROM user_preferences WHERE user_id = ?`, id,
-	).Scan(&on)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return on != 0, nil
-}
-
-// SetStarRewards stores the account's star-rewards preference.
-func (s *UserStore) SetStarRewards(id string, on bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	_, err := s.db.Exec(
-		`INSERT INTO user_preferences (user_id, star_rewards) VALUES (?, ?)
-		 ON CONFLICT(user_id) DO UPDATE SET star_rewards = excluded.star_rewards`,
-		id, boolToInt(on),
-	)
-	return err
-}
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
 }
 
 // RecordTaxa merges freshly resolved taxonomy into species_taxonomy for the

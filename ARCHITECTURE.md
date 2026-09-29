@@ -82,7 +82,6 @@ GET  /api/hotspots/{locId}/quiz                    build a quiz session
 GET  /api/me                                      profile
 GET  /PUT /api/me/language                        primary bird-name + UI language
 GET  /PUT /api/me/secondary-language               optional subtitle language
-GET  /PUT /api/me/star-rewards                     star-reward display toggle
 GET  /api/me/progress                             quiz progress
 POST /api/me/progress/{speciesCode}                submit a quiz answer
 DELETE /api/me/progress                            reset all progress
@@ -123,15 +122,12 @@ geolocation, map, "search this area" — see "Place-name search" below),
 **Hotspot** (info, save toggle, explore — by
 popularity/category/alphabetical — or quiz with a size picker), **Mastered**
 (mastered species as cards, same style as explore), **Settings** (language,
-secondary language, star rewards, reset, sign out).
+secondary language, reset, sign out).
 
 Two independent language preferences: the **primary** language drives both
 bird names (the `lang` query param) and UI text — there's no separate
 interface-language setting. The **secondary** language is an optional
-subtitle under each bird name. **Star rewards** is a single boolean
-(default off) controlling only the celebratory UI (stars, the burst
-animation, the visible counter) — quiz mechanics (boxes, due dates,
-mastery) are unaffected either way.
+subtitle under each bird name.
 
 `style.css` defines the light palette on `:root` and redefines it under
 `prefers-color-scheme: dark`, so the app follows the OS theme automatically.
@@ -414,10 +410,10 @@ commonly-seen species first.
 `server/userstore.go` reconciles its SQLite schema at startup, additively
 and idempotently: it creates any missing tables and adds missing columns
 via `ALTER TABLE`, without touching existing rows — so a database whose
-`user_preferences` predates a later column (e.g. `secondary_language` or
-`star_rewards`) repairs itself on the next startup, no migration step
-needed. Resolved taxonomy (`species_taxonomy`) is persisted too, so the
-mastered view never needs a network call.
+`user_preferences` predates a later column (e.g. `secondary_language`)
+repairs itself on the next startup, no migration step needed. Resolved
+taxonomy (`species_taxonomy`) is persisted too, so the mastered view never
+needs a network call.
 
 ## Deployment
 

@@ -39,22 +39,17 @@ func leitnerInterval(box int) time.Duration {
 // CardAnswer is the result of answering one card, returned by the progress
 // endpoint and by UserStore.AnswerCard.
 type CardAnswer struct {
-	Box           int   `json:"box"`
-	DueAt         int64 `json:"dueAt"` // unix nanoseconds
-	StarsEarned   int   `json:"starsEarned"`
-	TotalStars    int   `json:"totalStars"`
-	NewlyMastered bool  `json:"newlyMastered"`
+	Box   int   `json:"box"`
+	DueAt int64 `json:"dueAt"` // unix nanoseconds
 }
 
 // leitnerTransition computes the post-answer box and due time for a card that
 // was in prevBox (0 = never answered) and has just been answered correctly or
-// not. A correct answer advances one box (capped at 5) and earns a star; the
-// first time a card reaches box 5 it earns three bonus stars and reports
-// newlyMastered. A wrong answer resets to box 1 and is due immediately, with
-// no stars.
-func leitnerTransition(prevBox int, correct bool, now time.Time) (box int, dueAt time.Time, stars int, newlyMastered bool) {
+// not. A correct answer advances one box (capped at 5). A wrong answer resets
+// to box 1 and is due immediately.
+func leitnerTransition(prevBox int, correct bool, now time.Time) (box int, dueAt time.Time) {
 	if !correct {
-		return 1, now, 0, false
+		return 1, now
 	}
 	box = prevBox + 1
 	if box > 5 {
@@ -63,12 +58,7 @@ func leitnerTransition(prevBox int, correct bool, now time.Time) (box int, dueAt
 	if box < 1 {
 		box = 1
 	}
-	stars = 1
-	if box == 5 && prevBox < 5 {
-		stars += 3
-		newlyMastered = true
-	}
-	return box, now.Add(leitnerInterval(box)), stars, newlyMastered
+	return box, now.Add(leitnerInterval(box))
 }
 
 // Question types offered by a quiz item.

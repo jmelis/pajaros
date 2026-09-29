@@ -9,37 +9,29 @@ import (
 func TestLeitnerTransition(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	cases := []struct {
-		name            string
-		prevBox         int
-		correct         bool
-		wantBox         int
-		wantDue         time.Duration // offset from now
-		wantStars       int
-		wantNewlyMaster bool
+		name    string
+		prevBox int
+		correct bool
+		wantBox int
+		wantDue time.Duration // offset from now
 	}{
-		{"first correct", 0, true, 1, 0, 1, false},
-		{"correct box1->2", 1, true, 2, 24 * time.Hour, 1, false},
-		{"correct box2->3", 2, true, 3, 3 * 24 * time.Hour, 1, false},
-		{"correct box3->4", 3, true, 4, 7 * 24 * time.Hour, 1, false},
-		{"correct box4->5 masters", 4, true, 5, 21 * 24 * time.Hour, 4, true},
-		{"correct at box5 no bonus", 5, true, 5, 21 * 24 * time.Hour, 1, false},
-		{"incorrect resets to 1", 3, false, 1, 0, 0, false},
-		{"incorrect at box5 resets", 5, false, 1, 0, 0, false},
+		{"first correct", 0, true, 1, 0},
+		{"correct box1->2", 1, true, 2, 24 * time.Hour},
+		{"correct box2->3", 2, true, 3, 3 * 24 * time.Hour},
+		{"correct box3->4", 3, true, 4, 7 * 24 * time.Hour},
+		{"correct box4->5 masters", 4, true, 5, 21 * 24 * time.Hour},
+		{"correct at box5 stays", 5, true, 5, 21 * 24 * time.Hour},
+		{"incorrect resets to 1", 3, false, 1, 0},
+		{"incorrect at box5 resets", 5, false, 1, 0},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			box, due, stars, newly := leitnerTransition(c.prevBox, c.correct, now)
+			box, due := leitnerTransition(c.prevBox, c.correct, now)
 			if box != c.wantBox {
 				t.Errorf("box = %d, want %d", box, c.wantBox)
 			}
 			if want := now.Add(c.wantDue); !due.Equal(want) {
 				t.Errorf("due = %v, want %v", due, want)
-			}
-			if stars != c.wantStars {
-				t.Errorf("stars = %d, want %d", stars, c.wantStars)
-			}
-			if newly != c.wantNewlyMaster {
-				t.Errorf("newlyMastered = %v, want %v", newly, c.wantNewlyMaster)
 			}
 		})
 	}
@@ -350,18 +342,13 @@ func TestAnswerCardLeitnerStore(t *testing.T) {
 		if answer.Box != wantBox {
 			t.Errorf("answer %d box = %d, want %d", i, answer.Box, wantBox)
 		}
-		wantNewly := wantBox == 5
-		if answer.NewlyMastered != wantNewly {
-			t.Errorf("answer %d newlyMastered = %v, want %v", i, answer.NewlyMastered, wantNewly)
-		}
 	}
 
-	// Stars: five single-star answers plus the 3-star mastery bonus on the
-	// last one = 8; the repeat answer adds one more.
+	// A repeat answer at box 5 stays at box 5.
 	if answer, err := store.AnswerCard(id, "vermfly", true, now.Add(10*time.Minute)); err != nil {
 		t.Fatal(err)
-	} else if answer.StarsEarned != 1 || answer.TotalStars != 9 {
-		t.Errorf("box-5 repeat: earned %d total %d, want 1/9", answer.StarsEarned, answer.TotalStars)
+	} else if answer.Box != 5 {
+		t.Errorf("box-5 repeat: box = %d, want 5", answer.Box)
 	}
 
 	progress, err := store.AllCardProgress(id)
@@ -376,8 +363,8 @@ func TestAnswerCardLeitnerStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stats.TotalStars != 9 || stats.SpeciesMastered != 1 || stats.SpeciesLearning != 0 {
-		t.Errorf("stats = %+v, want 9 stars / 1 mastered / 0 learning", stats)
+	if stats.SpeciesMastered != 1 || stats.SpeciesLearning != 0 {
+		t.Errorf("stats = %+v, want 1 mastered / 0 learning", stats)
 	}
 	// The box-5 card's due date is 21 days out, so at this point nothing is
 	// due for review.
@@ -385,16 +372,13 @@ func TestAnswerCardLeitnerStore(t *testing.T) {
 		t.Errorf("DueForReview = %d, want 0 before the box-5 due date", stats.DueForReview)
 	}
 
-	// A wrong answer resets to box 1, due immediately, with no stars.
+	// A wrong answer resets to box 1, due immediately.
 	answer, err := store.AnswerCard(id, "vermfly", false, now.Add(20*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if answer.Box != 1 || answer.DueAt != now.Add(20*time.Minute).UnixNano() || answer.StarsEarned != 0 {
-		t.Errorf("wrong answer = %+v, want box1/due-now/no stars", answer)
-	}
-	if answer.TotalStars != 9 {
-		t.Errorf("total stars after wrong answer = %d, want unchanged 9", answer.TotalStars)
+	if answer.Box != 1 || answer.DueAt != now.Add(20*time.Minute).UnixNano() {
+		t.Errorf("wrong answer = %+v, want box1/due-now", answer)
 	}
 
 	stats, _ = store.ProgressStats(id, now.Add(30*time.Minute))

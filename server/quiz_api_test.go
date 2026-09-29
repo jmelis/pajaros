@@ -37,8 +37,6 @@ func newQuizTestApp(t *testing.T) (http.Handler, *Server, *UserStore, *Auth) {
 	app.HandleFunc("PUT /api/me/language", srv.handleSetLanguage)
 	app.HandleFunc("GET /api/me/secondary-language", srv.handleGetSecondaryLanguage)
 	app.HandleFunc("PUT /api/me/secondary-language", srv.handleSetSecondaryLanguage)
-	app.HandleFunc("GET /api/me/star-rewards", srv.handleGetStarRewards)
-	app.HandleFunc("PUT /api/me/star-rewards", srv.handleSetStarRewards)
 	app.HandleFunc("GET /api/me/progress", srv.handleGetProgress)
 	app.HandleFunc("POST /api/me/progress/{speciesCode}", srv.handleSubmitAnswer)
 	app.HandleFunc("DELETE /api/me/progress", srv.handleResetProgress)
@@ -116,8 +114,6 @@ func TestQuizAndProgressRoutesRequireAuth(t *testing.T) {
 		{http.MethodDelete, "/api/me/progress"},
 		{http.MethodGet, "/api/me/secondary-language"},
 		{http.MethodPut, "/api/me/secondary-language"},
-		{http.MethodGet, "/api/me/star-rewards"},
-		{http.MethodPut, "/api/me/star-rewards"},
 		{http.MethodGet, "/api/me/mastered"},
 	}
 	for _, c := range cases {
@@ -291,8 +287,8 @@ func TestResetProgressClearsStatsAndQuiz(t *testing.T) {
 
 	submitAnswer(t, app, auth, id, "sp1", true)
 	submitAnswer(t, app, auth, id, "sp1", true)
-	if stats := getProgress(t, app, auth, id); stats.TotalStars == 0 || stats.SpeciesLearning == 0 {
-		t.Fatalf("stats before reset = %+v, want non-zero stars and learning", stats)
+	if stats := getProgress(t, app, auth, id); stats.SpeciesLearning == 0 {
+		t.Fatalf("stats before reset = %+v, want non-zero learning", stats)
 	}
 
 	rr := httptest.NewRecorder()
@@ -301,7 +297,7 @@ func TestResetProgressClearsStatsAndQuiz(t *testing.T) {
 		t.Fatalf("DELETE /api/me/progress = %d, want 204", rr.Code)
 	}
 
-	if stats := getProgress(t, app, auth, id); stats.TotalStars != 0 || stats.SpeciesMastered != 0 || stats.SpeciesLearning != 0 {
+	if stats := getProgress(t, app, auth, id); stats.SpeciesMastered != 0 || stats.SpeciesLearning != 0 {
 		t.Fatalf("stats after reset = %+v, want all zero", stats)
 	}
 
@@ -312,7 +308,7 @@ func TestResetProgressClearsStatsAndQuiz(t *testing.T) {
 	}
 }
 
-func TestProfileReflectsSecondaryLanguageAndStarRewards(t *testing.T) {
+func TestProfileReflectsSecondaryLanguage(t *testing.T) {
 	app, _, store, auth := newQuizTestApp(t)
 	if _, err := store.Upsert("google", "prefs", "", ""); err != nil {
 		t.Fatal(err)
@@ -334,8 +330,8 @@ func TestProfileReflectsSecondaryLanguageAndStarRewards(t *testing.T) {
 	}
 
 	p := readProfile()
-	if p.SecondaryLanguage != "" || p.StarRewards || p.Stars != 0 || p.SpeciesMastered != 0 {
-		t.Errorf("new-account profile = %+v, want empty secondary/off/0/0", p)
+	if p.SecondaryLanguage != "" || p.SpeciesMastered != 0 {
+		t.Errorf("new-account profile = %+v, want empty secondary/0", p)
 	}
 
 	// Invalid values are rejected.
@@ -343,11 +339,6 @@ func TestProfileReflectsSecondaryLanguageAndStarRewards(t *testing.T) {
 	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/secondary-language", body(`{"language":"xx"}`)))
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("invalid secondary language = %d, want 400", rr.Code)
-	}
-	rr = httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/star-rewards", body(`{"starRewards":"yes"}`)))
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("invalid star rewards = %d, want 400", rr.Code)
 	}
 
 	put := func(path, payload string) {
@@ -360,13 +351,12 @@ func TestProfileReflectsSecondaryLanguageAndStarRewards(t *testing.T) {
 	}
 
 	put("/api/me/secondary-language", `{"language":"fr"}`)
-	put("/api/me/star-rewards", `{"starRewards":true}`)
 	p = readProfile()
-	if p.SecondaryLanguage != "fr" || !p.StarRewards {
-		t.Errorf("profile after set = %+v, want fr/starRewards", p)
+	if p.SecondaryLanguage != "fr" {
+		t.Errorf("profile after set = %+v, want fr", p)
 	}
 
-	// The dedicated GET endpoints agree.
+	// The dedicated GET endpoint agrees.
 	rr = httptest.NewRecorder()
 	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodGet, "/api/me/secondary-language", nil))
 	var lang struct {
@@ -374,18 +364,6 @@ func TestProfileReflectsSecondaryLanguageAndStarRewards(t *testing.T) {
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &lang); err != nil || lang.Language != "fr" {
 		t.Errorf("GET secondary-language = %v (err %v), want fr", rr.Body.String(), err)
-	}
-	rr = httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodGet, "/api/me/star-rewards", nil))
-	var rewards struct {
-		StarRewards bool `json:"starRewards"`
-	}
-	if err := json.Unmarshal(rr.Body.Bytes(), &rewards); err != nil || !rewards.StarRewards {
-		t.Errorf("GET star-rewards = %v (err %v), want true", rr.Body.String(), err)
-	}
-	put("/api/me/star-rewards", `{"starRewards":false}`)
-	if p = readProfile(); p.StarRewards {
-		t.Errorf("star rewards after disable = %v, want false", p.StarRewards)
 	}
 
 	// Empty clears the secondary language.
@@ -471,31 +449,6 @@ func TestCachedSpeciesReadsMetadata(t *testing.T) {
 	got = cache.CachedSpecies("fr")
 	if len(got) != 1 || got[0].ComName != "Common Blackbird" {
 		t.Fatalf("CachedSpecies(fr) = %+v, want the English common name", got)
-	}
-}
-
-func TestGetProgressUsesTotalStarsField(t *testing.T) {
-	app, _, store, auth := newQuizTestApp(t)
-	if _, err := store.Upsert("google", "field", "", ""); err != nil {
-		t.Fatal(err)
-	}
-	const id = "google:field"
-	submitAnswer(t, app, auth, id, "vermfly", true)
-
-	rr := httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodGet, "/api/me/progress", nil))
-	if rr.Code != http.StatusOK {
-		t.Fatalf("GET /api/me/progress = %d (%s), want 200", rr.Code, rr.Body.String())
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(rr.Body.Bytes(), &raw); err != nil {
-		t.Fatalf("decode progress: %v", err)
-	}
-	if _, ok := raw["totalStars"]; !ok {
-		t.Errorf("progress response %s has no totalStars field", rr.Body.String())
-	}
-	if _, ok := raw["stars"]; ok {
-		t.Errorf("progress response %s still has the old stars field", rr.Body.String())
 	}
 }
 

@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-// Account progress + reward preferences API. Like preferences.go, every
-// route here is mounted behind Auth.require (see main.go), so handlers can
-// rely on userIDFromContext and touch only the local SQLite store.
+// Account progress API. Like preferences.go, every route here is mounted
+// behind Auth.require (see main.go), so handlers can rely on
+// userIDFromContext and touch only the local SQLite store.
 
 // validSpeciesCode gates the {speciesCode} path value on progress writes.
 // eBird species codes are short lowercase alphanumeric strings (e.g. "norcar");
@@ -51,39 +51,6 @@ func (s *Server) handleSetSecondaryLanguage(w http.ResponseWriter, r *http.Reque
 	if err := s.users.SetSecondaryLanguage(id, body.Language); err != nil {
 		log.Printf("set secondary language %s: %v", id, err)
 		http.Error(w, "failed to save secondary language", http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// handleGetStarRewards returns the account's star-rewards preference (off by
-// default).
-func (s *Server) handleGetStarRewards(w http.ResponseWriter, r *http.Request) {
-	id := userIDFromContext(r)
-	on, err := s.users.StarRewards(id)
-	if err != nil {
-		log.Printf("get star rewards %s: %v", id, err)
-		http.Error(w, "failed to load star rewards", http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, map[string]bool{"starRewards": on})
-}
-
-// handleSetStarRewards stores the account's star-rewards preference. The body
-// is a JSON boolean; quiz mechanics do not depend on it, only display.
-func (s *Server) handleSetStarRewards(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		StarRewards *bool `json:"starRewards"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<12)).Decode(&body); err != nil || body.StarRewards == nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	id := userIDFromContext(r)
-	if err := s.users.SetStarRewards(id, *body.StarRewards); err != nil {
-		log.Printf("set star rewards %s: %v", id, err)
-		http.Error(w, "failed to save star rewards", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -162,7 +129,7 @@ func (s *Server) handleSubmitAnswer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, answer)
 }
 
-// handleResetProgress clears the account's quiz progress and stars.
+// handleResetProgress clears the account's quiz progress.
 func (s *Server) handleResetProgress(w http.ResponseWriter, r *http.Request) {
 	id := userIDFromContext(r)
 	if err := s.users.ResetProgress(id); err != nil {

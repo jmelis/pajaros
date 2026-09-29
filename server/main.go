@@ -279,8 +279,6 @@ func main() {
 	appMux.HandleFunc("PUT /api/me/language", srv.handleSetLanguage)
 	appMux.HandleFunc("GET /api/me/secondary-language", srv.handleGetSecondaryLanguage)
 	appMux.HandleFunc("PUT /api/me/secondary-language", srv.handleSetSecondaryLanguage)
-	appMux.HandleFunc("GET /api/me/star-rewards", srv.handleGetStarRewards)
-	appMux.HandleFunc("PUT /api/me/star-rewards", srv.handleSetStarRewards)
 	appMux.HandleFunc("GET /api/me/progress", srv.handleGetProgress)
 	appMux.HandleFunc("POST /api/me/progress/{speciesCode}", srv.handleSubmitAnswer)
 	appMux.HandleFunc("DELETE /api/me/progress", srv.handleResetProgress)

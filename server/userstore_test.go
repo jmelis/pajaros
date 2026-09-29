@@ -315,23 +315,20 @@ func TestUserStoreReconcilesLegacyPreferenceSchema(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Profile = (ok=%v, err=%v)", ok, err)
 	}
-	if p.Language != "fr" || p.SecondaryLanguage != "" || p.StarRewards {
-		t.Errorf("profile = %+v, want fr/empty/off", p)
+	if p.Language != "fr" || p.SecondaryLanguage != "" {
+		t.Errorf("profile = %+v, want fr/empty", p)
 	}
 
-	// The added columns are then writable and readable.
+	// The added column is then writable and readable.
 	if err := store.SetSecondaryLanguage("google:legacy", "en"); err != nil {
 		t.Fatalf("SetSecondaryLanguage: %v", err)
-	}
-	if err := store.SetStarRewards("google:legacy", true); err != nil {
-		t.Fatalf("SetStarRewards: %v", err)
 	}
 	p, _, err = store.Profile("google:legacy")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.SecondaryLanguage != "en" || !p.StarRewards {
-		t.Errorf("profile after writes = %+v, want en/on", p)
+	if p.SecondaryLanguage != "en" {
+		t.Errorf("profile after write = %+v, want en", p)
 	}
 
 	// Writing the pre-existing column still works too.

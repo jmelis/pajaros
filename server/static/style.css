@@ -308,38 +308,6 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 .place-suggestion-country { color: var(--muted); font-size: 0.8rem; flex-shrink: 0; }
 .place-suggestion-empty { padding: 10px 12px; color: var(--muted); font-size: 0.9rem; }
 
-/* Toggle switch -- an actual iOS-style switch (pill track, sliding thumb)
-   instead of a bare checkbox. */
-.switch { display: flex; align-items: center; gap: var(--space-2); font-weight: 500; }
-.switch input {
-  appearance: none;
-  -webkit-appearance: none;
-  position: relative;
-  width: 51px;
-  height: 31px;
-  flex-shrink: 0;
-  margin: 0;
-  background: var(--fill-strong);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background-color .2s ease;
-}
-.switch input::before {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 27px;
-  height: 27px;
-  background: #fff;
-  border-radius: 50%;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
-  transition: transform .2s ease;
-}
-.switch input:checked { background: var(--accent); }
-.switch input:checked::before { transform: translateX(20px); }
-.switch input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-
 /* Map */
 .map-panel { padding: 0; overflow: hidden; }
 .map-toolbar { padding: var(--space-2); border-bottom: 0.5px solid var(--border); }
@@ -606,7 +574,6 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
   border-bottom: 0.5px solid var(--border);
 }
 .quiz-progress { font-weight: 600; }
-.quiz-stars { font-weight: 700; color: #b8860b; }
 #quizClose { margin-left: auto; }
 .quiz-body {
   display: flex;
@@ -649,26 +616,8 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 }
 .quiz-score { margin: 0; font-size: 1.2rem; font-weight: 700; }
 
-/* Star burst is part of the star-rewards flourish only. */
-.star-burst {
-  position: fixed;
-  top: 42%;
-  left: 50%;
-  z-index: 1200;
-  color: #f2a516;
-  font-size: 5rem;
-  pointer-events: none;
-  animation: star-pop 900ms ease-out forwards;
-}
-@keyframes star-pop {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(-20deg); }
-  30% { opacity: 1; transform: translate(-50%, -50%) scale(1.3) rotate(10deg); }
-  100% { opacity: 0; transform: translate(-50%, -90%) scale(1.6) rotate(0); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .card, .btn, .segmented span, .switch input, .switch input::before { transition: none; }
-  .star-burst { animation: none; opacity: 0; }
+  .card, .btn, .segmented span { transition: none; }
 }
 
 @media (max-width: 480px) {

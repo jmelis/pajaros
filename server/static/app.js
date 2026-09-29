@@ -15,8 +15,6 @@ const VIEW_NAMES = ["home", "search", "hotspot", "mastered", "settings"];
 const state = {
   language: "en",
   secondaryLanguage: "",
-  starRewards: false,
-  stars: 0,
   favorites: [],
   email: "",
   // speciesCode -> name in the secondary language, for the current hotspot.
@@ -205,8 +203,6 @@ async function onHashChange() {
 function syncProfile(p) {
   if (VALID_LANGS.includes(p.language)) state.language = p.language;
   state.secondaryLanguage = VALID_LANGS.includes(p.secondaryLanguage) ? p.secondaryLanguage : "";
-  state.starRewards = !!p.starRewards;
-  state.stars = p.stars || 0;
   state.favorites = Array.isArray(p.favorites) ? p.favorites : [];
   state.email = p.email || "";
   $("userEmail").textContent = state.email;
@@ -230,12 +226,10 @@ function renderProgress(el, st) {
   const mastered = st.speciesMastered || 0;
   const learning = st.speciesLearning || 0;
   const due = st.dueForReview || 0;
-  const stars = st.totalStars || 0;
   el.innerHTML =
     `<span class="stat"><strong>${mastered}</strong> ${tn("stats.mastered", mastered)}</span>` +
     `<span class="stat"><strong>${learning}</strong> ${tn("stats.learning", learning)}</span>` +
-    `<span class="stat"><strong>${due}</strong> ${tn("stats.due", due)}</span>` +
-    (state.starRewards ? `<span class="stat"><strong>⭐ ${stars}</strong> ${tn("stats.stars", stars)}</span>` : "");
+    `<span class="stat"><strong>${due}</strong> ${tn("stats.due", due)}</span>`;
 }
 
 // renderHeroStats fills Home's hero: a one-line headline plus three plain
@@ -326,7 +320,7 @@ async function renderHome() {
 
   syncProfile(profile);
   const hasFavorites = state.favorites.length > 0;
-  const hasProgress = (stats.speciesMastered || 0) + (stats.speciesLearning || 0) + (stats.totalStars || 0) > 0;
+  const hasProgress = (stats.speciesMastered || 0) + (stats.speciesLearning || 0) > 0;
   const firstRun = !hasFavorites && !hasProgress;
 
   $("homeFirstRun").hidden = !firstRun;
@@ -891,7 +885,6 @@ function buildLanguageSelects() {
 async function renderSettings() {
   $("settingsHint").hidden = true;
   buildLanguageSelects();
-  $("starRewards").checked = state.starRewards;
   try {
     const [pRes, stRes] = await Promise.all([fetch("/api/me"), fetch("/api/me/progress")]);
     if (pRes.ok) syncProfile(await pRes.json());
@@ -901,7 +894,6 @@ async function renderSettings() {
     showSettingsHint(t("settings.loadError"));
   }
   buildLanguageSelects();
-  $("starRewards").checked = state.starRewards;
 }
 
 async function onPrimaryLanguageChange() {
@@ -943,24 +935,6 @@ async function onSecondaryLanguageChange() {
   if (currentRoute.name === "hotspot") await loadSpecies();
 }
 
-async function onStarRewardsChange() {
-  const on = $("starRewards").checked;
-  try {
-    const res = await fetch("/api/me/star-rewards", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ starRewards: on }),
-    });
-    if (!res.ok) throw new Error(String(res.status));
-  } catch (e) {
-    $("starRewards").checked = !on;
-    showSettingsHint(t("settings.errorStarRewards"));
-    return;
-  }
-  state.starRewards = on;
-  updateQuizStars();
-  if (currentRoute.name === "home") await renderHome();
-}
-
 async function onResetProgress() {
   if (!confirm(t("settings.confirmReset"))) return;
   try {
@@ -970,7 +944,6 @@ async function onResetProgress() {
     showSettingsHint(t("settings.errorReset"));
     return;
   }
-  state.stars = 0;
   await renderSettings();
 }
 
@@ -984,26 +957,6 @@ async function onLogout() {
 }
 
 // ---- Quiz -----------------------------------------------------------------
-
-// The star counter is repainted the moment an answer is scored (see answer),
-// not only when the next question renders, so it moves immediately — including
-// on a session's last question.
-function updateQuizStars() {
-  const el = $("quizStars");
-  if (!state.starRewards) { el.hidden = true; el.textContent = ""; return; }
-  el.hidden = false;
-  el.textContent = t("quiz.stars", { n: state.stars });
-}
-
-// The star burst is part of the star-rewards flourish only.
-function starBurst() {
-  if (!state.starRewards) return;
-  const el = document.createElement("div");
-  el.className = "star-burst";
-  el.textContent = "★";
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 900);
-}
 
 // multipleChoiceChoices builds a multiple-choice option set for a card being
 // re-presented after a wrong answer reset it to box 1. Recall items carry no
@@ -1052,8 +1005,6 @@ const quiz = {
   index: 0,
   answered: 0,
   correct: 0,
-  starsEarned: 0,
-  mastered: false,
   // Handle for the delayed re-render answer() schedules after a
   // multiple-choice question, so start()/finish() can cancel it — an
   // uncancelled timer firing after the quiz has moved on (closed and
@@ -1069,11 +1020,8 @@ const quiz = {
     this.index = 0;
     this.answered = 0;
     this.correct = 0;
-    this.starsEarned = 0;
-    this.mastered = false;
     this.active = true;
     $("quizOverlay").hidden = false;
-    updateQuizStars();
     this.render();
   },
 
@@ -1091,7 +1039,6 @@ const quiz = {
     const item = this.queue[this.index];
 
     $("quizProgress").textContent = t("quiz.question", { i: this.index + 1, n: this.queue.length });
-    updateQuizStars();
 
     const img = document.createElement("img");
     img.className = "quiz-image";
@@ -1184,18 +1131,9 @@ const quiz = {
       // A scoring failure shouldn't strand the quiz; keep going.
     }
 
-    if (answer) {
-      state.stars = answer.totalStars;
-      this.starsEarned += answer.starsEarned;
-      if (answer.newlyMastered) this.mastered = true;
-    }
-    // Repaint the counter immediately, before the next question renders.
-    updateQuizStars();
-
     this.answered++;
     if (correct) {
       this.correct++;
-      starBurst();
     } else {
       // Reinsert a handful of questions later instead of right after itself,
       // as a fresh item whose format matches the card's reset (box 1) state.
@@ -1220,7 +1158,6 @@ const quiz = {
 
   renderSummary() {
     $("quizProgress").textContent = t("quiz.complete");
-    updateQuizStars();
     const body = $("quizBody");
     body.innerHTML = "";
     const pct = this.answered ? Math.round((this.correct / this.answered) * 100) : 0;
@@ -1229,7 +1166,7 @@ const quiz = {
     wrap.className = "quiz-summary";
 
     const heading = document.createElement("h2");
-    heading.textContent = state.starRewards && this.mastered ? t("quiz.mastered") : t("quiz.complete");
+    heading.textContent = t("quiz.complete");
 
     const score = document.createElement("p");
     score.className = "quiz-score";
@@ -1237,12 +1174,6 @@ const quiz = {
 
     wrap.appendChild(heading);
     wrap.appendChild(score);
-    if (state.starRewards) {
-      const earned = document.createElement("p");
-      earned.className = "quiz-earned";
-      earned.textContent = tn("quiz.earned", this.starsEarned);
-      wrap.appendChild(earned);
-    }
 
     const actions = document.createElement("div");
     actions.className = "actions";
@@ -1344,7 +1275,6 @@ function wireEvents() {
 
   $("primaryLang").addEventListener("change", onPrimaryLanguageChange);
   $("secondaryLang").addEventListener("change", onSecondaryLanguageChange);
-  $("starRewards").addEventListener("change", onStarRewardsChange);
   $("resetProgress").addEventListener("click", onResetProgress);
   $("logoutBtn").addEventListener("click", onLogout);
 }
