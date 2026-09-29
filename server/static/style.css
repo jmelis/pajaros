@@ -1,19 +1,25 @@
 :root {
   color-scheme: light;
-  --bg: #f7f8f7;
+  /* Apple's own system colors (light) -- grouped-table background/surface
+     pair, label/secondaryLabel text, opaqueSeparator, and systemBlue as
+     the tint. systemBlue, not a brand color: it's the actual default tint
+     iOS itself uses when an app doesn't customize one. */
+  --bg: #f2f2f7;
   --surface: #ffffff;
-  --surface-alt: #fbfaf8;
-  --text: #1a231e;
-  --muted: #66756d;
-  --accent: #2a7d4f;
-  --accent-dark: #216040;
-  --accent-soft: #e9f3ec;
-  --border: #e5e3dc;
-  --border-strong: #cdd8d0;
-  --img-bg: #eee;
-  --danger-bg: #fbeaea;
-  --danger-border: #cc3333;
-  --danger-text: #aa3333;
+  --surface-alt: #f2f2f7;
+  --text: #000000;
+  --muted: #6c6c70;
+  --accent: #007aff;
+  --accent-dark: #0040dd;
+  --accent-soft: rgba(0, 122, 255, 0.15);
+  --border: #e5e5ea;
+  --border-strong: #c6c6c8;
+  --fill: rgba(120, 120, 128, 0.12);
+  --fill-strong: rgba(120, 120, 128, 0.2);
+  --img-bg: #e5e5ea;
+  --danger-bg: rgba(255, 59, 48, 0.12);
+  --danger-border: #ff3b30;
+  --danger-text: #d70015;
 
   --space-1: 8px;
   --space-2: 16px;
@@ -21,55 +27,61 @@
   --space-4: 32px;
 
   --radius-sm: 10px;
-  --radius: 14px;
-  --radius-lg: 18px;
+  --radius: 16px;
+  --radius-lg: 20px;
 
-  --shadow-sm: 0 1px 2px rgba(24, 32, 28, 0.06);
-  --shadow: 0 8px 24px -8px rgba(24, 32, 28, 0.16);
+  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.04);
+  --shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.22);
 
-  --header-h: 64px;
+  --header-h: 52px;
+  --tabbar-h: 50px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #141815;
-    --surface: #1c211d;
-    --surface-alt: #1f251f;
-    --text: #eef2ee;
-    --muted: #94a39a;
-    --accent: #4caf7d;
-    --accent-dark: #6ec596;
-    --accent-soft: #22362a;
-    --border: #2b332c;
-    --border-strong: #3a453b;
-    --img-bg: #262b26;
-    --danger-bg: #3a2323;
-    --danger-border: #b04a4a;
-    --danger-text: #e08888;
+    /* Apple's system colors (dark) -- true-black grouped background (the
+       OLED-friendly choice iOS itself makes), elevated-gray surfaces. */
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-alt: #2c2c2e;
+    --text: #ffffff;
+    --muted: #8e8e93;
+    --accent: #0a84ff;
+    --accent-dark: #409cff;
+    --accent-soft: rgba(10, 132, 255, 0.22);
+    --border: #38383a;
+    --border-strong: #48484a;
+    --fill: rgba(120, 120, 128, 0.24);
+    --fill-strong: rgba(120, 120, 128, 0.36);
+    --img-bg: #2c2c2e;
+    --danger-bg: rgba(255, 69, 58, 0.18);
+    --danger-border: #ff453a;
+    --danger-text: #ff6961;
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+    --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.3);
+    --shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.6);
   }
 }
 
 * { box-sizing: border-box; }
 
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font-size: 16px;
-  line-height: 1.55;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3 { line-height: 1.25; letter-spacing: -0.01em; }
+h1, h2, h3 { line-height: 1.2; letter-spacing: -0.01em; }
 a { color: var(--accent-dark); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* Header + top navigation, merged into a single sticky bar. */
+/* Header: brand only -- primary navigation lives in the bottom tab bar
+   (see .tab-bar), the canonical iOS placement, not here. */
 .app-header {
   position: sticky;
   top: 0;
@@ -80,19 +92,18 @@ a { color: var(--accent-dark); }
   gap: var(--space-2);
   height: var(--header-h);
   padding: 0 var(--space-3);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border-bottom: 0.5px solid var(--border);
 }
 .brand { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-.brand-mark { align-self: center; font-size: 1.2rem; line-height: 1; }
-.brand h1 { margin: 0; font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em; }
+.brand-mark { align-self: center; font-size: 1.15rem; line-height: 1; }
+.brand h1 { margin: 0; font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
 .brand .tagline {
   color: var(--muted);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: 0.76rem;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
@@ -102,12 +113,12 @@ a { color: var(--accent-dark); }
   gap: var(--space-3);
   max-width: 900px;
   margin: 0 auto;
-  padding: var(--space-3) 1rem var(--space-4);
+  padding: var(--space-3) 1rem calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-4));
 }
 
 .view { display: flex; flex-direction: column; gap: var(--space-3); }
 .view[hidden] { display: none; }
-.view-title { margin: 0; font-size: 1.35rem; }
+.view-title { margin: 0; font-size: 1.7rem; font-weight: 700; }
 .view-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 
 .header-right { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
@@ -120,145 +131,142 @@ a { color: var(--accent-dark); }
   max-width: 200px;
 }
 
-/* Top navigation, living in the header rather than a footer/tab bar. */
-.app-nav {
+/* Bottom tab bar -- the canonical iOS primary-navigation placement.
+   Fixed, translucent/blurred, icon-over-label, safe-area aware so it
+   clears the home indicator on notched devices. */
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 900;
   display: flex;
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border-top: 0.5px solid var(--border);
+}
+.tab-bar a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  flex-shrink: 0;
-}
-.app-nav a {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 12px;
   color: var(--muted);
-  font-size: 0.88rem;
-  font-weight: 600;
+  font-size: 0.68rem;
+  font-weight: 500;
   text-decoration: none;
-  border-radius: 999px;
-  transition: background-color .15s ease, color .15s ease;
 }
-.app-nav a:hover { color: var(--text); background: var(--accent-soft); }
-.app-nav a[aria-current="page"] { color: var(--accent-dark); background: var(--accent-soft); }
-.nav-icon { width: 19px; height: 19px; flex-shrink: 0; }
-
-@media (max-width: 640px) {
-  .app-nav a span { display: none; }
-  .app-nav a { padding: 9px; }
-  .nav-icon { width: 21px; height: 21px; }
-  .user-email { display: none; }
+.tab-bar a[aria-current="page"] { color: var(--accent-dark); }
+@media (prefers-color-scheme: dark) {
+  .tab-bar a[aria-current="page"] { color: var(--accent); }
 }
+.tab-icon { width: 25px; height: 25px; flex-shrink: 0; }
 
-/* Panels / cards */
+/* Panels / cards -- grouped-table style: flat surface, hairline border,
+   no heavy shadow (iOS grouped lists lean on the bg/surface contrast, not
+   drop shadows, for separation). */
 .panel {
   padding: var(--space-3);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
 }
 .panel-title {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-1);
+  padding-left: 4px;
   color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
 }
 
-/* Stat pills: used by the home progress summary and the settings panel's
-   progress line (both render a <div class="settings-stats"> of <span
-   class="stat">s — the same markup, two call sites). */
+/* Stat pills */
 .settings-stats { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .settings-stats .stat {
   padding: 8px 12px;
   background: var(--accent-soft);
+  color: var(--accent-dark);
   border-radius: var(--radius-sm);
   font-size: 0.9rem;
+  font-weight: 500;
 }
+@media (prefers-color-scheme: dark) { .settings-stats .stat { color: var(--accent); } }
 
-/* Buttons */
+/* Buttons -- filled pill (primary) / tinted fill, no border (secondary),
+   the two iOS button styles used almost everywhere in system UI. */
 .btn {
   font: inherit;
   font-weight: 600;
   font-size: 0.95rem;
   line-height: 1;
-  padding: 10px 16px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  border: none;
+  border-radius: 999px;
   cursor: pointer;
-  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+  transition: opacity .15s ease, background-color .15s ease;
 }
 .btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover { background: var(--accent-dark); }
-.btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
-.btn-secondary:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
-.btn-sm { padding: 7px 12px; font-size: 0.85rem; }
-.btn[disabled] { opacity: 0.6; cursor: default; }
+.btn-primary:hover { opacity: 0.88; }
+.btn-primary:active { opacity: 0.7; }
+.btn-secondary { background: var(--fill); color: var(--accent-dark); }
+.btn-secondary:hover { background: var(--fill-strong); }
+.btn-secondary:active { opacity: 0.6; }
+@media (prefers-color-scheme: dark) { .btn-secondary { color: var(--accent); } }
+.btn-sm { padding: 8px 14px; font-size: 0.85rem; }
+.btn[disabled] { opacity: 0.4; cursor: default; }
 
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
 
-/* Inputs */
+/* Inputs -- filled, borderless fields (iOS text fields sit on a filled
+   surface, not an outlined box). */
 .field-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
-.field { display: flex; flex-direction: column; gap: 4px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
 .field > span {
   color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.76rem;
+  font-weight: 500;
 }
-input[type=number], select {
+input[type=number], input[type=search], select {
   width: 100%;
   font: inherit;
   color: inherit;
-  padding: 9px 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  padding: 11px 12px;
+  background: var(--fill);
+  border: none;
   border-radius: var(--radius-sm);
 }
-input[type=number]:focus, select:focus {
+input[type=number]:focus, input[type=search]:focus, select:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(42, 125, 79, 0.15);
+  box-shadow: 0 0 0 2px var(--accent);
 }
-.hint { margin: var(--space-2) 0 0; color: var(--muted); font-size: 0.8rem; }
+.hint { margin: var(--space-2) 0 0; color: var(--muted); font-size: 0.82rem; }
 
 /* Place search */
 .place-search { position: relative; margin-bottom: var(--space-2); }
-input[type=search] {
-  width: 100%;
-  font: inherit;
-  color: inherit;
-  padding: 9px 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-input[type=search]:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(42, 125, 79, 0.15);
-}
 .place-suggestions {
   position: absolute;
   z-index: 20;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   left: 0;
   right: 0;
   margin: 0;
-  padding: 4px;
+  padding: 6px;
   list-style: none;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   max-height: 260px;
   overflow-y: auto;
 }
@@ -267,31 +275,58 @@ input[type=search]:focus {
   justify-content: space-between;
   align-items: baseline;
   gap: var(--space-2);
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
-.place-suggestion:hover { background: var(--accent-soft); }
+.place-suggestion:hover { background: var(--fill); }
 .place-suggestion-country { color: var(--muted); font-size: 0.8rem; flex-shrink: 0; }
-.place-suggestion-empty { padding: 8px 10px; color: var(--muted); font-size: 0.9rem; }
+.place-suggestion-empty { padding: 10px 12px; color: var(--muted); font-size: 0.9rem; }
 
-/* Reward toggle */
-.switch { display: flex; align-items: center; gap: var(--space-1); font-weight: 600; }
-.switch input { width: 1.2rem; height: 1.2rem; }
+/* Toggle switch -- an actual iOS-style switch (pill track, sliding thumb)
+   instead of a bare checkbox. */
+.switch { display: flex; align-items: center; gap: var(--space-2); font-weight: 500; }
+.switch input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 51px;
+  height: 31px;
+  flex-shrink: 0;
+  margin: 0;
+  background: var(--fill-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color .2s ease;
+}
+.switch input::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+  transition: transform .2s ease;
+}
+.switch input:checked { background: var(--accent); }
+.switch input:checked::before { transform: translateX(20px); }
+.switch input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* Map */
 .map-panel { padding: 0; overflow: hidden; }
-.map-toolbar { padding: var(--space-2); border-bottom: 1px solid var(--border); }
+.map-toolbar { padding: var(--space-2); border-bottom: 0.5px solid var(--border); }
 #map { height: 400px; }
 
-/* Segmented control */
+/* Segmented control -- iOS's grey-track, floating-selection-pill control. */
 .segmented {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 3px;
-  padding: 3px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  gap: 2px;
+  padding: 2px;
+  background: var(--fill);
   border-radius: var(--radius-sm);
   align-self: flex-start;
 }
@@ -300,13 +335,13 @@ input[type=search]:focus {
 .segmented span {
   display: inline-block;
   padding: 7px 14px;
-  color: var(--muted);
+  color: var(--text);
   font-size: 0.88rem;
-  font-weight: 600;
-  border-radius: 6px;
-  transition: background-color .15s ease, color .15s ease;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: background-color .15s ease, box-shadow .15s ease;
 }
-.segmented input:checked + span { background: var(--accent); color: #fff; }
+.segmented input:checked + span { background: var(--surface); box-shadow: var(--shadow-sm); font-weight: 600; }
 .segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .status { margin: 0; color: var(--muted); font-size: 0.9rem; min-height: 1.4em; }
@@ -315,7 +350,7 @@ input[type=search]:focus {
 .family-heading {
   margin: var(--space-3) 0 var(--space-2);
   padding-bottom: var(--space-1);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
   font-size: 1rem;
   font-weight: 700;
 }
@@ -332,14 +367,14 @@ input[type=search]:focus {
   flex-direction: column;
   overflow: hidden;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
   color: inherit;
   text-decoration: none;
-  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  transition: transform .15s ease, box-shadow .15s ease;
 }
-.card:hover { transform: translateY(-2px); border-color: var(--border-strong); box-shadow: var(--shadow); }
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .card img {
   display: block;
   width: 100%;
@@ -348,7 +383,7 @@ input[type=search]:focus {
   background: var(--img-bg);
 }
 .card-body { display: flex; flex-direction: column; gap: 2px; padding: var(--space-1) 10px 12px; }
-.card .com { font-weight: 700; font-size: 0.95rem; line-height: 1.3; }
+.card .com { font-weight: 600; font-size: 0.95rem; line-height: 1.3; }
 .card .sci { color: var(--muted); font-style: italic; font-size: 0.8rem; }
 .card .nearby {
   align-self: flex-start;
@@ -360,7 +395,9 @@ input[type=search]:focus {
   font-weight: 600;
   border-radius: 999px;
 }
+@media (prefers-color-scheme: dark) { .card .nearby { color: var(--accent); } }
 .card .sub { color: var(--accent-dark); font-size: 0.78rem; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .card .sub { color: var(--accent); } }
 
 /* Mastered stats */
 .mastered-stats { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
@@ -372,40 +409,45 @@ input[type=search]:focus {
   font-weight: 600;
   border-radius: 999px;
 }
+@media (prefers-color-scheme: dark) { .mastered-stats span { color: var(--accent); } }
 
 /* Home */
 .first-run { text-align: center; }
-.hotspot-list { display: flex; flex-direction: column; gap: var(--space-1); margin: 0 0 var(--space-2); padding: 0; list-style: none; }
+
+/* Grouped list -- Settings.app style: rows share one card, separated by
+   hairlines between them (not around each), no per-row shadow/radius. */
+.hotspot-list { display: flex; flex-direction: column; margin: 0 0 var(--space-2); padding: 0; list-style: none; }
 .hotspot-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-1);
-  padding: 8px 10px;
-  background: var(--accent-soft);
-  border-radius: var(--radius-sm);
+  padding: 12px 4px;
+  border-bottom: 0.5px solid var(--border);
 }
-.hotspot-link { overflow: hidden; font-weight: 600; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.hotspot-item:last-child { border-bottom: none; }
+.hotspot-link { overflow: hidden; font-weight: 500; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Leaflet popup */
 .leaflet-popup-content { margin: 12px 14px; font-family: inherit; color: var(--text); line-height: 1.5; }
 .leaflet-popup-content-wrapper { border-radius: var(--radius); box-shadow: var(--shadow); }
-.popup-title { font-size: 1rem; }
+.popup-title { font-size: 1rem; font-weight: 600; }
 .popup-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-1); }
 .popup-btn {
   font: inherit;
   font-weight: 600;
   font-size: 0.85rem;
-  padding: 7px 12px;
+  padding: 8px 14px;
   color: #fff;
   background: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
+  border: none;
+  border-radius: 999px;
   cursor: pointer;
 }
-.popup-btn:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
-.popup-btn-secondary { color: var(--text); background: var(--surface); border-color: var(--border); }
-.popup-btn-secondary:hover { background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent); }
+.popup-btn:hover { opacity: 0.88; }
+.popup-btn-secondary { color: var(--accent-dark); background: var(--fill); }
+@media (prefers-color-scheme: dark) { .popup-btn-secondary { color: var(--accent); } }
+.popup-btn-secondary:hover { background: var(--fill-strong); }
 
 /* Overlays (quiz) */
 .overlay {
@@ -416,26 +458,46 @@ input[type=search]:focus {
   align-items: center;
   justify-content: center;
   padding: var(--space-3);
-  background: rgba(20, 28, 24, 0.55);
+  background: rgba(0, 0, 0, 0.4);
 }
 .overlay[hidden] { display: none; }
 
-/* Quiz screen */
+/* Quiz screen -- presented as a sheet rising from the bottom (rounded top
+   corners, a grab-handle glyph) rather than a centered modal rectangle,
+   the standard iOS presentation for a focused full-screen task. */
 .quiz-overlay {
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
+  align-items: flex-end;
+  justify-content: stretch;
   padding: 0;
+}
+.quiz-overlay .quiz-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 92vh;
   background: var(--surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+}
+.quiz-sheet::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 5px;
+  margin: 10px auto 0;
+  background: var(--border-strong);
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 .quiz-top {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
 }
-.quiz-progress { font-weight: 700; }
+.quiz-progress { font-weight: 600; }
 .quiz-stars { font-weight: 700; color: #b8860b; }
 #quizClose { margin-left: auto; }
 .quiz-body {
@@ -449,27 +511,26 @@ input[type=search]:focus {
 }
 .quiz-image {
   width: min(100%, 520px);
-  max-height: 46vh;
+  max-height: 42vh;
   object-fit: contain;
   background: var(--img-bg);
   border-radius: var(--radius);
 }
-.quiz-prompt { margin: 0; font-weight: 700; }
+.quiz-prompt { margin: 0; font-weight: 600; }
 .quiz-choices {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: var(--space-1);
   width: min(100%, 640px);
 }
-.quiz-choice { width: 100%; padding: 14px; font-size: 1rem; }
-.quiz-choice.quiz-choice-correct { background: var(--accent); border-color: var(--accent); color: #fff; }
-.quiz-choice.quiz-choice-incorrect { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
+.quiz-choice { width: 100%; padding: 14px; font-size: 1rem; border-radius: var(--radius-sm); background: var(--fill); color: var(--text); }
+.quiz-choice.quiz-choice-correct { background: var(--accent); color: #fff; }
+.quiz-choice.quiz-choice-incorrect { background: var(--danger-bg); color: var(--danger-text); }
 .quiz-reveal { text-align: center; }
 .quiz-reveal-name { font-size: 1.4rem; font-weight: 700; }
 .quiz-reveal-sub { color: var(--accent-dark); font-weight: 600; }
+@media (prefers-color-scheme: dark) { .quiz-reveal-sub { color: var(--accent); } }
 .quiz-reveal-sci { color: var(--muted); font-style: italic; }
-/* Only lay the grade buttons out when revealed: a bare `.quiz-grade` rule
-   would out-rank the UA [hidden] rule and show them before "Show answer". */
 .quiz-grade:not([hidden]) { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); }
 .quiz-summary {
   display: flex;
@@ -498,12 +559,12 @@ input[type=search]:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card, .btn, .segmented span { transition: none; }
+  .card, .btn, .segmented span, .switch input, .switch input::before { transition: none; }
   .star-burst { animation: none; opacity: 0; }
 }
 
 @media (max-width: 480px) {
-  .container { padding: var(--space-2) var(--space-2) var(--space-3); }
+  .container { padding: var(--space-2) var(--space-2) calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-3)); }
   #map { height: 300px; }
   .brand .tagline { display: none; }
 }

@@ -414,8 +414,8 @@ function renderVisibleHotspots() {
   for (const h of visible) {
     const marker = L.circleMarker([h.lat, h.lng], {
       radius: markerRadius(h.totalCount, maxTotalCount),
-      color: "#2a7d4f",
-      fillColor: "#2a7d4f",
+      color: "#007aff",
+      fillColor: "#007aff",
       fillOpacity: 0.6,
     }).addTo(map).bindPopup(popupHTML(h, true), { autoPan: false });
     hotspotMarkers.push(marker);
