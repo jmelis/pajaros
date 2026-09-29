@@ -950,6 +950,11 @@ function requeuedItem(item, box) {
     delete next.choices;
   } else if (!next.choices || next.choices.length < 2) {
     next.choices = multipleChoiceChoices(item);
+  } else {
+    // Object.assign is a shallow copy — next.choices is still item's own
+    // array here, not a clone. Requeuing must not leave two queue entries
+    // sharing one mutable choices array.
+    next.choices = next.choices.slice();
   }
   return next;
 }
@@ -963,8 +968,16 @@ const quiz = {
   correct: 0,
   starsEarned: 0,
   mastered: false,
+  // Handle for the delayed re-render answer() schedules after a
+  // multiple-choice question, so start()/finish() can cancel it — an
+  // uncancelled timer firing after the quiz has moved on (closed and
+  // reopened, or otherwise reset) would repaint whatever question happens
+  // to be current at that later moment instead of the one it was for.
+  renderTimer: null,
 
   start(items, locId) {
+    clearTimeout(this.renderTimer);
+    this.renderTimer = null;
     this.queue = items.slice();
     this.locId = locId;
     this.index = 0;
@@ -979,6 +992,8 @@ const quiz = {
   },
 
   finish() {
+    clearTimeout(this.renderTimer);
+    this.renderTimer = null;
     this.active = false;
     $("quizOverlay").hidden = true;
   },
@@ -1109,8 +1124,12 @@ const quiz = {
     // Multiple choice just colored the buttons above; give that a moment to
     // register before it's replaced by the next question. Recall already
     // showed its reveal before the self-grade tap, so it can advance at once.
-    if (item.questionType === "multipleChoice") setTimeout(() => this.render(), 1100);
-    else this.render();
+    if (item.questionType === "multipleChoice") {
+      clearTimeout(this.renderTimer);
+      this.renderTimer = setTimeout(() => { this.renderTimer = null; this.render(); }, 1100);
+    } else {
+      this.render();
+    }
   },
 
   renderSummary() {
