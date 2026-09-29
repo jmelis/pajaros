@@ -10,11 +10,12 @@ import (
 	"strings"
 )
 
-// Resolves a species' principal card image from Wikimedia Commons: the
-// Wikipedia infobox photo, filtered by license and by Commons category
-// (excluding maps/illustrations/statues etc.), and returns it if it passes.
+// Resolves a species' principal card image from Wikimedia Commons: search,
+// filter by license, by filename, and by Commons category (excluding
+// maps/illustrations/statues etc.), and return the first acceptable hit.
 
 var allowedLicenseRe = regexp.MustCompile(`(?i)^(cc0|cc[- ]by(-sa)?[- ]?[\d.]*|public domain|pd)`)
+var excludeFilenameRe = regexp.MustCompile(`(?i)(map|range|distribution|egg|nest|skeleton|anatomy|illustration|drawing|painting|sound|spectrogram|call\b|song\b|vocali|logo|stamp|coin|taxonomy|cladogram)`)
 
 // excludeCategoryRe flags non-photo Commons files that a filename check
 // can't catch, because the filename itself carries no hint of the
@@ -169,34 +170,91 @@ func stripHTML(s string) string {
 	return strings.TrimSpace(whitespaceRe.ReplaceAllString(htmlTagRe.ReplaceAllString(s, ""), " "))
 }
 
-// commonsImages returns the species' Wikipedia infobox photo from Wikimedia
-// Commons, if it has one and it passes commonsFileInfo's license/category
-// checks -- at most one image, never more.
+// categoryFileTitles lists candidate photo filenames in a species' Commons
+// category, prefiltered by filename (cheap, avoids a wasted commonsFileInfo
+// call for the obvious cases) -- commonsFileInfo's category check catches
+// what a filename can't (see excludeCategoryRe).
+func categoryFileTitles(sciName string) ([]string, error) {
+	var data struct {
+		Query struct {
+			CategoryMembers []struct {
+				Title string `json:"title"`
+			} `json:"categorymembers"`
+		} `json:"query"`
+	}
+	err := wikimediaGetJSON("https://commons.wikimedia.org/w/api.php", url.Values{
+		"action":  {"query"},
+		"list":    {"categorymembers"},
+		"cmtitle": {"Category:" + sciName},
+		"cmtype":  {"file"},
+		"cmlimit": {"50"},
+		"format":  {"json"},
+	}, &data)
+	if err != nil {
+		return nil, err
+	}
+	var titles []string
+	fileExtRe := regexp.MustCompile(`(?i)\.(jpe?g)$`)
+	for _, m := range data.Query.CategoryMembers {
+		title := strings.TrimPrefix(m.Title, "File:")
+		if title == m.Title {
+			continue
+		}
+		if fileExtRe.MatchString(title) && !excludeFilenameRe.MatchString(title) {
+			titles = append(titles, title)
+		}
+	}
+	return titles, nil
+}
+
+// commonsImages finds up to max freely-licensed candidate photos for a
+// species from Wikimedia: the Wikipedia infobox image first (usually the
+// best single representative photo), then its Commons category's other
+// files, in listing order. A single bad title (missing, wrong license,
+// flagged by commonsFileInfo's category check, a transient API error) is
+// skipped rather than aborting the whole lookup, so one problem file can't
+// cost the rest of the species' images.
 //
-// This used to also walk the species' whole Commons category for more
-// candidates, but that category is a free-text tag anyone can put on any
-// file, with nothing enforcing that it actually depicts the species: real
-// species categories were found carrying an unrelated bird's photos (Commons
-// contributors miscategorize; see excludeCategoryRe's doc comment for the
-// distribution-map/statue cases that filter does catch) with no filename or
-// category signal distinguishing the good files from the bad ones. The
-// infobox pick is Wikipedia-editor-curated, not just self-tagged, so it's
-// trusted as the one Commons image; iNaturalist (server/inaturalist.go),
-// where a photo is tied to a specific community-identified observation
-// rather than a free-text tag, supplies the rest.
+// A Commons category is a free-text tag any contributor can put on any
+// file, with nothing enforcing that it actually depicts the species --
+// commonsFileInfo's category check (excludeCategoryRe) catches an
+// unambiguous non-photo (a distribution map, a statue) that a filename gives
+// no hint of, but can't catch a file that's simply, genuinely miscategorized
+// under the wrong species entirely. That residual risk is accepted here in
+// exchange for photo quality: iNaturalist's research-grade bar is about
+// identification consensus, not composition, and using it for every
+// species' entire image set (as this app briefly did) trades a rare
+// mislabeled photo for consistently more amateur-looking ones.
 func commonsImages(sciName string, width, max int) []*ImageInfo {
-	if max <= 0 {
-		return nil
+	var out []*ImageInfo
+	seen := map[string]bool{}
+
+	add := func(title string) {
+		if len(out) >= max || seen[title] {
+			return
+		}
+		seen[title] = true
+		info, err := commonsFileInfo(title, width)
+		if err != nil || info == nil {
+			return
+		}
+		out = append(out, info)
 	}
-	infobox, err := wikipediaInfoboxFile(sciName)
-	if err != nil || infobox == "" {
-		return nil
+
+	if infobox, err := wikipediaInfoboxFile(sciName); err == nil && infobox != "" {
+		add(infobox)
 	}
-	info, err := commonsFileInfo(infobox, width)
-	if err != nil || info == nil {
-		return nil
+	if len(out) < max {
+		if titles, err := categoryFileTitles(sciName); err == nil {
+			for _, title := range titles {
+				if len(out) >= max {
+					break
+				}
+				add(title)
+			}
+		}
 	}
-	return []*ImageInfo{info}
+	return out
 }
 
 // downloadImage fetches image bytes from downloadURL, throttled through

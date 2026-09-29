@@ -144,12 +144,13 @@ func main() {
 		}
 		return
 	}
-	// `go run . revalidateimages` re-checks every already-cached species'
-	// Wikimedia images against the current filters and replaces/drops any
-	// that no longer pass — see revalidateimages.go.
-	if len(os.Args) > 1 && os.Args[1] == "revalidateimages" {
-		if err := runRevalidateImages(); err != nil {
-			log.Fatalf("revalidateimages: %v", err)
+	// `go run . trimextraimages` drops every cached species' images but the
+	// first and clears its top-up marker, so a changed image sourcing policy
+	// reaches already-cached species via the normal lazy top-up path instead
+	// of a bespoke re-fetch — see trimextraimages.go.
+	if len(os.Args) > 1 && os.Args[1] == "trimextraimages" {
+		if err := runTrimExtraImages(); err != nil {
+			log.Fatalf("trimextraimages: %v", err)
 		}
 		return
 	}

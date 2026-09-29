@@ -41,17 +41,17 @@ that automatic minimum:
 go run . warmcache          # pre-fetch images for a high-value species subset
 go run . migrateimages       # eagerly top every species up to the full image
                              # count now, instead of waiting on live traffic
-go run . revalidateimages    # drop any cached Wikimedia image that isn't a
-                             # species' current Wikipedia infobox photo, and
-                             # top back up from iNaturalist -- e.g. after a
-                             # sourcing policy change; fetching never
-                             # re-checks a species once it's resolved
+go run . trimextraimages     # drop every cached species' images but the
+                             # first and clear its top-up marker, so a
+                             # changed sourcing policy reaches already
+                             # -cached species via the normal lazy top-up
+                             # path instead of a bespoke re-fetch
 ```
 
 Run any of them against a local `CACHE_DIR`, then `rsync` the resulting
 `cache/` directory up to the deployed server's host path — see
 `server/warmcache.go`, `server/migrateimages.go`, and
-`server/revalidateimages.go` for what each one actually does.
+`server/trimextraimages.go` for what each one actually does.
 
 ## Refresh the bird data
 

@@ -1,23 +1,23 @@
 package main
 
 // Multi-source image resolution: a species' Learn card shows up to
-// maxImagesPerSpecies photos. Wikimedia (see wikimedia.go) supplies at most
-// one — the Wikipedia infobox photo, the one Commons image trusted enough to
-// use without a human rechecking it, since everything else in a Commons
-// category is just a free-text tag any contributor can add with nothing
-// enforcing that it actually depicts the species. iNaturalist (see
-// inaturalist.go) supplies the rest, for every species — its research-grade
-// observations are tied to a specific community-identified sighting rather
-// than a category tag, a real correctness guarantee a Commons category walk
-// never had.
+// maxImagesPerSpecies photos, sourced from Wikimedia Commons first (see
+// wikimedia.go) and topped up from iNaturalist (see inaturalist.go) when
+// Commons doesn't have enough freely-licensed candidates on its own —
+// verified during design: Commons categories are thin for some species
+// (e.g. only 2 files for Aegithalos caudatus's top-level category) where
+// iNaturalist's observation-photo volume reliably fills the gap. Wikimedia
+// is preferred deliberately, for photo quality: iNaturalist's research
+// -grade bar is about identification consensus, not composition, and its
+// photos skew more amateur as a result.
 
 // maxImagesPerSpecies caps how many photos the cache keeps per species —
 // the Learn card's image count.
 const maxImagesPerSpecies = 4
 
-// ResolveImages finds up to max freely-licensed candidate images for
-// sciName, width pixels wide: the Wikipedia infobox photo from Wikimedia
-// Commons if there is one, then iNaturalist for the rest.
+// ResolveImages finds up to max freely-licensed candidate images for sciName,
+// width pixels wide, trying Wikimedia Commons first and topping up from
+// iNaturalist only if Commons falls short.
 func ResolveImages(sciName string, width, max int) []*ImageInfo {
 	out := commonsImages(sciName, width, max)
 	if len(out) < max {

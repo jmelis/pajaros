@@ -403,22 +403,24 @@ and drag/press/arrow-key navigation client-side (`static/app.js`'s `learn`
 object) — there's no separate session endpoint or server-side state for it.
 
 Each card shows up to `maxImagesPerSpecies` (4) images, sourced from two
-upstreams and cached to disk. Wikimedia Commons (`server/wikimedia.go`)
-contributes at most one: the Wikipedia infobox photo, filtered to
-redistributable licenses and to the file's own Commons categories (a
-distribution map or a statue's photo can be named anything, but ends up
-categorized as "... distribution maps" or "Statues of ..." regardless, so
-checking categories catches what a filename can't). It's the one Commons
-image trusted without a human rechecking it — everything else in a
-species' Commons category is just a free-text tag any contributor can add,
-with nothing enforcing that it actually depicts the species; real species
-categories have turned up entirely unrelated birds this way. iNaturalist
-(`server/inaturalist.go`) supplies the rest, for every species — research
--grade observations (each tied to a specific community-identified sighting,
-a guarantee a category tag never had), community-vote-ordered, filtered to
+upstreams and cached to disk: Wikimedia Commons first (`server/wikimedia.go`
+— the Wikipedia infobox photo, then other Commons category files, filtered
+to redistributable licenses, by filename, and by the file's own Commons
+categories: a distribution map or a statue's photo can be named anything,
+but ends up categorized as "... distribution maps" or "Statues of ..."
+regardless, so checking categories catches what a filename can't), topped
+up from iNaturalist (`server/inaturalist.go`) when Commons doesn't supply
+enough — research-grade observations, community-vote-ordered, filtered to
 the same license set, one photo per observation so a single photographer's
-observation can't crowd out a species' image set. `images.go`'s
-`ResolveImages` orchestrates the two; `cache.go` downloads, resizes
+observation can't crowd out a species' image set. Wikimedia is preferred
+deliberately, for photo quality over iNaturalist's volume: a Commons
+category is a free-text tag any contributor can add with nothing enforcing
+that it actually depicts the species (occasionally turning up an unrelated
+bird entirely, a risk the category-type check above doesn't fully close),
+but iNaturalist's research-grade bar is about identification consensus, not
+composition, and using it for a species' whole image set trades that rare
+mislabeled Commons photo for consistently more amateur-looking ones.
+`images.go`'s `ResolveImages` orchestrates the two; `cache.go` downloads, resizes
 (`imageresize.go`, capped to `maxImageWidth`/1600px regardless of source),
 and caches the results under `server/cache/<bucket>/`, sharded into
 `cacheBucketCount` (256) hash-based subdirectories so one directory never
@@ -476,16 +478,20 @@ era, since iNaturalist may now find something) instead of waiting for
 organic traffic to view them.
 
 The cache is otherwise fetch-once: a species that's already fully resolved
-is never revisited by ordinary traffic, so a sourcing policy change (like
-Wikimedia dropping its Commons-category walk) only affects species fetched
-afterward. `go run . revalidateimages` (`server/revalidateimages.go`) is the
-one-off catch-up for that — it walks every species already in the cache and
-drops any cached Commons image that isn't (or is no longer) that species'
-current Wikipedia infobox photo, regardless of whether the dropped photo was
-individually fine, then tops back up from iNaturalist to replace it (existing
-iNaturalist images are always left alone — not in scope for this policy).
-Slots are positional (`<slug>-N.jpg`), so a species with a dropped slot has
-every one of its slots rewritten rather than just the changed one.
+is never revisited by ordinary traffic, so an image sourcing policy change
+only affects species fetched afterward. `go run . trimextraimages`
+(`server/trimextraimages.go`) is the one-off catch-up for that — for every
+already-cached species with more than one image, it drops every image but
+the first and clears the `.topped` marker, handing the species straight back
+to the same lazy top-up path (`EnsureFetchedAsync`/`topUpImages`) any other
+under-filled species already goes through, so slots 2-4 get refilled under
+whatever `ResolveImages`' current rules are, at normal traffic's pace (or
+follow it with `migrateimages` to refill everything right away instead of
+waiting). The first image is never touched: `ensureFirstImage` always
+resolved it via the same call a species' first-ever fetch used, so it's
+already the best single pick available under either the old or new policy.
+Pure local disk I/O — no network calls — so, like the layout migration
+above, it finishes in well under a second even for thousands of species.
 
 ## Accounts & persistence
 
