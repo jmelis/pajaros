@@ -340,7 +340,7 @@ func TestProfileReflectsSecondaryLanguageAndStarRewards(t *testing.T) {
 
 	// Invalid values are rejected.
 	rr := httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/secondary-language", body(`{"language":"de"}`)))
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/secondary-language", body(`{"language":"xx"}`)))
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("invalid secondary language = %d, want 400", rr.Code)
 	}

@@ -114,7 +114,7 @@ func TestSetLanguageValidatesAndPersists(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/language",
-		body(`{"language":"de"}`)))
+		body(`{"language":"xx"}`)))
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("invalid language = %d, want 400", rr.Code)
 	}

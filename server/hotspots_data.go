@@ -28,6 +28,25 @@ const (
 	hotspotCountMetaKey = "count"
 )
 
+// Hotspot is one GBIF-derived point (see ARCHITECTURE.md) — the
+// server's unit of "a place with birds," not eBird's curated hotspot list.
+// ID is "lat,lng" and doubles as the key into the bbolt species store
+// (species_store.go), so no separate ID translation is needed anywhere.
+// Name is whatever eBird's own location-naming convention put in GBIF's
+// `locality` field for that point — often a real hotspot name, sometimes a
+// personal location's description. TotalCount is the summed observation
+// count across every species ever recorded there. JSON tags keep the old
+// locId/locName names (rather than matching the Go field names) purely to
+// minimize the frontend diff — static/app.js reads these field names in
+// many places, and only the ID *format* actually changed, not its role.
+type Hotspot struct {
+	ID         string  `json:"locId"`
+	Name       string  `json:"locName"`
+	Lat        float64 `json:"lat"`
+	Lng        float64 `json:"lng"`
+	TotalCount int     `json:"totalCount"`
+}
+
 // HotspotStore answers hotspot lookups from hotspots.bolt, the same
 // mmap-backed bbolt file SpeciesStore reads from (species_store.go) —
 // nothing is loaded into memory at startup. Info is a single Get against

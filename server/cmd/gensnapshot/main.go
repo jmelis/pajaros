@@ -11,9 +11,11 @@
 //	go run ./cmd/gensnapshot places <geonames-cities500.zip | cities500.txt>
 //	go run ./cmd/gensnapshot geoip <dbip-country-lite.csv.gz | .csv>
 //
-// eBird blocks requests from this project's cloud deployment, so taxonomy
-// must be run from an unblocked connection (a home network works) and the
-// result committed — not fetched at request time.
+// taxonomy makes a single eBird call for taxonomic structure (not blocked
+// the way per-locale calls at request time would be — see ARCHITECTURE.md —
+// but still best run from an unblocked connection) plus many small GBIF
+// calls for common names (see taxonomy.go); the rest consume an already
+// downloaded bulk file and never call out at all.
 //
 // hotspots consumes the aggregated file from GBIF's SQL Downloads API (see
 // ARCHITECTURE.md) directly from its downloaded .zip — columns
@@ -34,15 +36,8 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"os"
 )
-
-// taxonLangs mirrors validLang in main.go — the set of bird-name languages
-// the frontend offers.
-var taxonLangs = []string{"en", "es", "fr"}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -82,110 +77,9 @@ func main() {
 	}
 }
 
-// ebirdTaxonEntry is eBird's raw /ref/taxonomy/ebird row shape, trimmed to
-// the fields this tool needs (eBird returns more: bandingCodes,
-// comNameCodes, sciNameCodes, familySciName — dropped here to keep the
-// embedded snapshot lean).
-type ebirdTaxonEntry struct {
-	SciName       string  `json:"sciName"`
-	ComName       string  `json:"comName"`
-	SpeciesCode   string  `json:"speciesCode"`
-	Category      string  `json:"category"`
-	Order         string  `json:"order"`
-	FamilyCode    string  `json:"familyCode"`
-	FamilyComName string  `json:"familyComName"`
-	TaxonOrder    float64 `json:"taxonOrder"`
-}
-
-// taxonOut is the on-disk shape for each embedded data/taxonomy_<lang>.json.gz
-// file. Field names and JSON tags must stay in lockstep with the Taxon type
-// in ebird.go, which is what taxonomy_data.go decodes this into at server
-// startup — this tool lives in a separate `main` package (cmd/gensnapshot)
-// so it can't just import that type directly.
-type taxonOut struct {
-	SciName       string  `json:"sciName"`
-	ComName       string  `json:"comName"`
-	SpeciesCode   string  `json:"speciesCode"`
-	Order         string  `json:"order"`
-	FamilyCode    string  `json:"familyCode"`
-	FamilyComName string  `json:"familyComName"`
-	TaxonOrder    float64 `json:"taxonOrder"`
-}
-
-// runTaxonomy fetches eBird's complete world taxonomy once per language (no
-// pagination — one call returns every species) and writes each as a
-// gzipped JSON file under data/.
-func runTaxonomy() error {
-	apiKey := os.Getenv("EBIRD_API_KEY")
-	if apiKey == "" {
-		return fmt.Errorf("EBIRD_API_KEY not set")
-	}
-	if err := os.MkdirAll("data", 0o755); err != nil {
-		return err
-	}
-
-	for _, lang := range taxonLangs {
-		fmt.Fprintf(os.Stderr, "fetching %s taxonomy...\n", lang)
-		entries, err := fetchTaxonomy(apiKey, lang)
-		if err != nil {
-			return fmt.Errorf("fetch %s taxonomy: %w", lang, err)
-		}
-
-		out := make([]taxonOut, 0, len(entries))
-		for _, e := range entries {
-			// Only true species — eBird's taxonomy also lists subspecies
-			// ("issf"), hybrids, slashes (ambiguous ID between two
-			// species), spuhs (genus-level "sp."), forms, intergrades and
-			// domestics, none of which GBIF's `species` column (a clean
-			// binomial scientific name) will ever resolve to.
-			if e.Category != "species" {
-				continue
-			}
-			out = append(out, taxonOut{
-				SciName:       e.SciName,
-				ComName:       e.ComName,
-				SpeciesCode:   e.SpeciesCode,
-				Order:         e.Order,
-				FamilyCode:    e.FamilyCode,
-				FamilyComName: e.FamilyComName,
-				TaxonOrder:    e.TaxonOrder,
-			})
-		}
-
-		path := fmt.Sprintf("data/taxonomy_%s.json.gz", lang)
-		if err := writeGzippedJSON(path, out); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
-		}
-		fmt.Fprintf(os.Stderr, "wrote %s (%d species)\n", path, len(out))
-	}
-	return nil
-}
-
-func fetchTaxonomy(apiKey, lang string) ([]ebirdTaxonEntry, error) {
-	q := url.Values{"fmt": {"json"}, "locale": {lang}}
-	req, err := http.NewRequest(http.MethodGet, "https://api.ebird.org/v2/ref/taxonomy/ebird?"+q.Encode(), nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("X-eBirdApiToken", apiKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("eBird taxonomy request failed: %d: %s", resp.StatusCode, body)
-	}
-
-	var entries []ebirdTaxonEntry
-	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
-		return nil, err
-	}
-	return entries, nil
-}
-
+// writeGzippedJSON is shared by every subcommand that writes a small,
+// git-committed embedded snapshot (taxonomy, geoip) — hotspots/places are
+// too big to embed and use their own bbolt-based writers instead.
 func writeGzippedJSON(path string, v any) error {
 	f, err := os.Create(path)
 	if err != nil {

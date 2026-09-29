@@ -24,7 +24,8 @@ for species card images.
   mmap-backed — `server/hotspots_data.go`, `server/species_store.go`. See
   "Hotspot and species data" below.
 - **Taxonomy**: `go:embed`ded JSON, small enough to ship in the binary —
-  `server/taxonomy_data.go`.
+  `server/taxonomy_data.go` (structure and species names), `server/families.go`
+  (family names). See "Taxonomy and common names" below.
 - **Frontend**: `server/static/` — plain HTML/CSS/JS, no bundler, no build
   step, served via `go:embed`.
 - **Images**: fetched from Wikimedia Commons on demand and cached to disk
@@ -134,6 +135,66 @@ mastery) are unaffected either way.
 
 `style.css` defines the light palette on `:root` and redefines it under
 `prefers-color-scheme: dark`, so the app follows the OS theme automatically.
+
+## Taxonomy and common names
+
+eBird supplies the taxonomic *structure* — which species exist
+(`server/data/taxonomy_core.json.gz`: `sciName`, `speciesCode`, `order`,
+`familyCode`, `taxonOrder`) — from a single `/ref/taxonomy/ebird` call
+(`cmd/gensnapshot taxonomy`, any locale, since none of these fields vary by
+one). Every common name — species and family both — comes from GBIF
+instead, joined onto that structure by scientific name. eBird's own
+per-locale common names aren't used anywhere: eBird/Clements' translated
+checklist text carries redistribution restrictions its bare taxonomic
+structure doesn't, so only the structure is eBird's; every name a user
+sees is GBIF's.
+
+GBIF's `species/search` endpoint returns each taxon's vernacular names
+inline, so building the name tables needs no bulk archive download — just
+many small calls, one per family rather than one giant paginated walk:
+paginating GBIF's ~14,600 bird species by a single global offset stalls
+badly past roughly 10,000 results (its search backend's offset pagination
+degrades hard at depth), but a family rarely has more than a few hundred
+species, so paginating within each of Aves' ~488 families instead keeps
+every query's offset shallow. `cmd/gensnapshot/taxonomy.go`:
+
+1. Fetches every GBIF family in Aves (with their own inline vernacular
+   names — no separate per-family call needed).
+2. For each, fetches its member species (with their vernacular names) and
+   joins each one to an eBird species by scientific name — roughly 88% of
+   eBird's species resolve this way; the rest are taxonomic splits/lumps
+   or spelling differences between eBird/Clements and GBIF's backbone that
+   a name join can't paper over, and fall back to English, then to the
+   species' own scientific name (see `TaxonomyStore.Lookup`).
+3. Where several GBIF records offer different strings for the same
+   (species, language) or (family, language) pair, one is picked
+   deterministically: most-voted first, then shortest, then alphabetical.
+4. GBIF's vernacular names carry ISO 639-2/3 three-letter language codes;
+   `iso6391ByGBIFCode` maps the ones this app cares about to the
+   two-letter codes used everywhere else (`validLang`, the `lang` query
+   param, `i18n.json`).
+
+**Species names are gated by coverage; family names aren't.** A language
+only becomes a bird-name option (`validLang`, computed from
+`data/species_names.json.gz`'s own keys — see `mustComputeValidLang`) if
+GBIF names at least 80% of eBird's species in it; below that a language's
+coverage drops off sharply; below it, most languages cover under 10%.
+Family names have no such gate — GBIF's family-rank coverage doesn't track
+its species-rank coverage closely enough to reuse the same cutoff (Spanish,
+for instance, clears 80% for species but only two-thirds for families) —
+so `FamilyName` (`server/families.go`) just falls back from the requested
+locale to English to the family's own scientific name (e.g.
+"Struthionidae"), which degrades gracefully regardless of how sparse a
+given language's family coverage is.
+
+The **primary language** setting (see Frontend, above) selects a
+`validLang` member for both bird names and UI text — there's no separate
+interface-language setting. `static/i18n.json` only has full UI-string
+translations for English, French and Spanish; the other `validLang`
+members render bird and category names in that language with English UI
+chrome around them, via `t()`'s existing fallback-to-English behavior — the
+same "show what you can, fall back to English for the rest" approach as
+the name resolution above, not a special case for these languages.
 
 ## Hotspot and species data
 

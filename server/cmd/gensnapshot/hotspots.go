@@ -462,10 +462,10 @@ func (z *zipEntryReader) Close() error {
 // by scientific name (what the GBIF TSV's `species` column carries). IDs
 // are assigned by sorting on eBird speciesCode, not read from a separately
 // shipped file — both this build tool and the server compute the same
-// mapping independently from the same committed data/taxonomy_en.json.gz,
+// mapping independently from the same committed data/taxonomy_core.json.gz,
 // so there's nothing to keep in sync by hand.
 func loadSpeciesIndex() (map[string]uint16, error) {
-	f, err := os.Open("data/taxonomy_en.json.gz")
+	f, err := os.Open("data/taxonomy_core.json.gz")
 	if err != nil {
 		return nil, err
 	}
@@ -476,7 +476,7 @@ func loadSpeciesIndex() (map[string]uint16, error) {
 	}
 	defer gz.Close()
 
-	var taxa []taxonOut
+	var taxa []coreTaxonOut
 	if err := json.NewDecoder(gz).Decode(&taxa); err != nil {
 		return nil, err
 	}

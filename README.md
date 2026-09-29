@@ -26,23 +26,30 @@ make deploy        # ...and point the GitOps manifest at the new tag
 
 ## Refresh the bird data
 
-Three independent sources, all refreshed roughly yearly, none called at
+Four independent sources, all refreshed roughly yearly, none called at
 request time by the deployed server:
 
 | source | provides | committed to git? |
 |---|---|---|
-| eBird taxonomy API | species names (en/es/fr), classification | yes |
+| eBird taxonomy API | which species exist, classification (no names) | yes |
+| GBIF (species API) | common names, species and family, ~20 languages | yes |
 | GBIF (EOD dataset) | which birds occur where, how often | no — `scp`'d |
 | GeoNames (cities500) | place names for search, worldwide | no — `scp`'d |
 | db-ip (IP to Country Lite) | default UI language for a new account | yes |
 
-### Taxonomy (seconds)
+### Taxonomy and common names (a few minutes)
 
 ```
 cd server
 EBIRD_API_KEY=... go run ./cmd/gensnapshot taxonomy   # run from home; eBird blocks cloud IPs
-git add data/taxonomy_*.json.gz && git commit -m "Refresh eBird taxonomy"
+git add data/taxonomy_core.json.gz data/species_names.json.gz data/family_names.json.gz
+git commit -m "Refresh taxonomy and common names"
 ```
+
+Prints each language's common-name coverage to stderr as it runs — see
+"Taxonomy and common names" in `ARCHITECTURE.md` for what it's doing and
+why only species names (not family names) are gated by a coverage
+threshold.
 
 ### Hotspot/species data (GBIF, ~20 min once downloaded)
 

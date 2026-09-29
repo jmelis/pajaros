@@ -30,15 +30,10 @@ type Server struct {
 	users    *UserStore
 }
 
-// validLocID matches a hotspot ID — "lat,lng" (see ebird.go's Hotspot type),
+// validLocID matches a hotspot ID — "lat,lng" (see hotspots_data.go's Hotspot type),
 // e.g. "41.486977,-71.0376". It gates every use of the {locId} path value
 // before it's looked up in the hotspot store.
 var validLocID = regexp.MustCompile(`^-?\d+(\.\d+)?,-?\d+(\.\d+)?$`).MatchString
-
-// validLang is the fixed set of bird-name languages the frontend offers (see
-// static/index.html's #lang select) and the embedded taxonomy ships tables
-// for (see taxonomy_data.go).
-var validLang = map[string]bool{"es": true, "fr": true, "en": true}
 
 // defaultLang is the bird-name language used when neither the request nor the
 // account's stored preference selects one. Kept next to validLang so the
@@ -419,7 +414,7 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 			SciName:     taxon.SciName,
 			ComName:     taxon.ComName,
 			Order:       taxon.Order,
-			Family:      FamilyName(taxon.FamilyCode, taxon.FamilyComName, lang),
+			Family:      FamilyName(taxon.FamilyCode, lang),
 		}
 		if taxon.SciName != "" {
 			cards[i].ImageURL = s.cache.ImageURLFor(taxon.SciName)
