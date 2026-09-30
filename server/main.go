@@ -147,17 +147,6 @@ func main() {
 		}
 		return
 	}
-	// `go run . trimextraimages` drops every cached species' images but the
-	// first and clears its top-up marker, so a changed image sourcing policy
-	// reaches already-cached species via the normal lazy top-up path instead
-	// of a bespoke re-fetch — see trimextraimages.go.
-	if len(os.Args) > 1 && os.Args[1] == "trimextraimages" {
-		if err := runTrimExtraImages(); err != nil {
-			log.Fatalf("trimextraimages: %v", err)
-		}
-		return
-	}
-
 	cacheDir := os.Getenv("CACHE_DIR")
 	if cacheDir == "" {
 		cacheDir = "./cache"
@@ -186,6 +175,14 @@ func main() {
 		log.Printf("cache layout migration: %v (continuing — live traffic will self-heal)", err)
 	} else if len(migrated) > 0 {
 		log.Printf("cache layout migration: moved %d species into the bucketed cache layout at startup", len(migrated))
+	}
+
+	// Re-trim the cache once under the current image sourcing policy (keep
+	// each species' title photo, drop the rest, reopen "no image" species) so
+	// the normal background fetching refills it — see imagepolicy.go. Local
+	// disk I/O only; non-fatal for the same reason as the migration above.
+	if err := migrateImagePolicy(cache, cacheDir); err != nil {
+		log.Printf("image policy migration: %v (continuing — old photos stay until the next restart)", err)
 	}
 
 	// GBIF-derived hotspot/species data — low single-digit GB, rebuilt
@@ -307,6 +304,7 @@ func main() {
 	appMux.HandleFunc("GET /api/places", instrumentHTTP("/api/places", hotspotSearchLimiter.middleware(hotspotKey, srv.handlePlaceSearch)))
 	appMux.HandleFunc("GET /api/hotspots/{locId}", instrumentHTTP("/api/hotspots/{locId}", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotInfo)))
 	appMux.HandleFunc("GET /api/hotspots/{locId}/species", instrumentHTTP("/api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotSpecies)))
+	appMux.HandleFunc("GET /api/hotspots/{locId}/credits", instrumentHTTP("/api/hotspots/{locId}/credits", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotCredits)))
 
 	// Per-account preferences. These touch only the local database, so unlike
 	// the hotspot routes they need no upstream-keyed rate limit.

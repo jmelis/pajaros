@@ -104,6 +104,19 @@
     <div id="learnControls" class="actions" hidden>
       <button id="learnStart" class="btn btn-primary" type="button" data-i18n="learn.start"></button>
     </div>
+    <footer class="credits-footer">
+      <a id="hotspotCreditsLink" href="#/home" data-i18n="credits.link"></a>
+    </footer>
+  </section>
+
+  <!-- Photo credits for one hotspot -->
+  <section id="view-credits" class="view" hidden>
+    <a id="creditsBack" class="back-link" href="#/home" data-i18n="credits.back"></a>
+    <h2 class="view-title" data-i18n="credits.title"></h2>
+    <p id="creditsHotspot" class="credits-hotspot"></p>
+    <p class="hint" data-i18n="credits.intro"></p>
+    <p id="creditsStatus" class="status"></p>
+    <ul id="creditsList" class="credits-list"></ul>
   </section>
 
   <!-- Settings -->
@@ -151,6 +164,9 @@
     </button>
   </div>
   <div id="learnBody" class="learn-body"></div>
+  <footer class="learn-footer">
+    <a id="learnCreditsLink" href="#/home" data-i18n="credits.link"></a>
+  </footer>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

@@ -155,12 +155,11 @@ func recoverOldMetadata(oldJSONPath, slug string) (sciName string, carried *Imag
 
 // migrateSlugStructure moves one species' already-downloaded image (if any)
 // from the old flat layout into its bucket, without re-downloading it or
-// contacting either image source — purely local disk I/O. A species that
+// contacting Wikimedia — purely local disk I/O. A species that
 // only ever had a ".missing" marker has nothing local to carry over: rather
 // than block this fast, network-free pass on a fresh source lookup, its
-// stale marker is just dropped, so it resolves again from scratch (now with
-// iNaturalist as a second source) the next time it's actually viewed, same
-// as any other never-fetched species.
+// stale marker is just dropped, so it resolves again from scratch the next time it's actually
+// viewed, same as any other never-fetched species.
 //
 // Returns did=false only when there were no old flat files for this slug at
 // all (shouldn't happen — callers only pass slugs oldFlatSlugs found);
@@ -229,7 +228,7 @@ func deslugifyGuess(slug string) string {
 // runMigrateImages is the `go run . migrateimages` CLI mode: like the
 // automatic startup migration (see migrateOldCacheLayout, main.go), but
 // additionally tops every migrated species up toward maxImagesPerSpecies
-// right away — from both image sources, rate-limited — instead of waiting
+// right away — rate-limited — instead of waiting
 // for each one to actually be viewed by live traffic. Useful when you'd
 // rather pay that cost once, offline, than have it trickle in gradually.
 //
@@ -239,8 +238,7 @@ func deslugifyGuess(slug string) string {
 func runMigrateImages() error {
 	rps := rpsFromEnv("MIGRATEIMAGES_RPS", 1)
 	wikimediaLimiter = newRateLimiter("wikimedia", rps)
-	inaturalistLimiter = newRateLimiter("inaturalist", rps)
-	log.Printf("migrateimages: rate limit %.1f req/s per source (override with MIGRATEIMAGES_RPS)", rps)
+	log.Printf("migrateimages: rate limit %.1f req/s (override with MIGRATEIMAGES_RPS)", rps)
 
 	cacheDir := os.Getenv("CACHE_DIR")
 	if cacheDir == "" {

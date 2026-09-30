@@ -8,7 +8,8 @@
 const $ = (id) => document.getElementById(id);
 const VALID_LANGS = ["ca", "cs", "da", "de", "en", "eo", "es", "fi", "fr", "hr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
 const BROWSE_MODES = ["popularity", "category", "alphabetical"];
-const VIEW_NAMES = ["home", "search", "hotspot", "settings"];
+const VIEW_NAMES = ["home", "search", "hotspot", "credits", "settings"];
+const LOC_ID_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
 
 // ---- Account / UI state ---------------------------------------------------
 
@@ -154,7 +155,8 @@ function parseRoute() {
   const parts = raw.split("/").filter(Boolean);
   const name = parts[0] || "home";
   if (name === "hotspot") {
-    return { name: "hotspot", locId: parts[1] ? decodeURIComponent(parts[1]) : "" };
+    const locId = parts[1] ? decodeURIComponent(parts[1]) : "";
+    return { name: parts[2] === "credits" ? "credits" : "hotspot", locId };
   }
   if (VIEW_NAMES.indexOf(name) !== -1) return { name, locId: "" };
   return { name: "home", locId: "" };
@@ -181,6 +183,7 @@ async function renderRoute() {
   if (route.name === "home") await renderHome();
   else if (route.name === "search") showSearch();
   else if (route.name === "hotspot") await openHotspot(route.locId);
+  else if (route.name === "credits") await openCredits(route.locId);
   else if (route.name === "settings") await renderSettings();
 }
 
@@ -618,30 +621,116 @@ function updateBookmarkButton() {
   btn.setAttribute("aria-label", saved ? t("hotspot.bookmarked") : t("hotspot.bookmark"));
 }
 
-async function openHotspot(locId) {
-  if (!/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(locId)) { navigate("#/home"); return; }
-
-  if (!state.hotspot || state.hotspot.locId !== locId) {
-    state.hotspot = { locId, locName: "", lat: 0, lng: 0 };
-    state.species = [];
-    state.secondaryNames = {};
-    $("hotspotName").textContent = locId;
-    setHotspotStatus(t("hotspot.loading"));
-    try {
-      const res = await fetch(`/api/hotspots/${encodeURIComponent(locId)}`);
-      if (!res.ok) { setHotspotStatus(t("hotspot.error")); return; }
-      const h = await res.json();
-      state.hotspot = { locId, locName: h.locName || locId, lat: h.lat, lng: h.lng };
-    } catch (e) {
-      setHotspotStatus(t("hotspot.error"));
-      return;
-    }
+// ensureHotspot makes state.hotspot describe locId, fetching its name and
+// position unless it's already the current hotspot. Returns false (with the
+// hotspot status line set) if the lookup fails.
+async function ensureHotspot(locId) {
+  if (state.hotspot && state.hotspot.locId === locId) return true;
+  state.hotspot = { locId, locName: "", lat: 0, lng: 0 };
+  state.species = [];
+  state.secondaryNames = {};
+  $("hotspotName").textContent = locId;
+  setHotspotStatus(t("hotspot.loading"));
+  try {
+    const res = await fetch(`/api/hotspots/${encodeURIComponent(locId)}`);
+    if (!res.ok) { setHotspotStatus(t("hotspot.error")); return false; }
+    const h = await res.json();
+    state.hotspot = { locId, locName: h.locName || locId, lat: h.lat, lng: h.lng };
+  } catch (e) {
+    setHotspotStatus(t("hotspot.error"));
+    return false;
   }
+  return true;
+}
+
+function creditsHash(locId) { return "#/hotspot/" + encodeURIComponent(locId) + "/credits"; }
+
+async function openHotspot(locId) {
+  if (!LOC_ID_RE.test(locId)) { navigate("#/home"); return; }
+  if (!(await ensureHotspot(locId))) return;
 
   $("hotspotName").textContent = state.hotspot.locName || state.hotspot.locId;
+  $("hotspotCreditsLink").href = creditsHash(locId);
   updateBookmarkButton();
   applyHotspotMode();
   await loadSpecies();
+}
+
+// ---- Photo credits --------------------------------------------------------
+
+// safeHref returns url only if it's an https link, so a license or source URL
+// taken from Commons metadata can never become a script-running href.
+function safeHref(url) {
+  return typeof url === "string" && /^https:\/\//i.test(url) ? url : "";
+}
+
+function creditLink(text, url) {
+  const href = safeHref(url);
+  if (!href) return document.createTextNode(text);
+  const a = document.createElement("a");
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.textContent = text;
+  return a;
+}
+
+function renderCreditPhoto(img) {
+  const li = document.createElement("li");
+  const title = String(img.title || "").replace(/\.[A-Za-z0-9]+$/, "");
+  li.appendChild(document.createTextNode(t("credits.photoBy", { title, author: img.author || "?" })));
+  if (img.license) {
+    li.appendChild(document.createTextNode(" · "));
+    li.appendChild(creditLink(img.license, img.licenseUrl));
+  }
+  li.appendChild(document.createTextNode(" · "));
+  li.appendChild(creditLink(t("credits.source"), img.sourceUrl));
+  return li;
+}
+
+async function openCredits(locId) {
+  if (!LOC_ID_RE.test(locId)) { navigate("#/home"); return; }
+  const stale = () => currentRoute.name !== "credits" || currentRoute.locId !== locId;
+  window.scrollTo(0, 0);
+  $("creditsBack").href = "#/hotspot/" + encodeURIComponent(locId);
+  $("creditsHotspot").textContent = "";
+  $("creditsList").innerHTML = "";
+  $("creditsStatus").textContent = t("credits.loading");
+
+  const loaded = await ensureHotspot(locId);
+  if (stale()) return;
+  if (!loaded) { $("creditsStatus").textContent = t("hotspot.error"); return; }
+  $("creditsHotspot").textContent = state.hotspot.locName;
+
+  let species;
+  try {
+    const res = await fetch(`/api/hotspots/${encodeURIComponent(locId)}/credits?lang=${encodeURIComponent(state.language)}`);
+    if (!res.ok) throw new Error(String(res.status));
+    species = await res.json();
+  } catch (e) {
+    if (!stale()) $("creditsStatus").textContent = t("credits.error");
+    return;
+  }
+  if (stale()) return;
+  $("creditsStatus").textContent = species.length ? "" : t("credits.none");
+
+  const list = $("creditsList");
+  for (const sp of species) {
+    const li = document.createElement("li");
+    li.className = "credit-species";
+    const name = document.createElement("div");
+    name.className = "credit-name";
+    name.textContent = sp.comName;
+    const sci = document.createElement("span");
+    sci.className = "credit-sci";
+    sci.textContent = sp.sciName;
+    name.append(" ", sci);
+    const photos = document.createElement("ul");
+    photos.className = "credit-photos";
+    for (const img of sp.images) photos.appendChild(renderCreditPhoto(img));
+    li.append(name, photos);
+    list.appendChild(li);
+  }
 }
 
 async function loadSecondaryNames(locId) {
@@ -876,6 +965,7 @@ const learn = {
     this.done = false;
     this.active = true;
     $("learnOverlay").hidden = false;
+    $("learnCreditsLink").href = creditsHash(locId);
     this.keyHandler = (e) => this.onKeyDown(e);
     document.addEventListener("keydown", this.keyHandler);
     this.render();

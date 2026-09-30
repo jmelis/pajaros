@@ -11,8 +11,8 @@ swipeable card deck (Learn mode). The frontend is a small vanilla-JS
 single-page app embedded in the binary. Accounts and preferences live in
 SQLite; hotspot and species-popularity data live in a separately distributed
 `bbolt` file, built offline from a GBIF dataset. The only upstream calls the
-deployed server makes at request time are to Wikimedia and iNaturalist, for
-species card images.
+deployed server makes at request time are to Wikimedia, for species card
+images.
 
 ## Stack
 
@@ -28,10 +28,10 @@ species card images.
   (family names). See "Taxonomy and common names" below.
 - **Frontend**: `server/static/` — plain HTML/CSS/JS, no bundler, no build
   step, served via `go:embed`.
-- **Images**: up to four per species, fetched from Wikimedia Commons and
-  (to top up) iNaturalist on demand and cached to disk, bucketed across
-  subdirectories (`server/cache.go`, `server/wikimedia.go`,
-  `server/inaturalist.go`, `server/images.go`). See "Learn mode and species
+- **Images**: up to four per species, fetched from Wikimedia (Wikipedia
+  infobox photo and Commons quality images) on demand and cached to disk,
+  bucketed across subdirectories (`server/cache.go`, `server/wikimedia.go`,
+  `server/images.go`). See "Learn mode and species
   images" below.
 - **Deploy**: a `distroless/static` container (`Containerfile`) holding just
   the statically-linked binary, built and pushed via the root `Makefile`
@@ -80,6 +80,7 @@ GET  /healthz                                    liveness/readiness, ungated
 GET  /api/hotspots                               nearby search (lat, lng, dist)
 GET  /api/hotspots/{locId}                        hotspot info
 GET  /api/hotspots/{locId}/species                 species list (category/popularity/alphabetical) — Learn's card deck too
+GET  /api/hotspots/{locId}/credits                 photo credits for the hotspot's species (author, license, source)
 
 GET  /api/me                                      profile
 GET  /PUT /api/me/language                        primary bird-name + UI language
@@ -108,7 +109,8 @@ Four pieces served straight from `server/static/`, embedded in the binary,
 no build step: `index.html` (markup), `style.css`, `app.js`, `i18n.json`
 (en/es/fr UI strings).
 
-Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`, `#/settings`)
+Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`, `#/hotspot/<locId>/credits`,
+`#/settings`)
 so every view survives a reload and is linkable without any server-side
 routing. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
 `index.html`), the canonical iOS primary-navigation placement. The old
@@ -431,25 +433,31 @@ ordering Browse's popularity mode uses) and drives its own card, dot-index,
 and drag/press/arrow-key navigation client-side (`static/app.js`'s `learn`
 object) — there's no separate session endpoint or server-side state for it.
 
-Each card shows up to `maxImagesPerSpecies` (4) images, sourced from two
-upstreams and cached to disk: Wikimedia Commons first (`server/wikimedia.go`
-— the Wikipedia infobox photo, then other Commons category files, filtered
-to redistributable licenses, by filename, and by the file's own Commons
-categories: a distribution map or a statue's photo can be named anything,
-but ends up categorized as "... distribution maps" or "Statues of ..."
-regardless, so checking categories catches what a filename can't), topped
-up from iNaturalist (`server/inaturalist.go`) when Commons doesn't supply
-enough — research-grade observations, community-vote-ordered, filtered to
-the same license set, one photo per observation so a single photographer's
-observation can't crowd out a species' image set. Wikimedia is preferred
-deliberately, for photo quality over iNaturalist's volume: a Commons
-category is a free-text tag any contributor can add with nothing enforcing
-that it actually depicts the species (occasionally turning up an unrelated
-bird entirely, a risk the category-type check above doesn't fully close),
-but iNaturalist's research-grade bar is about identification consensus, not
-composition, and using it for a species' whole image set trades that rare
-mislabeled Commons photo for consistently more amateur-looking ones.
-`images.go`'s `ResolveImages` orchestrates the two; `cache.go` downloads, resizes
+Each card shows up to `maxImagesPerSpecies` (4) images, all from Wikimedia
+(`server/wikimedia.go`) and cached to disk. Only two human-curated sources
+are used: the species' Wikipedia infobox photo, then the members of its
+Commons `Category:Quality images of <taxon>`, largest first with at most two
+per photographer. Uncurated Commons category files, iNaturalist and Openverse are not
+used: their photos are too often poor (juveniles, distant or cropped
+subjects, other species in frame), and a missing photo is preferred over a
+poor one — so a species can legitimately
+have fewer than four images, or none.
+
+The taxon's Commons category is `Category:<sciName>` when it has files, else
+the category Wikidata records for the taxon (property P373), which covers
+names Commons files under a taxonomic synonym. Every candidate must also pass
+these filters (`commonsFileInfo`):
+- a redistributable license (CC0, CC BY, CC BY-SA, public domain);
+- JPEG, at least 1000x650, aspect ratio between 0.7 and 2.3;
+- no filename hint of a non-photo or non-adult subject (map, egg, nest,
+  juvenile, illustration, sound, ...);
+- none of the file's own Commons categories flags it (distribution maps,
+  statues, captive/zoo, juveniles, flocks, "with other species", ...): a
+  file's name can say anything, but its categories give away what it is;
+- none of its categories names a *different* bird species (taken from the
+  embedded taxonomy), which rejects multi-species photos and miscategorized
+  files.
+`images.go`'s `ResolveImages` is the entry point; `cache.go` downloads, resizes
 (`imageresize.go`, capped to `maxImageWidth`/1600px regardless of source),
 and caches the results under `server/cache/<bucket>/`, sharded into
 `cacheBucketCount` (256) hash-based subdirectories so one directory never
@@ -501,26 +509,39 @@ rotated away or the pod that ran it is gone.
 
 `go run . migrateimages` is the same logic run as a one-off CLI mode,
 for when you'd rather eagerly top every migrated species up toward
-`maxImagesPerSpecies` from both sources right away (including species that
-used to carry a permanent "no image found" marker from the Wikimedia-only
-era, since iNaturalist may now find something) instead of waiting for
-organic traffic to view them.
+`maxImagesPerSpecies` right away instead of waiting for organic traffic to
+view them.
 
 The cache is otherwise fetch-once: a species that's already fully resolved
-is never revisited by ordinary traffic, so an image sourcing policy change
-only affects species fetched afterward. `go run . trimextraimages`
-(`server/trimextraimages.go`) is the one-off catch-up for that — for every
-already-cached species with more than one image, it drops every image but
-the first and clears the `.topped` marker, handing the species straight back
-to the same lazy top-up path (`EnsureFetchedAsync`/`topUpImages`) any other
-under-filled species already goes through, so slots 2-4 get refilled under
-whatever `ResolveImages`' current rules are, at normal traffic's pace (or
-follow it with `migrateimages` to refill everything right away instead of
-waiting). The first image is never touched: `ensureFirstImage` always
-resolved it via the same call a species' first-ever fetch used, so it's
-already the best single pick available under either the old or new policy.
-Pure local disk I/O — no network calls — so, like the layout migration
-above, it finishes in well under a second even for thousands of species.
+is never revisited by ordinary traffic, so a change of image sourcing policy
+would only affect species fetched afterwards. To carry a policy change to
+already-cached species, startup runs `migrateImagePolicy`
+(`server/imagepolicy.go`, called from `main()` right after the layout
+migration): for every cached species it keeps the first image (the title
+photo, which is the Wikipedia infobox photo where the species has one),
+deletes the others, and clears the `.topped` and `.missing` markers. The
+normal lazy path then refills the rest in the background the next time each
+species is viewed — `EnsureFetchedAsync` queues a top-up for species that
+still have a first image and a first-image fetch for those that had none — so
+slots 2-4 (and formerly "no image" species) are resolved under
+`ResolveImages`' current rules, at normal traffic's pace.
+
+`<CACHE_DIR>/.image-policy` records the policy version (`imagePolicyVersion`)
+the cache was last trimmed under; the migration runs only when it differs, so
+ordinary restarts never discard refilled photos. A fresh cache just records
+the version. Bumping the constant re-runs the trim on the next start. Like
+the layout migration, it is pure local disk I/O, finishes in well under a
+second even for thousands of species, and logs to `migration.log`.
+
+**Photo credits.** Commons photos are CC BY / CC BY-SA, which require showing
+the author, license and source. The hotspot view and the Learn overlay both
+end in a "Credits" footer link to `#/hotspot/<locId>/credits`, a text-only
+page (no images) listing, per species at that hotspot, each photo's title,
+author, license link and Commons link. `handleHotspotCredits`
+(`server/credits.go`) builds it from each species' cached image metadata, so
+it names exactly the photos the app has downloaded; species with no cached
+photo are omitted. The frontend only links `https://` URLs, since license and
+source URLs come from Commons metadata.
 
 ## Accounts & persistence
 

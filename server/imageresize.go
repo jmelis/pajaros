@@ -14,8 +14,8 @@ import (
 // ~140px Browse cards and the full-screen Learn card this project renders,
 // even at high DPI. capImageWidth is the local backstop for the rare case a
 // downloaded image is wider than that anyway (Wikimedia won't upscale past
-// the source, but a mismatched/odd source — or an iNaturalist original —
-// could still come back larger); we'd rather resize once here than serve and
+// the source, but a mismatched/odd source could still come back
+// larger); we'd rather resize once here than serve and
 // store an oversized file indefinitely.
 const maxImageWidth = 1600
 

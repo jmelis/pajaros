@@ -15,9 +15,9 @@ import (
 
 // imageFetchConcurrency caps how many species can be mid-fetch for their
 // *first* image at once — the hot path, triggered directly by a live
-// Browse/Learn request. This is separate from wikimediaLimiter's/
-// inaturalistLimiter's requests/sec cap — this bounds pipelining (in-flight
-// goroutines), the limiters bound actual outbound request rate.
+// Browse/Learn request. This is separate from wikimediaLimiter's
+// requests/sec cap — this bounds pipelining (in-flight goroutines), the
+// limiter bounds actual outbound request rate.
 const imageFetchConcurrency = 8
 
 // topUpConcurrency caps how many species can be mid-fetch for their
@@ -222,7 +222,7 @@ func (c *ImageCache) EnsureFetched(sciName string) error {
 }
 
 // ensureFirstImage makes sure sciName has an image in slot 0, or a "no free
-// image found" marker, fetching from Wikimedia/iNaturalist if this is the
+// image found" marker, fetching from Wikimedia if this is the
 // first time we've seen this species. Cheap no-op once resolved either way.
 func (c *ImageCache) ensureFirstImage(sciName string) error {
 	if fileExists(c.imagePath(sciName, 0)) || fileExists(c.missingMarkerPath(sciName)) {
@@ -236,7 +236,7 @@ func (c *ImageCache) ensureFirstImage(sciName string) error {
 		imageFetchDuration.WithLabelValues("none", "first").Observe(time.Since(start).Seconds())
 		return os.WriteFile(c.missingMarkerPath(sciName), []byte{}, 0o644)
 	}
-	source := sourceLabel(images[0].SourceURL)
+	const source = "wikimedia"
 	if err := c.downloadAndSave(sciName, images[0], 0); err != nil {
 		imageFetchTotal.WithLabelValues(source, "first", "error").Inc()
 		imageFetchDuration.WithLabelValues(source, "first").Observe(time.Since(start).Seconds())
@@ -247,15 +247,6 @@ func (c *ImageCache) ensureFirstImage(sciName string) error {
 	imageFetchTotal.WithLabelValues(source, "first", "success").Inc()
 	imageFetchDuration.WithLabelValues(source, "first").Observe(time.Since(start).Seconds())
 	return c.writeMetadata(sciName, images)
-}
-
-// sourceLabel is the metrics label for info's source — see
-// downloadAndSave's identical check, which picks the matching rate limiter.
-func sourceLabel(sourceURL string) string {
-	if strings.Contains(sourceURL, "inaturalist.org") {
-		return "inaturalist"
-	}
-	return "wikimedia"
 }
 
 // topUpImages fetches sciName's remaining images, past whatever's already in
@@ -276,14 +267,20 @@ func (c *ImageCache) topUpImages(sciName string) error {
 	}
 
 	fresh := ResolveImages(sciName, maxImageWidth, maxImagesPerSpecies)
-	candidates := mergeImageSources(existing, fresh)[len(existing):]
+	seen := make(map[string]bool, len(existing))
+	for _, info := range existing {
+		seen[info.SourceURL] = true
+	}
 	final := append([]*ImageInfo{}, existing...)
-	for _, info := range candidates {
+	for _, info := range fresh {
+		if seen[info.SourceURL] {
+			continue
+		}
 		if len(final) >= maxImagesPerSpecies {
 			break
 		}
 		start := time.Now()
-		source := sourceLabel(info.SourceURL)
+		const source = "wikimedia"
 		if err := c.downloadAndSave(sciName, info, len(final)); err != nil {
 			imageFetchTotal.WithLabelValues(source, "topup", "error").Inc()
 			imageFetchDuration.WithLabelValues(source, "topup").Observe(time.Since(start).Seconds())
@@ -300,15 +297,11 @@ func (c *ImageCache) topUpImages(sciName string) error {
 	return c.writeMetadata(sciName, final)
 }
 
-// downloadAndSave downloads info's image (throttled through whichever
-// source's rate limiter applies), caps it to maxImageWidth, and writes it to
+// downloadAndSave downloads info's image (throttled through
+// wikimediaLimiter), caps it to maxImageWidth, and writes it to
 // sciName's slot-th image slot.
 func (c *ImageCache) downloadAndSave(sciName string, info *ImageInfo, slot int) error {
-	limiter := wikimediaLimiter
-	if sourceLabel(info.SourceURL) == "inaturalist" {
-		limiter = inaturalistLimiter
-	}
-	imgBytes, err := downloadImage(limiter, info.DownloadURL)
+	imgBytes, err := downloadImage(info.DownloadURL)
 	if err != nil {
 		return err
 	}

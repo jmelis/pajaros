@@ -7,22 +7,61 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
+	"sync"
 )
 
-// Resolves a species' principal card image from Wikimedia Commons: search,
-// filter by license, by filename, and by Commons category (excluding
-// maps/illustrations/statues etc.), and return the first acceptable hit.
+// Resolves a species' card photos from two curated Wikimedia sources only:
+// the Wikipedia infobox image and the members of Commons'
+// "Category:Quality images of <taxon>". Both are human-reviewed, which is why
+// they're trusted; uncurated category files and other providers produced too
+// many poor photos. Every candidate is additionally filtered by license,
+// size, aspect ratio, filename and Commons categories (see commonsFileInfo).
+// Returning fewer photos -- even none -- is preferred over a poor one.
 
 var allowedLicenseRe = regexp.MustCompile(`(?i)^(cc0|cc[- ]by(-sa)?[- ]?[\d.]*|public domain|pd)`)
-var excludeFilenameRe = regexp.MustCompile(`(?i)(map|range|distribution|egg|nest|skeleton|anatomy|illustration|drawing|painting|sound|spectrogram|call\b|song\b|vocali|logo|stamp|coin|taxonomy|cladogram)`)
+var restrictedLicenseRe = regexp.MustCompile(`(?i)\b(nc|nd)\b`)
 
-// excludeCategoryRe flags non-photo Commons files that a filename check
-// can't catch, because the filename itself carries no hint of the
-// content -- a distribution map or a statue's photo can be named anything.
-// Commons' own subject categories give away what filenames don't (e.g.
-// "Phalacrocoracidae distribution maps", "Statues of birds in France").
-var excludeCategoryRe = regexp.MustCompile(`(?i)\b(maps?|statues?|sculptures?|monuments?|illustrations?|drawings?|paintings?|stamps?|coins?|taxonomy|cladograms?|skeletons?|eggs?|nests?|sounds?|recordings?|spectrograms?|logos?)\b`)
+// licenseAllowed reports whether a Commons license short name is one we can
+// redistribute: CC0, public domain, CC BY or CC BY-SA, never the NonCommercial
+// or NoDerivatives variants.
+func licenseAllowed(license string) bool {
+	return license != "" && allowedLicenseRe.MatchString(license) && !restrictedLicenseRe.MatchString(license)
+}
+
+var excludeFilenameRe = regexp.MustCompile(`(?i)\b(maps?|range|distribution|eggs?|nests?|skeletons?|anatomy|illustrations?|drawings?|paintings?|sounds?|spectrograms?|calls?|songs?|vocali\w*|logos?|stamps?|coins?|taxonomy|cladograms?|chicks?|juv|juveniles?|immatures?|nestlings?|fledglings?)\b`)
+
+// excludeCategoryRe flags files that a filename check can't catch, because
+// the filename carries no hint of the content. Commons' own categories give
+// away what filenames don't: non-photos (maps, statues, stamps), non-wild or
+// non-adult subjects (captive, juveniles, eggs, nests), and composition
+// problems (flocks, "with other species", incidental appearances).
+var excludeCategoryRe = regexp.MustCompile(`(?i)\b(with other species|incidental|flocks?|pairs?|chicks?|families|juveniles?|immatures?|eggs?|nests?|nesting|captive|captivity|museum|specimens?|taxidermy|illustrations?|drawings?|paintings?|anatomy|skeletons?|audio|videos?|hybrids?|leucistic|albinos?|melanistic|domestic(us|a)?|feral|dead|carcass(es)?|roadkill|injured|rehabilitation|zoos?|aviar(y|ies)|cages?|distribution|maps?|statues?|sculptures?|monuments?|stamps?|coins?|logos?|taxonomy|cladograms?|spectrograms?|sounds?|recordings?|feathers?|footprints?|coats? of arms|heraldry|symbols?|flags?|in art|art)\b`)
+
+const (
+	minImageWidth  = 1000
+	minImageHeight = 650
+	minAspect      = 0.7
+	maxAspect      = 2.3
+	maxPerAuthor   = 2
+)
+
+// birdSciNames is the set of every species scientific name in the embedded
+// taxonomy, used to spot a file that's also categorized under another bird.
+var birdSciNames = sync.OnceValue(func() map[string]bool {
+	store, err := loadTaxonomyStore()
+	if err != nil {
+		return map[string]bool{}
+	}
+	out := make(map[string]bool, len(store.codeBySciName))
+	for name := range store.codeBySciName {
+		out[name] = true
+	}
+	return out
+})
+
+var categoryQualifierRe = regexp.MustCompile(`\s*\(.*\)$`)
 
 // ImageInfo is one candidate (or already-cached) image for a species,
 // however many of them the cache keeps — see cache.go's per-species image
@@ -84,8 +123,13 @@ func wikipediaInfoboxFile(sciName string) (string, error) {
 }
 
 // commonsFileInfo fetches license + a thumbnail URL for a Commons file,
-// returning nil (not an error) if the file is missing or not freely licensed.
-func commonsFileInfo(fileTitle string, width int) (*ImageInfo, error) {
+// returning nil (not an error) if the file is missing, not freely licensed,
+// too small, oddly proportioned, or flagged by its filename or categories.
+// ours is the set of Commons category names that denote the target species
+// (its scientific name and its Commons category); a file also filed under
+// another bird species' category is rejected as a multi-species photo.
+// The second return value is the file's pixel area, for ranking candidates.
+func commonsFileInfo(fileTitle string, width int, ours map[string]bool) (*ImageInfo, int, error) {
 	var data struct {
 		Query struct {
 			Pages map[string]struct {
@@ -96,6 +140,9 @@ func commonsFileInfo(fileTitle string, width int) (*ImageInfo, error) {
 				ImageInfo []struct {
 					ThumbURL string `json:"thumburl"`
 					URL      string `json:"url"`
+					Width    int    `json:"width"`
+					Height   int    `json:"height"`
+					Mime     string `json:"mime"`
 					ExtMeta  struct {
 						LicenseShortName struct{ Value string } `json:"LicenseShortName"`
 						LicenseURL       struct{ Value string } `json:"LicenseUrl"`
@@ -109,27 +156,44 @@ func commonsFileInfo(fileTitle string, width int) (*ImageInfo, error) {
 		"action":     {"query"},
 		"titles":     {"File:" + fileTitle},
 		"prop":       {"imageinfo|categories"},
-		"iiprop":     {"url|extmetadata|size"},
+		"iiprop":     {"url|extmetadata|size|mime"},
 		"iiurlwidth": {fmt.Sprintf("%d", width)},
-		"cllimit":    {"50"},
+		"cllimit":    {"max"},
 		"format":     {"json"},
 	}, &data)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
+	if excludeFilenameRe.MatchString(fileTitle) {
+		return nil, 0, nil
+	}
+	birds := birdSciNames()
 	for _, p := range data.Query.Pages {
 		if p.Missing != nil || len(p.ImageInfo) == 0 {
 			continue
 		}
+		info := p.ImageInfo[0]
+		if info.Mime != "image/jpeg" {
+			return nil, 0, nil
+		}
+		if info.Width < minImageWidth || info.Height < minImageHeight {
+			return nil, 0, nil
+		}
+		if aspect := float64(info.Width) / float64(info.Height); aspect < minAspect || aspect > maxAspect {
+			return nil, 0, nil
+		}
 		for _, cat := range p.Categories {
-			if excludeCategoryRe.MatchString(strings.TrimPrefix(cat.Title, "Category:")) {
-				return nil, nil // not a photo of the bird -- a map, statue, etc.
+			name := strings.TrimPrefix(cat.Title, "Category:")
+			if excludeCategoryRe.MatchString(name) {
+				return nil, 0, nil
+			}
+			if base := categoryQualifierRe.ReplaceAllString(name, ""); birds[base] && !ours[base] {
+				return nil, 0, nil
 			}
 		}
-		info := p.ImageInfo[0]
 		license := info.ExtMeta.LicenseShortName.Value
-		if license == "" || !allowedLicenseRe.MatchString(license) {
-			return nil, nil // not a license we redistribute under
+		if !licenseAllowed(license) {
+			return nil, 0, nil // not a license we redistribute under
 		}
 		author := stripHTML(info.ExtMeta.Artist.Value)
 		if author == "" {
@@ -158,9 +222,9 @@ func commonsFileInfo(fileTitle string, width int) (*ImageInfo, error) {
 			License:     license,
 			LicenseURL:  licenseURL,
 			SourceURL:   "https://commons.wikimedia.org/wiki/File:" + url.PathEscape(strings.ReplaceAll(fileTitle, " ", "_")),
-		}, nil
+		}, info.Width * info.Height, nil
 	}
-	return nil, nil
+	return nil, 0, nil
 }
 
 var htmlTagRe = regexp.MustCompile(`<[^>]*>`)
@@ -170,11 +234,100 @@ func stripHTML(s string) string {
 	return strings.TrimSpace(whitespaceRe.ReplaceAllString(htmlTagRe.ReplaceAllString(s, ""), " "))
 }
 
-// categoryFileTitles lists candidate photo filenames in a species' Commons
-// category, prefiltered by filename (cheap, avoids a wasted commonsFileInfo
-// call for the obvious cases) -- commonsFileInfo's category check catches
-// what a filename can't (see excludeCategoryRe).
-func categoryFileTitles(sciName string) ([]string, error) {
+// commonsCategoryFor returns the Commons category name for sciName: the
+// category named after the scientific name when it has files, else the
+// category Wikidata records for the taxon (P373), which covers names Commons
+// files under a taxonomic synonym. Empty if neither exists.
+func commonsCategoryFor(sciName string) string {
+	if n, err := commonsCategoryFileCount(sciName); err == nil && n > 0 {
+		return sciName
+	}
+	var page struct {
+		Query struct {
+			Pages map[string]struct {
+				PageProps struct {
+					WikibaseItem string `json:"wikibase_item"`
+				} `json:"pageprops"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+	err := wikimediaGetJSON("https://en.wikipedia.org/w/api.php", url.Values{
+		"action":    {"query"},
+		"titles":    {sciName},
+		"redirects": {"1"},
+		"prop":      {"pageprops"},
+		"ppprop":    {"wikibase_item"},
+		"format":    {"json"},
+	}, &page)
+	if err != nil {
+		return ""
+	}
+	qid := ""
+	for _, p := range page.Query.Pages {
+		if p.PageProps.WikibaseItem != "" {
+			qid = p.PageProps.WikibaseItem
+		}
+	}
+	if qid == "" {
+		return ""
+	}
+	var claims struct {
+		Claims struct {
+			P373 []struct {
+				Mainsnak struct {
+					Datavalue struct {
+						Value string `json:"value"`
+					} `json:"datavalue"`
+				} `json:"mainsnak"`
+			} `json:"P373"`
+		} `json:"claims"`
+	}
+	err = wikimediaGetJSON("https://www.wikidata.org/w/api.php", url.Values{
+		"action":   {"wbgetclaims"},
+		"entity":   {qid},
+		"property": {"P373"},
+		"format":   {"json"},
+	}, &claims)
+	if err != nil || len(claims.Claims.P373) == 0 {
+		return ""
+	}
+	return claims.Claims.P373[0].Mainsnak.Datavalue.Value
+}
+
+// commonsCategoryFileCount returns how many files Category:<name> directly
+// holds (0 if it doesn't exist).
+func commonsCategoryFileCount(name string) (int, error) {
+	var data struct {
+		Query struct {
+			Pages map[string]struct {
+				Missing      *string `json:"missing"`
+				CategoryInfo struct {
+					Files int `json:"files"`
+				} `json:"categoryinfo"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+	err := wikimediaGetJSON("https://commons.wikimedia.org/w/api.php", url.Values{
+		"action": {"query"},
+		"titles": {"Category:" + name},
+		"prop":   {"categoryinfo"},
+		"format": {"json"},
+	}, &data)
+	if err != nil {
+		return 0, err
+	}
+	for _, p := range data.Query.Pages {
+		if p.Missing != nil {
+			return 0, nil
+		}
+		return p.CategoryInfo.Files, nil
+	}
+	return 0, nil
+}
+
+// qualityImageTitles lists the files in Category:Quality images of <cat>, a
+// human-curated set. Returns nil when the category doesn't exist.
+func qualityImageTitles(cat string) ([]string, error) {
 	var data struct {
 		Query struct {
 			CategoryMembers []struct {
@@ -185,81 +338,102 @@ func categoryFileTitles(sciName string) ([]string, error) {
 	err := wikimediaGetJSON("https://commons.wikimedia.org/w/api.php", url.Values{
 		"action":  {"query"},
 		"list":    {"categorymembers"},
-		"cmtitle": {"Category:" + sciName},
+		"cmtitle": {"Category:Quality images of " + cat},
 		"cmtype":  {"file"},
-		"cmlimit": {"50"},
+		"cmlimit": {"500"},
 		"format":  {"json"},
 	}, &data)
 	if err != nil {
 		return nil, err
 	}
 	var titles []string
-	fileExtRe := regexp.MustCompile(`(?i)\.(jpe?g)$`)
 	for _, m := range data.Query.CategoryMembers {
-		title := strings.TrimPrefix(m.Title, "File:")
-		if title == m.Title {
-			continue
-		}
-		if fileExtRe.MatchString(title) && !excludeFilenameRe.MatchString(title) {
+		if title := strings.TrimPrefix(m.Title, "File:"); title != m.Title {
 			titles = append(titles, title)
 		}
 	}
 	return titles, nil
 }
 
-// commonsImages finds up to max freely-licensed candidate photos for a
-// species from Wikimedia: the Wikipedia infobox image first (usually the
-// best single representative photo), then its Commons category's other
-// files, in listing order. A single bad title (missing, wrong license,
-// flagged by commonsFileInfo's category check, a transient API error) is
-// skipped rather than aborting the whole lookup, so one problem file can't
-// cost the rest of the species' images.
-//
-// A Commons category is a free-text tag any contributor can put on any
-// file, with nothing enforcing that it actually depicts the species --
-// commonsFileInfo's category check (excludeCategoryRe) catches an
-// unambiguous non-photo (a distribution map, a statue) that a filename gives
-// no hint of, but can't catch a file that's simply, genuinely miscategorized
-// under the wrong species entirely. That residual risk is accepted here in
-// exchange for photo quality: iNaturalist's research-grade bar is about
-// identification consensus, not composition, and using it for every
-// species' entire image set (as this app briefly did) trades a rare
-// mislabeled photo for consistently more amateur-looking ones.
+// commonsImages finds up to max photos for a species from two curated
+// sources: the Wikipedia infobox image first (usually the best single
+// representative photo), then Commons' "Quality images of <taxon>" members,
+// largest first with at most maxPerAuthor per photographer. Files failing
+// commonsFileInfo's filters are skipped. Fewer than max (or zero) is a
+// normal result: a missing photo is better than a poor one.
 func commonsImages(sciName string, width, max int) []*ImageInfo {
 	var out []*ImageInfo
 	seen := map[string]bool{}
-
-	add := func(title string) {
-		if len(out) >= max || seen[title] {
-			return
+	ours := map[string]bool{sciName: true}
+	cat := ""
+	catResolved := false
+	resolveCat := func() {
+		if !catResolved {
+			catResolved = true
+			if cat = commonsCategoryFor(sciName); cat != "" {
+				ours[cat] = true
+			}
 		}
-		seen[title] = true
-		info, err := commonsFileInfo(title, width)
-		if err != nil || info == nil {
-			return
-		}
-		out = append(out, info)
 	}
 
 	if infobox, err := wikipediaInfoboxFile(sciName); err == nil && infobox != "" {
-		add(infobox)
-	}
-	if len(out) < max {
-		if titles, err := categoryFileTitles(sciName); err == nil {
-			for _, title := range titles {
-				if len(out) >= max {
-					break
-				}
-				add(title)
-			}
+		seen[infobox] = true
+		resolveCat()
+		if info, _, err := commonsFileInfo(infobox, width, ours); err == nil && info != nil {
+			out = append(out, info)
 		}
+	}
+	if len(out) >= max {
+		return out
+	}
+
+	resolveCat()
+	if cat == "" {
+		return out
+	}
+	titles, err := qualityImageTitles(cat)
+	if err != nil {
+		return out
+	}
+	type candidate struct {
+		info *ImageInfo
+		area int
+	}
+	var good []candidate
+	need := max - len(out)
+	for _, title := range titles {
+		if seen[title] {
+			continue
+		}
+		if len(good) >= need*3 {
+			break
+		}
+		seen[title] = true
+		info, area, err := commonsFileInfo(title, width, ours)
+		if err != nil || info == nil {
+			continue
+		}
+		good = append(good, candidate{info, area})
+	}
+	sort.SliceStable(good, func(i, j int) bool { return good[i].area > good[j].area })
+	perAuthor := map[string]int{}
+	for _, c := range good {
+		if len(out) >= max {
+			break
+		}
+		if perAuthor[c.info.Author] >= maxPerAuthor {
+			continue
+		}
+		perAuthor[c.info.Author]++
+		out = append(out, c.info)
 	}
 	return out
 }
 
 // downloadImage fetches image bytes from downloadURL, throttled through
-// limiter (wikimediaLimiter or inaturalistLimiter — see ratelimit.go).
-func downloadImage(limiter *rateLimiter, downloadURL string) ([]byte, error) {
+// wikimediaLimiter.
+func downloadImage(downloadURL string) ([]byte, error) {
+	limiter := wikimediaLimiter
 	req, err := http.NewRequest(http.MethodGet, downloadURL, nil)
 	if err != nil {
 		return nil, err
