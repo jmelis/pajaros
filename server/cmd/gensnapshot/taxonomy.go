@@ -25,10 +25,13 @@ import (
 //   - data/taxonomy_core.json.gz: eBird's taxonomic structure (sciName,
 //     speciesCode, order, familyCode, taxonOrder) — one eBird call, any
 //     locale, since none of these fields vary by locale.
-//   - data/species_names.json.gz: GBIF vernacular names per species, one
-//     language per key, restricted to languages with at least
-//     minSpeciesCoverage of eBird's species named — this is exactly
-//     validLang at runtime (see TaxonomyStore.SupportedLangs).
+//   - data/species_names.json.gz: common names per species, one language
+//     per key, restricted to languages with at least minSpeciesCoverage of
+//     eBird's species named — this is exactly validLang at runtime (see
+//     TaxonomyStore.SupportedLangs). The Multilingual IOC World Bird List
+//     (iocPath) is the primary source for every language it covers; GBIF's
+//     pooled vernacular names fill in any species IOC lacks, and are the
+//     only source for languages IOC doesn't cover.
 //   - data/family_names.json.gz: GBIF vernacular names per eBird family,
 //     every language GBIF had anything for (no threshold — FamilyName
 //     falls back to English, then to the family's own scientific name, so
@@ -36,8 +39,9 @@ import (
 //
 // eBird's own common names (per-species or per-family) are deliberately not
 // used here — see the note on Taxon in ../../taxonomy_data.go. Only eBird's bare
-// taxonomic structure is fetched from eBird; every name comes from GBIF.
-func runTaxonomy() error {
+// taxonomic structure is fetched from eBird; species names come from IOC and
+// GBIF, family names from GBIF alone.
+func runTaxonomy(iocPath string) error {
 	apiKey := os.Getenv("EBIRD_API_KEY")
 	if apiKey == "" {
 		return fmt.Errorf("EBIRD_API_KEY not set")
@@ -45,6 +49,12 @@ func runTaxonomy() error {
 	if err := os.MkdirAll("data", 0o755); err != nil {
 		return err
 	}
+
+	iocNames, err := loadIOCNames(iocPath)
+	if err != nil {
+		return fmt.Errorf("load IOC multilingual names: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "IOC multilingual names: %d languages\n", len(iocNames))
 
 	fmt.Fprintln(os.Stderr, "fetching eBird taxonomic structure...")
 	ebirdSpecies, err := fetchEbirdStructure(apiKey)
@@ -126,8 +136,18 @@ func runTaxonomy() error {
 		}
 	}
 
-	speciesNames, coverage := buildSpeciesNames(speciesNameVotes, len(core))
-	fmt.Fprintln(os.Stderr, "\nspecies-name coverage (% of eBird's species with a GBIF common name):")
+	iocByCode := map[string]map[string]string{}
+	for lang, bySci := range iocNames {
+		iocByCode[lang] = map[string]string{}
+		for sci, name := range bySci {
+			if e, ok := ebirdBySciName[sci]; ok {
+				iocByCode[lang][e.SpeciesCode] = name
+			}
+		}
+	}
+
+	speciesNames, coverage := buildSpeciesNames(speciesNameVotes, iocByCode, len(core))
+	fmt.Fprintln(os.Stderr, "\nspecies-name coverage (% of eBird's species with an IOC or GBIF common name):")
 	printCoverage(coverage)
 
 	included := map[string]map[string]string{}
@@ -168,25 +188,33 @@ func runTaxonomy() error {
 // languages at 80%+ from a long tail below it (many well under 10%).
 const minSpeciesCoverage = 0.80
 
-// buildSpeciesNames picks one canonical name per (species code, language)
-// out of every GBIF vernacular-name candidate seen, and returns each
-// language's coverage (fraction of totalSpecies it has a name for).
-func buildSpeciesNames(votes map[string]map[string]map[string]int, totalSpecies int) (map[string]map[string]string, map[string]float64) {
+// buildSpeciesNames picks one name per (species code, language): the IOC
+// name when there is one, otherwise the pickCanonical winner among GBIF's
+// vernacular-name candidates. IOC is a single curated name per species, so
+// it wins outright rather than being outvoted by GBIF records that mix
+// regional and aggregator-derived variants. It returns each language's
+// coverage (fraction of totalSpecies it has a name for).
+func buildSpeciesNames(votes map[string]map[string]map[string]int, iocByCode map[string]map[string]string, totalSpecies int) (map[string]map[string]string, map[string]float64) {
 	byLang := map[string]map[string]string{}
-	counts := map[string]int{}
 	for code, langs := range votes {
 		for lang, names := range langs {
-			name := pickCanonical(names)
 			if byLang[lang] == nil {
 				byLang[lang] = map[string]string{}
 			}
+			byLang[lang][code] = pickCanonical(names)
+		}
+	}
+	for lang, byCode := range iocByCode {
+		if byLang[lang] == nil {
+			byLang[lang] = map[string]string{}
+		}
+		for code, name := range byCode {
 			byLang[lang][code] = name
-			counts[lang]++
 		}
 	}
 	coverage := map[string]float64{}
-	for lang, n := range counts {
-		coverage[lang] = float64(n) / float64(totalSpecies)
+	for lang, byCode := range byLang {
+		coverage[lang] = float64(len(byCode)) / float64(totalSpecies)
 	}
 	return byLang, coverage
 }

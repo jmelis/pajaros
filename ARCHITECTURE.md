@@ -136,12 +136,33 @@ eBird supplies the taxonomic *structure* — which species exist
 (`server/data/taxonomy_core.json.gz`: `sciName`, `speciesCode`, `order`,
 `familyCode`, `taxonOrder`) — from a single `/ref/taxonomy/ebird` call
 (`cmd/gensnapshot taxonomy`, any locale, since none of these fields vary by
-one). Every common name — species and family both — comes from GBIF
-instead, joined onto that structure by scientific name. eBird's own
+one). Common names come from two other sources, joined onto that structure
+by scientific name: the **Multilingual IOC World Bird List** (species names)
+and **GBIF** (species names IOC lacks, and all family names). eBird's own
 per-locale common names aren't used anywhere: eBird/Clements' translated
 checklist text carries redistribution restrictions its bare taxonomic
-structure doesn't, so only the structure is eBird's; every name a user
-sees is GBIF's.
+structure doesn't, so only the structure is eBird's.
+
+**Species names: IOC first, GBIF as fallback.** The IOC list
+(`worldbirdnames.org`, CC BY 3.0, attributed in Settings) is one
+downloaded `.xlsx` with a single curated name per species in ~43 languages,
+passed to `gensnapshot taxonomy` on the command line
+(`cmd/gensnapshot/ioc.go`; `iocLangByColumn` maps its column headers to this
+app's two-letter codes). For every (species, language) IOC has, that name
+is used as is. It covers ~98% of eBird's species by scientific name; the
+remainder are taxonomic splits/lumps IOC and eBird/Clements name
+differently, and fall through to GBIF.
+
+GBIF names are messier, which is why they're the fallback rather than the
+primary: each species' vernacular names are pooled from many contributing
+checklists that mix regional variants and disagree on spelling, so a
+species can end up with a coin-flip between two names (Spanish for
+*Branta canadensis* splits between "Ganso canadiense" and "Barnacla
+canadiense"). Measured against eBird's `es_ES` names, IOC's Spanish names
+agree on ~92% of species and GBIF's voted names on ~71%; the same ordering
+holds in the other languages eBird also translates. IOC has one Spanish
+variant (the Spain-leaning one) and no per-country variants, and neither
+does GBIF, whose `species/search` records carry only a language code.
 
 GBIF's `species/search` endpoint returns each taxon's vernacular names
 inline, so building the name tables needs no bulk archive download — just
@@ -152,29 +173,37 @@ degrades hard at depth), but a family rarely has more than a few hundred
 species, so paginating within each of Aves' ~488 families instead keeps
 every query's offset shallow. `cmd/gensnapshot/taxonomy.go`:
 
-1. Fetches every GBIF family in Aves (with their own inline vernacular
-   names — no separate per-family call needed).
+1. Loads the IOC names, then fetches every GBIF family in Aves (with their
+   own inline vernacular names — no separate per-family call needed).
 2. For each, fetches its member species (with their vernacular names) and
    joins each one to an eBird species by scientific name — roughly 88% of
    eBird's species resolve this way; the rest are taxonomic splits/lumps
    or spelling differences between eBird/Clements and GBIF's backbone that
-   a name join can't paper over, and fall back to English, then to the
-   species' own scientific name (see `TaxonomyStore.Lookup`).
+   a name join can't paper over.
 3. Where several GBIF records offer different strings for the same
    (species, language) or (family, language) pair, one is picked
-   deterministically: most-voted first, then shortest, then alphabetical.
+   deterministically: most-voted first (pooled across case and accent
+   variants), then shortest, then alphabetical. An IOC name overrides this
+   pick for its (species, language).
 4. GBIF's vernacular names carry ISO 639-2/3 three-letter language codes;
    `iso6391ByGBIFCode` maps the ones this app cares about to the
    two-letter codes used everywhere else (`validLang`, the `lang` query
    param, `i18n.json`).
 
+A species with no name in the requested language falls back to English,
+then to its own scientific name (see `TaxonomyStore.Lookup`).
+
 **Species names are gated by coverage; family names aren't.** A language
 only becomes a bird-name option (`validLang`, computed from
 `data/species_names.json.gz`'s own keys — see `mustComputeValidLang`) if
-GBIF names at least 80% of eBird's species in it; below that a language's
-coverage drops off sharply; below it, most languages cover under 10%.
-Family names have no such gate — GBIF's family-rank coverage doesn't track
-its species-rank coverage closely enough to reuse the same cutoff (Spanish,
+IOC and GBIF together name at least 80% of eBird's species in it; below
+that a language's coverage drops off sharply (Serbian sits just under at
+~73%; most other languages cover under 10%). That yields 23 languages:
+`ca cs da de en eo es fi fr hr it ja lt nb nl pl pt ru sk sv tr uk zh`,
+mirrored by `VALID_LANGS` in `static/app.js` (a test checks the two lists
+and their `lang.*` labels agree). Family names come from GBIF alone and
+have no such gate — GBIF's family-rank coverage doesn't track its
+species-rank coverage closely enough to reuse the same cutoff (Spanish,
 for instance, clears 80% for species but only two-thirds for families) —
 so `FamilyName` (`server/families.go`) just falls back from the requested
 locale to English to the family's own scientific name (e.g.

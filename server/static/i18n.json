@@ -74,6 +74,7 @@
     "settings.primary": "Primary language",
     "settings.secondary": "Secondary language (optional)",
     "settings.signOut": "Sign out",
+    "settings.credits": "Bird names: Multilingual IOC World Bird List (worldbirdnames.org, CC BY 3.0), with GBIF for gaps.",
     "settings.loadError": "Could not load settings.",
     "settings.errorPrimary": "Could not save the primary language.",
     "settings.errorSecondary": "Could not save the secondary language.",
@@ -97,7 +98,10 @@
     "lang.nb": "Norsk bokmål",
     "lang.lt": "Lietuvių",
     "lang.fi": "Suomi",
-    "lang.cs": "Čeština"
+    "lang.cs": "Čeština",
+    "lang.ca": "Català",
+    "lang.da": "Dansk",
+    "lang.hr": "Hrvatski"
   },
   "fr": {
     "app.title": "birdquiz",
@@ -174,6 +178,7 @@
     "settings.primary": "Langue principale",
     "settings.secondary": "Langue secondaire (facultative)",
     "settings.signOut": "Se déconnecter",
+    "settings.credits": "Noms d’oiseaux : Multilingual IOC World Bird List (worldbirdnames.org, CC BY 3.0), complétée par GBIF.",
     "settings.loadError": "Impossible de charger les réglages.",
     "settings.errorPrimary": "Impossible d'enregistrer la langue principale.",
     "settings.errorSecondary": "Impossible d'enregistrer la langue secondaire.",
@@ -197,7 +202,10 @@
     "lang.nb": "Norsk bokmål",
     "lang.lt": "Lietuvių",
     "lang.fi": "Suomi",
-    "lang.cs": "Čeština"
+    "lang.cs": "Čeština",
+    "lang.ca": "Català",
+    "lang.da": "Dansk",
+    "lang.hr": "Hrvatski"
   },
   "es": {
     "app.title": "birdquiz",
@@ -274,6 +282,7 @@
     "settings.primary": "Idioma principal",
     "settings.secondary": "Idioma secundario (opcional)",
     "settings.signOut": "Cerrar sesión",
+    "settings.credits": "Nombres de aves: Multilingual IOC World Bird List (worldbirdnames.org, CC BY 3.0), completada con GBIF.",
     "settings.loadError": "No se pudieron cargar los ajustes.",
     "settings.errorPrimary": "No se pudo guardar el idioma principal.",
     "settings.errorSecondary": "No se pudo guardar el idioma secundario.",
@@ -297,6 +306,9 @@
     "lang.nb": "Norsk bokmål",
     "lang.lt": "Lietuvių",
     "lang.fi": "Suomi",
-    "lang.cs": "Čeština"
+    "lang.cs": "Čeština",
+    "lang.ca": "Català",
+    "lang.da": "Dansk",
+    "lang.hr": "Hrvatski"
   }
 }

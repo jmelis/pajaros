@@ -6,7 +6,7 @@
 // i18n.json; this file holds translation keys, never literals.
 
 const $ = (id) => document.getElementById(id);
-const VALID_LANGS = ["cs", "de", "en", "eo", "es", "fi", "fr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
+const VALID_LANGS = ["ca", "cs", "da", "de", "en", "eo", "es", "fi", "fr", "hr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
 const BROWSE_MODES = ["popularity", "category", "alphabetical"];
 const VIEW_NAMES = ["home", "search", "hotspot", "settings"];
 

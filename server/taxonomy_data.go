@@ -12,8 +12,9 @@ import (
 )
 
 // Worldwide eBird taxonomic structure (sciName, speciesCode, order,
-// familyCode, taxonOrder — see the note on Taxon below) plus GBIF's
-// vernacular names for those species, refreshed by cmd/gensnapshot
+// familyCode, taxonOrder — see the note on Taxon below) plus common names
+// for those species (the Multilingual IOC World Bird List, with GBIF's
+// vernacular names filling the gaps), refreshed by cmd/gensnapshot
 // alongside the hotspot snapshot. Small and effectively static — eBird
 // updates its taxonomy roughly once a year — so, like hotspots, it's
 // embedded rather than fetched live.
@@ -22,7 +23,7 @@ import (
 var embeddedTaxonomyCore []byte
 
 // embeddedSpeciesNames holds only the languages gensnapshot's taxonomy
-// command found adequate GBIF vernacular-name coverage for (see its
+// command found adequate IOC/GBIF common-name coverage for (see its
 // coverage report) — so its language keys are exactly validLang (see
 // main.go, which sets validLang from TaxonomyStore.SupportedLangs at
 // startup).
@@ -52,9 +53,10 @@ func mustComputeValidLang() map[string]bool {
 // Taxon is one species' taxonomy data. SciName, SpeciesCode, Order,
 // FamilyCode and TaxonOrder come from eBird — pure taxonomic structure,
 // not creative naming, and cheap to keep current with one eBird fetch (see
-// cmd/gensnapshot's taxonomy command). ComName (and, separately, each
-// family's display name — see families.go) comes from GBIF's vernacular
-// names instead of eBird's own per-locale common names: eBird/Clements'
+// cmd/gensnapshot's taxonomy command). ComName comes from the Multilingual
+// IOC World Bird List and GBIF's vernacular names (each family's display
+// name — see families.go — from GBIF alone) instead of eBird's own
+// per-locale common names: eBird/Clements'
 // translated checklist text carries licensing restrictions on
 // redistribution that its bare taxonomic structure doesn't.
 type Taxon struct {
@@ -77,10 +79,11 @@ type coreTaxon struct {
 }
 
 // TaxonomyStore answers taxonomy lookups entirely from the embedded tables:
-// eBird's structure (core) plus GBIF's per-language common names (names).
+// eBird's structure (core) plus per-language common names from IOC and GBIF
+// (names).
 type TaxonomyStore struct {
 	core          map[string]coreTaxon         // speciesCode -> eBird's taxonomic structure
-	names         map[string]map[string]string // lang -> speciesCode -> GBIF common name
+	names         map[string]map[string]string // lang -> speciesCode -> IOC/GBIF common name
 	codeBySciName map[string]string
 }
 
@@ -126,10 +129,10 @@ func (t *TaxonomyStore) CodeForSciName(sciName string) (string, bool) {
 // Lookup returns the Taxon for each of codes in lang, silently dropping any
 // code the taxonomy doesn't recognize. ComName falls back from lang to
 // English to the species' own scientific name — never to eBird's common
-// name (see the note on Taxon) — covering both a language GBIF didn't have
-// this species in and a species GBIF has no vernacular name for at all
-// (roughly 12% of eBird's species, mostly taxonomic splits/lumps GBIF's
-// backbone doesn't share with eBird/Clements).
+// name (see the note on Taxon) — covering both a language with no name for
+// this species and a species with no name in any language (under 1% of
+// eBird's species for English: taxonomic splits/lumps neither IOC nor
+// GBIF shares with eBird/Clements).
 func (t *TaxonomyStore) Lookup(codes []string, lang string) map[string]Taxon {
 	byLang := t.names[lang]
 	byEnglish := t.names["en"]

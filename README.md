@@ -61,7 +61,8 @@ request time by the deployed server:
 | source | provides | committed to git? |
 |---|---|---|
 | eBird taxonomy API | which species exist, classification (no names) | yes |
-| GBIF (species API) | common names, species and family, ~20 languages | yes |
+| Multilingual IOC World Bird List | species common names, ~23 languages (CC BY 3.0) | yes — download the .xlsx |
+| GBIF (species API) | species names IOC lacks, family names | yes |
 | GBIF (EOD dataset) | which birds occur where, how often | no — `scp`'d |
 | GeoNames (cities500) | place names for search, worldwide | no — `scp`'d |
 | db-ip (IP to Country Lite) | default UI language for a new account | yes |
@@ -70,7 +71,9 @@ request time by the deployed server:
 
 ```
 cd server
-EBIRD_API_KEY=... go run ./cmd/gensnapshot taxonomy   # run from home; eBird blocks cloud IPs
+# Download the latest "Multilingual" .xlsx from
+# https://www.worldbirdnames.org/new/ioc-lists/master-list-2/
+EBIRD_API_KEY=... go run ./cmd/gensnapshot taxonomy Multiling-IOC-15.2.xlsx   # run from home; eBird blocks cloud IPs
 git add data/taxonomy_core.json.gz data/species_names.json.gz data/family_names.json.gz
 git commit -m "Refresh taxonomy and common names"
 ```

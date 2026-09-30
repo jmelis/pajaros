@@ -6,7 +6,7 @@
 //
 // Subcommands:
 //
-//	EBIRD_API_KEY=... go run ./cmd/gensnapshot taxonomy
+//	EBIRD_API_KEY=... go run ./cmd/gensnapshot taxonomy <Multiling-IOC-*.xlsx>
 //	go run ./cmd/gensnapshot hotspots <gbif-download.zip | gbif.tsv>
 //	go run ./cmd/gensnapshot places <geonames-cities500.zip | cities500.txt>
 //	go run ./cmd/gensnapshot geoip <dbip-country-lite.csv.gz | .csv>
@@ -14,7 +14,8 @@
 // taxonomy makes a single eBird call for taxonomic structure (not blocked
 // the way per-locale calls at request time would be — see ARCHITECTURE.md —
 // but still best run from an unblocked connection) plus many small GBIF
-// calls for common names (see taxonomy.go); the rest consume an already
+// calls for common names (see taxonomy.go), merged with the downloaded
+// Multilingual IOC World Bird List (ioc.go); the rest consume an already
 // downloaded bulk file and never call out at all.
 //
 // hotspots consumes the aggregated file from GBIF's SQL Downloads API (see
@@ -48,7 +49,11 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "taxonomy":
-		err = runTaxonomy()
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: gensnapshot taxonomy <Multiling-IOC-xlsx>")
+			os.Exit(2)
+		}
+		err = runTaxonomy(os.Args[2])
 	case "hotspots":
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "usage: gensnapshot hotspots <sorted-gbif-tsv>")
