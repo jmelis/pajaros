@@ -109,7 +109,8 @@ Four pieces served straight from `server/static/`, embedded in the binary,
 no build step: `index.html` (markup), `style.css`, `app.js`, `i18n.json`
 (en/es/fr UI strings).
 
-Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`, `#/hotspot/<locId>/credits`,
+Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`,
+`#/hotspot/<locId>/bird/<speciesCode>`, `#/hotspot/<locId>/credits`,
 `#/settings`)
 so every view survives a reload and is linkable without any server-side
 routing. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
@@ -438,6 +439,18 @@ cycled only by the next-photo button in the image's bottom-right corner (no
 timer, no swipe), so the drag gesture is never ambiguous. Only photos that
 have actually loaded join that cycle; the button and dots stay hidden until a
 second photo is ready.
+
+Learn is deep-linkable: `#/hotspot/<locId>/bird/<speciesCode>` opens the
+hotspot's Learn deck on that bird (an unknown code falls back to the plain
+hotspot with a notice). While Learn is open the address bar always holds that
+bird's link — `learn.syncURL()` rewrites it with `history.replaceState` on
+every card change, so swiping adds no history entries — and closing Learn
+restores the plain hotspot URL. Tapping a bird in the hotspot's species grid
+opens Learn at that bird (the grid cards are real links to the same URL, so
+middle-click/copy-link still work). Each card has a share button (Web Share
+API, falling back to copying the link) and an "eBird" pill linking to the
+species' eBird page in a new tab; the hotspot header has its own share button
+for the hotspot link.
 
 Each card shows up to `maxImagesPerSpecies` (4) images, all from Wikimedia
 (`server/wikimedia.go`) and cached to disk. Only two human-curated sources

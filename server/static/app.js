@@ -9,6 +9,7 @@ const $ = (id) => document.getElementById(id);
 const VALID_LANGS = ["ca", "cs", "da", "de", "en", "eo", "es", "fi", "fr", "hr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
 const BROWSE_MODES = ["popularity", "category", "alphabetical"];
 const VIEW_NAMES = ["home", "search", "hotspot", "credits", "settings"];
+const SPECIES_CODE_RE = /^[A-Za-z0-9_-]+$/;
 const LOC_ID_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
 
 // ---- Account / UI state ---------------------------------------------------
@@ -33,7 +34,7 @@ const state = {
   hotspotsFull: [],
 };
 
-let currentRoute = { name: "home", locId: "" };
+let currentRoute = { name: "home", locId: "", speciesCode: "" };
 
 // ---- i18n -----------------------------------------------------------------
 
@@ -156,10 +157,15 @@ function parseRoute() {
   const name = parts[0] || "home";
   if (name === "hotspot") {
     const locId = parts[1] ? decodeURIComponent(parts[1]) : "";
-    return { name: parts[2] === "credits" ? "credits" : "hotspot", locId };
+    const code = parts[2] === "bird" && parts[3] ? decodeURIComponent(parts[3]) : "";
+    return {
+      name: parts[2] === "credits" ? "credits" : "hotspot",
+      locId,
+      speciesCode: SPECIES_CODE_RE.test(code) ? code : "",
+    };
   }
-  if (VIEW_NAMES.indexOf(name) !== -1) return { name, locId: "" };
-  return { name: "home", locId: "" };
+  if (VIEW_NAMES.indexOf(name) !== -1) return { name, locId: "", speciesCode: "" };
+  return { name: "home", locId: "", speciesCode: "" };
 }
 
 function navigate(hash) {
@@ -182,14 +188,14 @@ async function renderRoute() {
 
   if (route.name === "home") await renderHome();
   else if (route.name === "search") showSearch();
-  else if (route.name === "hotspot") await openHotspot(route.locId);
+  else if (route.name === "hotspot") await openHotspot(route.locId, route.speciesCode);
   else if (route.name === "credits") await openCredits(route.locId);
   else if (route.name === "settings") await renderSettings();
 }
 
 async function onHashChange() {
   const next = parseRoute();
-  if (learn.active && !(next.name === "hotspot" && next.locId === learn.locId)) {
+  if (learn.active && !(next.name === "hotspot" && next.locId === learn.locId && next.speciesCode)) {
     learn.finish();
   }
   await renderRoute();
@@ -615,14 +621,22 @@ async function ensureHotspot(locId) {
 
 function creditsHash(locId) { return "#/hotspot/" + encodeURIComponent(locId) + "/credits"; }
 
-async function openHotspot(locId) {
+function birdHash(locId, speciesCode) {
+  return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode);
+}
+
+// A shared bird link (#/hotspot/<locId>/bird/<code>) opens the hotspot with
+// Learn already on that bird; the species list loads behind it in parallel.
+async function openHotspot(locId, speciesCode) {
   if (!LOC_ID_RE.test(locId)) { navigate("#/home"); return; }
   if (!(await ensureHotspot(locId))) return;
 
   $("hotspotName").textContent = state.hotspot.locName || state.hotspot.locId;
   $("hotspotCreditsLink").href = creditsHash(locId);
   updateBookmarkButton();
-  await loadSpecies();
+  const browse = loadSpecies();
+  if (speciesCode) await loadAndStartLearn(speciesCode);
+  await browse;
 }
 
 // ---- Photo credits --------------------------------------------------------
@@ -718,9 +732,8 @@ async function loadSecondaryNames(locId) {
 function speciesCard(sp) {
   const card = document.createElement("a");
   card.className = "card";
-  card.href = `https://ebird.org/species/${encodeURIComponent(sp.speciesCode)}`;
-  card.target = "_blank";
-  card.rel = "noopener noreferrer";
+  card.href = birdHash(state.hotspot.locId, sp.speciesCode);
+  card.dataset.code = sp.speciesCode;
   card.innerHTML = `
     <img src="${sp.imageMissing ? MISSING_URL : PLACEHOLDER_URL}" alt="${escapeHtml(sp.comName)}">
     <div class="card-body">
@@ -891,6 +904,46 @@ async function onLogout() {
 
 // ---- Learn ------------------------------------------------------------
 
+// shareLink offers a link through the native share sheet where there is one,
+// otherwise copies it. Resolves true only when it fell back to copying (the
+// caller confirms that itself — the share sheet is its own confirmation).
+async function shareLink(title, text, url) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url });
+      return false;
+    } catch (e) {
+      if (e && e.name === "AbortError") return false;
+    }
+  }
+  return copyText(url);
+}
+
+function shareBird(item) {
+  const place = state.hotspot ? state.hotspot.locName : "";
+  return shareLink(item.comName, t("learn.shareText", { name: item.comName, place }), location.origin + location.pathname + birdHash(learn.locId, item.speciesCode));
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    // navigator.clipboard is unavailable outside HTTPS/localhost; fall back to
+    // the legacy selection-based copy, which works on a user gesture anywhere.
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+    ta.remove();
+    return ok;
+  }
+}
+
 // A Learn card's image slides: index 0 shares imageMissing's "the server
 // already confirmed this" signal with Browse's cards (see preloadAndSwap),
 // so it gets the same generous retry budget. A secondary slide (1-3) has no
@@ -925,10 +978,10 @@ const learn = {
   namesVisible: true,
   keyHandler: null,
 
-  start(cards, locId) {
+  start(cards, locId, index = 0) {
     this.cards = cards.slice();
     this.locId = locId;
-    this.index = 0;
+    this.index = index;
     this.done = false;
     this.active = true;
     $("learnOverlay").hidden = false;
@@ -941,6 +994,15 @@ const learn = {
   finish() {
     this.active = false;
     $("learnOverlay").hidden = true;
+    // Closing a shared-bird view drops the bird from the URL so a reload (or
+    // re-sharing the page) lands on the plain hotspot. replaceState doesn't
+    // fire hashchange; the check skips the case where finish() runs because
+    // the user already navigated somewhere else.
+    const route = parseRoute();
+    if (route.name === "hotspot" && route.locId === this.locId && route.speciesCode) {
+      history.replaceState(null, "", "#/hotspot/" + encodeURIComponent(this.locId));
+      currentRoute = Object.assign({}, route, { speciesCode: "" });
+    }
     if (this.keyHandler) document.removeEventListener("keydown", this.keyHandler);
     this.keyHandler = null;
   },
@@ -983,7 +1045,18 @@ const learn = {
     btn.setAttribute("aria-label", t(this.namesVisible ? "learn.hideNames" : "learn.showNames"));
   },
 
+  // syncURL keeps the address bar on the bird being shown (or the plain
+  // hotspot on the final screen) so it can always be copied. replaceState, so
+  // swiping through birds adds no history entries and fires no hashchange.
+  syncURL() {
+    const code = this.done ? "" : this.cards[this.index].speciesCode;
+    const hash = code ? birdHash(this.locId, code) : "#/hotspot/" + encodeURIComponent(this.locId);
+    if (location.hash !== hash) history.replaceState(null, "", hash);
+    currentRoute = Object.assign({}, currentRoute, { speciesCode: code });
+  },
+
   render() {
+    this.syncURL();
     const body = $("learnBody");
     body.innerHTML = "";
 
@@ -1044,7 +1117,7 @@ const learn = {
       dot.hidden = true;
       dots.appendChild(dot);
     });
-    card.appendChild(dots);
+    slidesWrap.appendChild(dots);
 
     const nextBtn = document.createElement("button");
     nextBtn.type = "button";
@@ -1074,7 +1147,7 @@ const learn = {
       } while (!isLoaded(next) && next !== shown);
       if (next !== shown) showSlide(next);
     });
-    card.appendChild(nextBtn);
+    slidesWrap.appendChild(nextBtn);
 
     slides.forEach((img, i) => {
       learnLoadSlide(img, urls[i], i === 0 ? LEARN_PRIMARY_RETRIES : LEARN_SECONDARY_RETRIES, {
@@ -1082,6 +1155,32 @@ const learn = {
         onGiveUp: () => { if (shown === i) showSlide(0); },
       });
     });
+
+    const shareBtn = document.createElement("button");
+    shareBtn.type = "button";
+    shareBtn.className = "learn-share";
+    shareBtn.setAttribute("aria-label", t("learn.share"));
+    shareBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h14"/><path d="M21 12v7"/></svg>`;
+    const toast = document.createElement("div");
+    toast.className = "learn-toast";
+    toast.hidden = true;
+    toast.setAttribute("role", "status");
+    shareBtn.addEventListener("click", async () => {
+      const copied = await shareBird(item);
+      if (!copied) return;
+      toast.textContent = t("share.linkCopied");
+      toast.hidden = false;
+      clearTimeout(toast.hideTimer);
+      toast.hideTimer = setTimeout(() => { toast.hidden = true; }, 2000);
+    });
+    const ebird = document.createElement("a");
+    ebird.className = "learn-ebird";
+    ebird.href = `https://ebird.org/species/${encodeURIComponent(item.speciesCode)}`;
+    ebird.target = "_blank";
+    ebird.rel = "noopener noreferrer";
+    ebird.setAttribute("aria-label", t("learn.ebird"));
+    ebird.innerHTML = `<span>eBird</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
+    slidesWrap.append(ebird, shareBtn, toast);
 
     const names = document.createElement("div");
     names.className = "learn-names";
@@ -1104,7 +1203,7 @@ const learn = {
     let startX = 0, dx = 0, dragging = false;
 
     const onDown = (e) => {
-      if (e.target.closest(".learn-next-photo")) return;
+      if (e.target.closest(".learn-next-photo, .learn-share, .learn-ebird")) return;
       dragging = true;
       startX = e.clientX;
       card.setPointerCapture(e.pointerId);
@@ -1146,7 +1245,7 @@ async function startLearn() {
   }
 }
 
-async function loadAndStartLearn() {
+async function loadAndStartLearn(speciesCode) {
   setHotspotStatus(t("learn.building"));
   let species;
   try {
@@ -1161,9 +1260,19 @@ async function loadAndStartLearn() {
     setHotspotStatus(t("learn.none"));
     return;
   }
+  let index = 0;
+  if (speciesCode) {
+    index = species.findIndex((sp) => sp.speciesCode === speciesCode);
+    if (index < 0) {
+      setHotspotStatus(t("learn.birdNotFound"));
+      history.replaceState(null, "", "#/hotspot/" + encodeURIComponent(state.hotspot.locId));
+      currentRoute = Object.assign({}, currentRoute, { speciesCode: "" });
+      return;
+    }
+  }
   await loadSecondaryNames(state.hotspot.locId);
   setHotspotStatus("");
-  learn.start(species, state.hotspot.locId);
+  learn.start(species, state.hotspot.locId, index);
 }
 
 // ---- Wiring ---------------------------------------------------------------
@@ -1198,6 +1307,14 @@ function wireEvents() {
     );
   });
 
+  $("shareHotspotBtn").addEventListener("click", async () => {
+    if (!state.hotspot) return;
+    const h = state.hotspot;
+    const name = h.locName || h.locId;
+    const copied = await shareLink(name, t("hotspot.shareText", { place: name }), location.origin + location.pathname + "#/hotspot/" + encodeURIComponent(h.locId));
+    if (copied) setHotspotStatus(t("share.linkCopied"));
+  });
+
   $("bookmarkBtn").addEventListener("click", async () => {
     if (!state.hotspot) return;
     const saved = state.favorites.some((f) => f.locId === state.hotspot.locId);
@@ -1219,6 +1336,14 @@ function wireEvents() {
   }
 
   $("learnStart").addEventListener("click", startLearn);
+  // A plain click on a bird opens Learn on it; modified clicks fall through
+  // to the link (its href is the shareable bird URL).
+  $("groups").addEventListener("click", (e) => {
+    const card = e.target.closest("a.card");
+    if (!card || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    loadAndStartLearn(card.dataset.code);
+  });
   $("learnClose").addEventListener("click", () => learn.finish());
   $("learnPrev").addEventListener("click", () => learn.go(-1));
   $("learnNext").addEventListener("click", () => learn.go(1));
