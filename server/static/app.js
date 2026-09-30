@@ -8,7 +8,7 @@
 const $ = (id) => document.getElementById(id);
 const VALID_LANGS = ["ca", "cs", "da", "de", "en", "eo", "es", "fi", "fr", "hr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
 const BROWSE_MODES = ["popularity", "category", "alphabetical"];
-const VIEW_NAMES = ["home", "search", "hotspot", "credits", "settings"];
+const VIEW_NAMES = ["home", "search", "hotspot", "credits", "compare", "settings"];
 const SPECIES_CODE_RE = /^[A-Za-z0-9_-]+$/;
 const LOC_ID_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
 
@@ -164,6 +164,14 @@ function parseRoute() {
       speciesCode: SPECIES_CODE_RE.test(code) ? code : "",
     };
   }
+  if (name === "compare") {
+    return {
+      name,
+      locId: parts[1] ? decodeURIComponent(parts[1]) : "",
+      locIdB: parts[2] ? decodeURIComponent(parts[2]) : "",
+      speciesCode: "",
+    };
+  }
   if (VIEW_NAMES.indexOf(name) !== -1) return { name, locId: "", speciesCode: "" };
   return { name: "home", locId: "", speciesCode: "" };
 }
@@ -184,12 +192,13 @@ async function renderRoute() {
   const route = parseRoute();
   currentRoute = route;
   for (const name of VIEW_NAMES) $("view-" + name).hidden = name !== route.name;
-  updateNav(route.name);
+  updateNav(route.name === "compare" ? "home" : route.name);
 
   if (route.name === "home") await renderHome();
   else if (route.name === "search") showSearch();
   else if (route.name === "hotspot") await openHotspot(route.locId, route.speciesCode);
   else if (route.name === "credits") await openCredits(route.locId);
+  else if (route.name === "compare") await openCompare(route.locId, route.locIdB);
   else if (route.name === "settings") await renderSettings();
 }
 
@@ -287,6 +296,10 @@ async function renderHome() {
 
   syncProfile(profile);
   const firstRun = state.favorites.length === 0;
+
+  const homeCompare = $("homeCompareLink");
+  homeCompare.hidden = state.favorites.length < 2;
+  if (!homeCompare.hidden) homeCompare.href = compareHash(state.favorites[0].locId, state.favorites[1].locId);
 
   $("homeFirstRun").hidden = !firstRun;
   $("homeHotspotsPanel").hidden = firstRun;
@@ -633,6 +646,7 @@ async function openHotspot(locId, speciesCode) {
 
   $("hotspotName").textContent = state.hotspot.locName || state.hotspot.locId;
   $("hotspotCreditsLink").href = creditsHash(locId);
+  $("hotspotCompareLink").href = compareHash(locId, "");
   updateBookmarkButton();
   const browse = loadSpecies();
   if (speciesCode) await loadAndStartLearn(speciesCode);
@@ -920,8 +934,8 @@ async function shareLink(title, text, url) {
 }
 
 function shareBird(item) {
-  const place = state.hotspot ? state.hotspot.locName : "";
-  return shareLink(item.comName, t("learn.shareText", { name: item.comName, place }), location.origin + location.pathname + birdHash(learn.locId, item.speciesCode));
+  const place = item.locName || (state.hotspot ? state.hotspot.locName : "");
+  return shareLink(item.comName, t("learn.shareText", { name: item.comName, place }), location.origin + location.pathname + birdHash(item.locId || learn.locId, item.speciesCode));
 }
 
 async function copyText(text) {
@@ -978,7 +992,12 @@ const learn = {
   namesVisible: true,
   keyHandler: null,
 
-  start(cards, locId, index = 0) {
+  // quiet decks (started from Compare) leave the address bar alone: their
+  // cards come from two hotspots, so no single bird URL describes them.
+  quiet: false,
+
+  start(cards, locId, index = 0, opts = {}) {
+    this.quiet = !!opts.quiet;
     this.cards = cards.slice();
     this.locId = locId;
     this.index = index;
@@ -999,7 +1018,7 @@ const learn = {
     // fire hashchange; the check skips the case where finish() runs because
     // the user already navigated somewhere else.
     const route = parseRoute();
-    if (route.name === "hotspot" && route.locId === this.locId && route.speciesCode) {
+    if (!this.quiet && route.name === "hotspot" && route.locId === this.locId && route.speciesCode) {
       history.replaceState(null, "", "#/hotspot/" + encodeURIComponent(this.locId));
       currentRoute = Object.assign({}, route, { speciesCode: "" });
     }
@@ -1049,6 +1068,7 @@ const learn = {
   // hotspot on the final screen) so it can always be copied. replaceState, so
   // swiping through birds adds no history entries and fires no hashchange.
   syncURL() {
+    if (this.quiet) return;
     const code = this.done ? "" : this.cards[this.index].speciesCode;
     const hash = code ? birdHash(this.locId, code) : "#/hotspot/" + encodeURIComponent(this.locId);
     if (location.hash !== hash) history.replaceState(null, "", hash);
@@ -1077,6 +1097,7 @@ const learn = {
     }
 
     const item = this.cards[this.index];
+    $("learnCreditsLink").href = creditsHash(item.locId || this.locId);
     $("learnProgress").textContent = t("learn.progress", { i: this.index + 1, n: this.cards.length });
 
     const card = document.createElement("div");

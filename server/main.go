@@ -305,6 +305,9 @@ func main() {
 	appMux.HandleFunc("GET /api/hotspots/{locId}", instrumentHTTP("/api/hotspots/{locId}", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotInfo)))
 	appMux.HandleFunc("GET /api/hotspots/{locId}/species", instrumentHTTP("/api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotSpecies)))
 	appMux.HandleFunc("GET /api/hotspots/{locId}/credits", instrumentHTTP("/api/hotspots/{locId}/credits", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotCredits)))
+	// Compare reads only local stores (no image fetching), but loads two
+	// species lists per call, so it shares the detail limiter.
+	appMux.HandleFunc("GET /api/compare", instrumentHTTP("/api/compare", hotspotDetailLimiter.middleware(hotspotKey, srv.handleCompare)))
 
 	// Per-account preferences. These touch only the local database, so unlike
 	// the hotspot routes they need no upstream-keyed rate limit.

@@ -81,6 +81,7 @@ GET  /api/hotspots                               nearby search (lat, lng, dist)
 GET  /api/hotspots/{locId}                        hotspot info
 GET  /api/hotspots/{locId}/species                 species list (category/popularity/alphabetical) — Learn's card deck too
 GET  /api/hotspots/{locId}/credits                 photo credits for the hotspot's species (author, license, source)
+GET  /api/compare                                 two hotspots side by side (a, b, lang)
 
 GET  /api/me                                      profile
 GET  /PUT /api/me/language                        primary bird-name + UI language
@@ -111,7 +112,7 @@ no build step: `index.html` (markup), `style.css`, `app.js`, `i18n.json`
 
 Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`,
 `#/hotspot/<locId>/bird/<speciesCode>`, `#/hotspot/<locId>/credits`,
-`#/settings`)
+`#/compare/<locIdA>/<locIdB>`, `#/settings`)
 so every view survives a reload and is linkable without any server-side
 routing. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
 `index.html`), the canonical iOS primary-navigation placement. The old
@@ -561,6 +562,24 @@ author, license link and Commons link. `handleHotspotCredits`
 it names exactly the photos the app has downloaded; species with no cached
 photo are omitted. The frontend only links `https://` URLs, since license and
 source URLs come from Commons metadata.
+
+**Compare.** `#/compare/<a>/<b>` (linked from a hotspot's footer and from
+Home once two hotspots are saved) puts two hotspots side by side.
+`GET /api/compare` (`server/compare.go`) reads only the local stores — no
+image or Wikimedia work — and returns the union of both species lists with
+each side's record count, popularity rank and share of that hotspot's total
+records, plus the log2 share ratio for species seen at both and per-family
+shares. Counts are GBIF records, so hotspots are compared by *share* of their
+own totals rather than raw counts (one may simply have more records);
+`buildComparison` is the pure function holding that logic. A ratio is
+`reliable` only when the species has at least 30 combined records, and the
+frontend (`static/compare.js`) fades bars below 45. The view shows an overlap
+verdict, a diverging chart of the species that set the two apart, the top
+shared species with their ranks (flagging a move of 5 or more places), the
+species seen at only one, and the family mix. Learn buttons open the normal
+Learn deck on those species (a "quiet" deck: it never rewrites the URL, since
+its cards come from two hotspots). Picker options are the account's saved
+hotspots plus the busiest hotspots near the first one.
 
 ## Accounts & persistence
 

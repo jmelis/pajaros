@@ -41,6 +41,7 @@
     </section>
 
     <a class="cta-primary" href="#/search" data-i18n="home.find"></a>
+    <a id="homeCompareLink" class="cmp-link" href="#/compare" data-i18n="home.compare" hidden></a>
   </section>
 
   <!-- Search -->
@@ -104,8 +105,20 @@
       <div id="groups"></div>
     </div>
     <footer class="credits-footer">
+      <a id="hotspotCompareLink" href="#/compare" data-i18n="hotspot.compare"></a>
+      <span aria-hidden="true"> · </span>
       <a id="hotspotCreditsLink" href="#/home" data-i18n="credits.link"></a>
     </footer>
+  </section>
+
+  <!-- Compare two hotspots -->
+  <section id="view-compare" class="view" hidden>
+    <a id="compareBack" class="back-link" href="#/home" data-i18n="compare.back"></a>
+    <h2 class="view-title" data-i18n="compare.title"></h2>
+    <div id="comparePicker" class="cmp-pick"></div>
+    <p id="compareDist" class="cmp-dist"></p>
+    <p id="compareStatus" class="status"></p>
+    <div id="compareBody" class="view"></div>
   </section>
 
   <!-- Photo credits for one hotspot -->
@@ -175,6 +188,7 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/compare.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
