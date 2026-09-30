@@ -600,17 +600,6 @@ function wireSortMenu() {
   updateSortLabel();
 }
 
-function currentHotspotMode() {
-  const r = document.querySelector('input[name="hotspotMode"]:checked');
-  return r ? r.value : "browse";
-}
-
-function applyHotspotMode() {
-  const learnMode = currentHotspotMode() === "learn";
-  $("browseControls").hidden = learnMode;
-  $("learnControls").hidden = !learnMode;
-}
-
 function updateBookmarkButton() {
   if (!state.hotspot) return;
   const saved = state.favorites.some((f) => f.locId === state.hotspot.locId);
@@ -652,7 +641,6 @@ async function openHotspot(locId) {
   $("hotspotName").textContent = state.hotspot.locName || state.hotspot.locId;
   $("hotspotCreditsLink").href = creditsHash(locId);
   updateBookmarkButton();
-  applyHotspotMode();
   await loadSpecies();
 }
 
@@ -926,12 +914,11 @@ async function onLogout() {
 // already confirmed this" signal with Browse's cards (see preloadAndSwap),
 // so it gets the same generous retry budget. A secondary slide (1-3) has no
 // such signal — the species may simply not have that many images cached —
-// so it gives up much sooner and is dropped from rotation instead of
+// so it gives up much sooner and is skipped when cycling instead of
 // polling a URL that may never 200.
 const LEARN_PRIMARY_RETRIES = 40;
 const LEARN_SECONDARY_RETRIES = 5;
 const LEARN_RETRY_MS = 3000;
-const LEARN_ROTATE_MS = 4000;
 const LEARN_DRAG_THRESHOLD = 80;
 
 function learnLoadSlide(imgEl, url, maxAttempts, onGiveUp, attempt = 0) {
@@ -955,7 +942,6 @@ const learn = {
   index: 0,
   done: false,
   namesVisible: true,
-  rotateTimer: null,
   keyHandler: null,
 
   start(cards, locId) {
@@ -972,8 +958,6 @@ const learn = {
   },
 
   finish() {
-    clearInterval(this.rotateTimer);
-    this.rotateTimer = null;
     this.active = false;
     $("learnOverlay").hidden = true;
     if (this.keyHandler) document.removeEventListener("keydown", this.keyHandler);
@@ -1019,8 +1003,6 @@ const learn = {
   },
 
   render() {
-    clearInterval(this.rotateTimer);
-    this.rotateTimer = null;
     const body = $("learnBody");
     body.innerHTML = "";
 
@@ -1052,7 +1034,7 @@ const learn = {
     const slides = [];
     if (urls.length === 0) {
       const img = document.createElement("img");
-      img.className = "learn-image";
+      img.className = "learn-image learn-image-active";
       img.alt = "";
       img.src = item.imageMissing ? MISSING_URL : PLACEHOLDER_URL;
       slidesWrap.appendChild(img);
@@ -1064,12 +1046,30 @@ const learn = {
         img.src = PLACEHOLDER_URL;
         slidesWrap.appendChild(img);
         slides.push(img);
-        learnLoadSlide(img, url, i === 0 ? LEARN_PRIMARY_RETRIES : LEARN_SECONDARY_RETRIES, () => { img.dataset.gaveUp = "1"; });
       });
     }
     card.appendChild(slidesWrap);
 
+    // Photos within one bird are cycled by the chevrons on the image (and
+    // never by swipe or timer), so the horizontal drag stays unambiguous:
+    // it always moves through the deck of birds.
     const dots = document.createElement("div");
+    let shown = 0;
+    const showSlide = (next) => {
+      slides[shown].classList.remove("learn-image-active");
+      dots.children[shown].classList.remove("active");
+      slides[next].classList.add("learn-image-active");
+      dots.children[next].classList.add("active");
+      shown = next;
+    };
+    const cycle = (delta) => {
+      let next = shown;
+      do {
+        next = (next + delta + slides.length) % slides.length;
+      } while (slides[next].dataset.gaveUp === "1" && next !== shown);
+      if (next !== shown) showSlide(next);
+    };
+
     if (slides.length > 1) {
       dots.className = "learn-dots";
       slides.forEach((_, i) => {
@@ -1079,6 +1079,13 @@ const learn = {
       });
       card.appendChild(dots);
     }
+    slides.forEach((img, i) => {
+      learnLoadSlide(img, urls[i], i === 0 ? LEARN_PRIMARY_RETRIES : LEARN_SECONDARY_RETRIES, () => {
+        img.dataset.gaveUp = "1";
+        if (dots.children[i]) dots.children[i].hidden = true;
+        if (shown === i) showSlide(0);
+      });
+    });
 
     const names = document.createElement("div");
     names.className = "learn-names";
@@ -1089,44 +1096,22 @@ const learn = {
       (item.sciName ? `<div class="learn-sci">${escapeHtml(item.sciName)}</div>` : "");
     card.appendChild(names);
 
-    const prevBtn = document.createElement("button");
-    prevBtn.type = "button";
-    prevBtn.className = "learn-chevron learn-chevron-left";
-    prevBtn.setAttribute("aria-label", t("learn.previous"));
-    prevBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>`;
-    prevBtn.addEventListener("click", () => this.go(-1));
-    card.appendChild(prevBtn);
-
-    const nextBtn = document.createElement("button");
-    nextBtn.type = "button";
-    nextBtn.className = "learn-chevron learn-chevron-right";
-    nextBtn.setAttribute("aria-label", t("learn.next"));
-    nextBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>`;
-    nextBtn.addEventListener("click", () => this.go(1));
-    card.appendChild(nextBtn);
+    if (slides.length > 1) {
+      const chevron = (cls, label, path, delta) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "learn-chevron " + cls;
+        btn.setAttribute("aria-label", t(label));
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
+        btn.addEventListener("click", () => cycle(delta));
+        card.appendChild(btn);
+      };
+      chevron("learn-chevron-left", "learn.previousPhoto", "m15 18-6-6 6-6", -1);
+      chevron("learn-chevron-right", "learn.nextPhoto", "m9 18 6-6-6-6", 1);
+    }
 
     body.appendChild(card);
     this.wireDrag(card);
-
-    // Auto-crossfade a multi-image card's own slides — deliberately not
-    // swipe-controlled, so the one horizontal drag gesture stays
-    // unambiguous ("advance/go back through the deck").
-    if (slides.length > 1) {
-      let shown = 0;
-      this.rotateTimer = setInterval(() => {
-        const usable = slides.filter((s) => s.dataset.loaded === "1" && s.dataset.gaveUp !== "1");
-        if (usable.length < 2) return;
-        let next = shown;
-        do {
-          next = (next + 1) % slides.length;
-        } while (slides[next].dataset.loaded !== "1" || slides[next].dataset.gaveUp === "1");
-        slides[shown].classList.remove("learn-image-active");
-        slides[next].classList.add("learn-image-active");
-        dots.children[shown].classList.remove("active");
-        dots.children[next].classList.add("active");
-        shown = next;
-      }, LEARN_ROTATE_MS);
-    }
   },
 
   // wireDrag lets the card be dragged left/right with the pointer, snapping
@@ -1145,7 +1130,7 @@ const learn = {
     const onMove = (e) => {
       if (!dragging) return;
       dx = e.clientX - startX;
-      card.style.transform = `translateX(${dx}px) rotate(${dx / 20}deg)`;
+      card.style.transform = `translateX(${dx}px)`;
     };
     const onUp = () => {
       if (!dragging) return;
@@ -1153,7 +1138,7 @@ const learn = {
       card.style.transition = "transform .2s ease";
       if (Math.abs(dx) > LEARN_DRAG_THRESHOLD) {
         const delta = dx < 0 ? 1 : -1;
-        card.style.transform = `translateX(${dx < 0 ? "-120%" : "120%"}) rotate(${dx / 20}deg)`;
+        card.style.transform = `translateX(${dx < 0 ? "-120%" : "120%"})`;
         setTimeout(() => this.go(delta), 180);
       } else {
         card.style.transform = "";
@@ -1170,6 +1155,16 @@ const learn = {
 
 async function startLearn() {
   if (!state.hotspot) return;
+  const btn = $("learnStart");
+  btn.disabled = true;
+  try {
+    await loadAndStartLearn();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadAndStartLearn() {
   setHotspotStatus(t("learn.building"));
   let species;
   try {
@@ -1240,12 +1235,11 @@ function wireEvents() {
   for (const radio of document.querySelectorAll('input[name="mode"]')) {
     radio.addEventListener("change", () => { if (state.hotspot) loadSpecies(); });
   }
-  for (const radio of document.querySelectorAll('input[name="hotspotMode"]')) {
-    radio.addEventListener("change", applyHotspotMode);
-  }
 
   $("learnStart").addEventListener("click", startLearn);
   $("learnClose").addEventListener("click", () => learn.finish());
+  $("learnPrev").addEventListener("click", () => learn.go(-1));
+  $("learnNext").addEventListener("click", () => learn.go(1));
   $("learnToggleNames").addEventListener("click", () => learn.toggleNames());
 
   $("primaryLang").addEventListener("change", onPrimaryLanguageChange);

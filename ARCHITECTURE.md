@@ -430,8 +430,12 @@ Learn is a full-screen, swipeable deck of a hotspot's species — pure
 browsing, no scoring or spaced repetition. The frontend fetches
 `GET /api/hotspots/{locId}/species?mode=popularity` (the same endpoint and
 ordering Browse's popularity mode uses) and drives its own card, dot-index,
-and drag/press/arrow-key navigation client-side (`static/app.js`'s `learn`
-object) — there's no separate session endpoint or server-side state for it.
+and drag/arrow-key/top-bar-button navigation client-side (`static/app.js`'s
+`learn` object) — there's no separate session endpoint or server-side state
+for it. It's started by the Learn button on the hotspot view. Horizontal
+drag and the top-bar arrows move between birds; a bird's own photos are
+cycled only by the chevrons overlaid on the image (no timer, no swipe), so
+the drag gesture is never ambiguous.
 
 Each card shows up to `maxImagesPerSpecies` (4) images, all from Wikimedia
 (`server/wikimedia.go`) and cached to disk. Only two human-curated sources

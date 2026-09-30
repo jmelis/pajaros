@@ -75,13 +75,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 2.9 6.26L21.5 9l-5 4.87L17.8 21 12 17.6 6.2 21l1.3-7.13-5-4.87 6.6-.74Z"/></svg>
       </button>
     </div>
-    <div class="segmented" id="hotspotModeToggle" role="radiogroup" data-i18n-aria="hotspot.modeAria">
-      <label><input type="radio" name="hotspotMode" value="browse" checked><span data-i18n="hotspot.browse"></span></label>
-      <label><input type="radio" name="hotspotMode" value="learn"><span data-i18n="hotspot.learn"></span></label>
-    </div>
     <p id="hotspotStatus" class="status"></p>
     <div id="browseControls">
       <div class="sort-row">
+        <button id="learnStart" class="btn btn-primary btn-sm" type="button" data-i18n="hotspot.learn"></button>
         <div class="sort-control">
           <button id="sortBtn" class="sort-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
             <span id="sortBtnLabel"></span>
@@ -100,9 +97,6 @@
         <label><input type="radio" name="mode" value="alphabetical"><span data-i18n="browse.alphabetical"></span></label>
       </div>
       <div id="groups"></div>
-    </div>
-    <div id="learnControls" class="actions" hidden>
-      <button id="learnStart" class="btn btn-primary" type="button" data-i18n="learn.start"></button>
     </div>
     <footer class="credits-footer">
       <a id="hotspotCreditsLink" href="#/home" data-i18n="credits.link"></a>
@@ -158,7 +152,13 @@
     <button id="learnClose" class="learn-icon-btn" type="button" data-i18n-aria="learn.close">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
     </button>
+    <button id="learnPrev" class="learn-icon-btn" type="button" data-i18n-aria="learn.previous">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
     <span id="learnProgress" class="learn-progress"></span>
+    <button id="learnNext" class="learn-icon-btn" type="button" data-i18n-aria="learn.next">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+    </button>
     <button id="learnToggleNames" class="learn-icon-btn" type="button" data-i18n-aria="learn.hideNames" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>

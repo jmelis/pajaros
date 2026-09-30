@@ -308,6 +308,7 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
   border-radius: var(--radius-sm);
   align-self: flex-start;
 }
+.segmented[hidden] { display: none; }
 .segmented label { display: inline-flex; cursor: pointer; }
 .segmented input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .segmented span {
@@ -328,7 +329,7 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
    full-width segmented control stacked under Explore/Learn. Sort order is a
    lightweight preference, not a co-equal mode switch, so it shouldn't carry
    the same visual weight. */
-.sort-row { display: flex; justify-content: flex-end; }
+.sort-row { display: flex; justify-content: space-between; align-items: center; }
 .sort-control { position: relative; }
 .sort-btn {
   display: flex;
