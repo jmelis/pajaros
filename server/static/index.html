@@ -16,12 +16,20 @@
   </div>
   <div class="header-right">
     <span id="userEmail" class="user-email"></span>
+    <a id="signInLink" class="header-signin" href="/login" data-i18n="auth.signIn" hidden></a>
   </div>
 </header>
 
 <main class="container">
   <!-- Home -->
   <section id="view-home" class="view" hidden>
+    <div id="homeGuest" class="panel first-run" hidden>
+      <p data-i18n="home.guest"></p>
+      <div class="actions">
+        <a id="homeSignIn" class="btn btn-primary" href="/login" data-i18n="auth.signIn"></a>
+      </div>
+    </div>
+
     <div id="homeFirstRun" class="panel first-run" hidden>
       <p data-i18n="home.firstRun"></p>
       <div class="actions"><a class="btn btn-primary" href="#/search" data-i18n="home.find"></a></div>
@@ -143,7 +151,9 @@
       </label>
       <div class="actions">
         <button id="logoutBtn" class="btn btn-secondary" type="button" data-i18n="settings.signOut"></button>
+        <a id="settingsSignIn" class="btn btn-primary" href="/login" data-i18n="auth.signIn" hidden></a>
       </div>
+      <p id="settingsGuestHint" class="hint" data-i18n="settings.guestHint" hidden></p>
       <p id="settingsHint" class="hint" hidden></p>
       <p class="hint" data-i18n="settings.credits"></p>
     </section>

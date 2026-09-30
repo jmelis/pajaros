@@ -162,6 +162,9 @@ a { color: var(--accent-dark); }
   max-width: 200px;
 }
 
+a.btn { text-decoration: none; display: inline-block; }
+.header-signin { color: var(--accent); font-size: 0.9rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
+
 /* Bottom tab bar -- the canonical iOS primary-navigation placement.
    Fixed, translucent/blurred, icon-over-label, safe-area aware so it
    clears the home indicator on notched devices. */

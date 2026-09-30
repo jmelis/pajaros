@@ -284,10 +284,9 @@ func main() {
 	// limit; the hotspot search is a single local bbolt lookup regardless of
 	// how many hotspots come back, so it gets a looser one.
 	//
-	// The key is the account id when the login gate is active. In open mode
-	// there is no account, so it falls back to the client IP instead of the
-	// single fixed development account, which would rate-limit everyone
-	// collectively.
+	// The key is the account id for a signed-in visitor. Guests (and everyone
+	// in open mode) are keyed by client IP instead; the fixed development
+	// account would rate-limit everyone collectively.
 	hotspotDetailLimiter := newKeyedRateLimiter("hotspot_detail", 20, 10) // burst 20, 10/min sustained
 	hotspotSearchLimiter := newKeyedRateLimiter("hotspot_search", 20, 20) // burst 20, 20/min sustained
 	hotspotKey := hotspotRateLimitKey(auth.openMode())
@@ -309,16 +308,17 @@ func main() {
 	// species lists per call, so it shares the detail limiter.
 	appMux.HandleFunc("GET /api/compare", instrumentHTTP("/api/compare", hotspotDetailLimiter.middleware(hotspotKey, srv.handleCompare)))
 
-	// Per-account preferences. These touch only the local database, so unlike
+	// Per-account preferences and saved hotspots: the only routes that need a
+	// sign-in (guests get a 401). They touch only the local database, so unlike
 	// the hotspot routes they need no upstream-keyed rate limit.
-	appMux.HandleFunc("GET /api/me", instrumentHTTP("/api/me", srv.handleGetProfile))
-	appMux.HandleFunc("GET /api/me/language", instrumentHTTP("/api/me/language", srv.handleGetLanguage))
-	appMux.HandleFunc("PUT /api/me/language", instrumentHTTP("/api/me/language", srv.handleSetLanguage))
-	appMux.HandleFunc("GET /api/me/secondary-language", instrumentHTTP("/api/me/secondary-language", srv.handleGetSecondaryLanguage))
-	appMux.HandleFunc("PUT /api/me/secondary-language", instrumentHTTP("/api/me/secondary-language", srv.handleSetSecondaryLanguage))
-	appMux.HandleFunc("GET /api/me/favorites", instrumentHTTP("/api/me/favorites", srv.handleListFavorites))
-	appMux.HandleFunc("PUT /api/me/favorites/{locId}", instrumentHTTP("/api/me/favorites/{locId}", srv.handleAddFavorite))
-	appMux.HandleFunc("DELETE /api/me/favorites/{locId}", instrumentHTTP("/api/me/favorites/{locId}", srv.handleRemoveFavorite))
+	appMux.HandleFunc("GET /api/me", instrumentHTTP("/api/me", auth.requireFunc(srv.handleGetProfile)))
+	appMux.HandleFunc("GET /api/me/language", instrumentHTTP("/api/me/language", auth.requireFunc(srv.handleGetLanguage)))
+	appMux.HandleFunc("PUT /api/me/language", instrumentHTTP("/api/me/language", auth.requireFunc(srv.handleSetLanguage)))
+	appMux.HandleFunc("GET /api/me/secondary-language", instrumentHTTP("/api/me/secondary-language", auth.requireFunc(srv.handleGetSecondaryLanguage)))
+	appMux.HandleFunc("PUT /api/me/secondary-language", instrumentHTTP("/api/me/secondary-language", auth.requireFunc(srv.handleSetSecondaryLanguage)))
+	appMux.HandleFunc("GET /api/me/favorites", instrumentHTTP("/api/me/favorites", auth.requireFunc(srv.handleListFavorites)))
+	appMux.HandleFunc("PUT /api/me/favorites/{locId}", instrumentHTTP("/api/me/favorites/{locId}", auth.requireFunc(srv.handleAddFavorite)))
+	appMux.HandleFunc("DELETE /api/me/favorites/{locId}", instrumentHTTP("/api/me/favorites/{locId}", auth.requireFunc(srv.handleRemoveFavorite)))
 
 	appMux.Handle("GET /images/", instrumentHTTP("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir(cacheDir))).ServeHTTP))
 	appMux.Handle("GET /", instrumentHTTP("/", http.FileServerFS(staticFS).ServeHTTP))
@@ -332,8 +332,9 @@ func main() {
 
 // buildRootMux assembles the top-level handler: the public login page and
 // OAuth routes (registered only for enabled providers) and the app mux behind
-// the login gate. In open mode there is no gate and no login route is
-// registered, so a request to /login falls through to the app's 404.
+// the session gate, which identifies signed-in visitors but admits everyone.
+// In open mode no login route is registered, so a request to /login falls
+// through to the app's 404.
 func buildRootMux(auth *Auth, appMux http.Handler, authLimiter *keyedRateLimiter) *http.ServeMux {
 	mux := http.NewServeMux()
 	// Unauthenticated on purpose: a container orchestrator's liveness/readiness
@@ -493,15 +494,15 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 }
 
 // resolveLang returns the effective, already-validated bird-name language for
-// a request: an explicit lang query value, else the account's stored
-// preference, else the app default. An explicit (even invalid) query value is
+// a request: an explicit lang query value, else the signed-in account's stored
+// preference (guests have none), else the app default. An explicit (even invalid) query value is
 // validated strictly. On an unsupported value it writes a 400 and returns
 // ok=false, so callers just return.
 func (s *Server) resolveLang(w http.ResponseWriter, r *http.Request) (string, bool) {
 	lang := r.URL.Query().Get("lang")
-	if lang == "" {
-		if pref, ok, err := s.users.PreferredLanguage(userIDFromContext(r)); err != nil {
-			log.Printf("PreferredLanguage(%s): %v", userIDFromContext(r), err)
+	if id := userIDFromContext(r); lang == "" && id != "" {
+		if pref, ok, err := s.users.PreferredLanguage(id); err != nil {
+			log.Printf("PreferredLanguage(%s): %v", id, err)
 		} else if ok && validLang[pref] {
 			lang = pref
 		}

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // newAuthForTest builds an Auth through the real newAuth path (unlike
@@ -201,25 +202,66 @@ func TestGateOpenModeInjectsDevAccount(t *testing.T) {
 	}
 }
 
-func TestGateProviderModeRequiresAuth(t *testing.T) {
+func TestGateProviderModeAdmitsGuests(t *testing.T) {
 	a, _, err := newAuthForTest(t, enabledGoogleEnv())
 	if err != nil {
 		t.Fatalf("newAuth: %v", err)
 	}
+	var seen string
 	h := a.gate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = userIDFromContext(r)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	for _, path := range []string{"/", "/api/hotspots", "/api/compare"} {
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
+		if rr.Code != http.StatusOK {
+			t.Fatalf("guest GET %s = %d, want 200", path, rr.Code)
+		}
+		if seen != "" {
+			t.Errorf("guest context user = %q, want none", seen)
+		}
+	}
+
+	token, err := a.signer.issueSession("google:1", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/hotspots", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if seen != "google:1" {
+		t.Errorf("signed-in context user = %q, want google:1", seen)
+	}
+}
+
+func TestProviderModeAccountRoutesRequireSignIn(t *testing.T) {
+	a, _, err := newAuthForTest(t, enabledGoogleEnv())
+	if err != nil {
+		t.Fatalf("newAuth: %v", err)
+	}
+	h := a.gate(a.requireFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/me", nil))
 	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("API request = %d, want 401", rr.Code)
+		t.Fatalf("guest /api/me = %d, want 401", rr.Code)
 	}
 
+	token, err := a.signer.issueSession("google:1", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
 	rr = httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
-	if rr.Code != http.StatusFound {
-		t.Fatalf("browser request = %d, want 302", rr.Code)
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("signed-in /api/me = %d, want 200", rr.Code)
 	}
 }
 
@@ -285,9 +327,7 @@ func TestProviderModeLoginPageOffersOnlyEnabledProvider(t *testing.T) {
 		t.Errorf("login page offered Apple despite its flag being unset:\n%s", body)
 	}
 
-	// Apple's start route is not registered, so it falls through the gate to
-	// the (unauthenticated) app mux as a browser navigation — a redirect to
-	// /login, never a redirect to Apple.
+	// Apple's start route is not registered, so it is never a redirect to Apple.
 	rr = httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/auth/apple", nil))
 	if loc := rr.Header().Get("Location"); strings.Contains(loc, "appleid.apple.com") {
@@ -312,6 +352,12 @@ func TestHotspotRateLimitKeyUsesIPInOpenMode(t *testing.T) {
 	}
 	if got := hotspotRateLimitKey(false)(req); got != devAccountID {
 		t.Errorf("gated-mode key = %q, want the account id", got)
+	}
+
+	guest := httptest.NewRequest(http.MethodGet, "/api/hotspots", nil)
+	guest.RemoteAddr = "203.0.113.9:1234"
+	if got := hotspotRateLimitKey(false)(guest); got != "203.0.113.9" {
+		t.Errorf("guest key = %q, want the client IP", got)
 	}
 }
 

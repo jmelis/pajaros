@@ -214,8 +214,8 @@ func TestLogoutClearsSessionCookie(t *testing.T) {
 	if rr.Code != http.StatusFound {
 		t.Fatalf("code = %d, want 302", rr.Code)
 	}
-	if loc := rr.Header().Get("Location"); loc != "/login" {
-		t.Errorf("Location = %q, want /login", loc)
+	if loc := rr.Header().Get("Location"); loc != "/" {
+		t.Errorf("Location = %q, want /", loc)
 	}
 	var cleared *http.Cookie
 	for _, c := range rr.Result().Cookies() {

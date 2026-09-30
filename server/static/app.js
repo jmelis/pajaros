@@ -19,6 +19,9 @@ const state = {
   secondaryLanguage: "",
   favorites: [],
   email: "",
+  // False for a visitor who has not signed in: they can browse everything but
+  // cannot save hotspots, and their language choices live in localStorage.
+  signedIn: false,
   // speciesCode -> name in the secondary language, for the current hotspot.
   secondaryNames: {},
   // The current hotspot's species in the primary language (Browse's current
@@ -220,13 +223,57 @@ function syncProfile(p) {
   $("userEmail").textContent = state.email;
 }
 
+const GUEST_LANG_KEY = "birdquiz.language";
+const GUEST_SECONDARY_KEY = "birdquiz.secondaryLanguage";
+
+function guestStored(key) {
+  try { return localStorage.getItem(key) || ""; } catch (e) { return ""; }
+}
+
+function guestStore(key, value) {
+  try {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch (e) {
+    // Private mode: the choice simply lasts until the page is closed.
+  }
+}
+
+// applyGuestProfile gives a visitor who isn't signed in their language from
+// localStorage, else the browser's, else English.
+function applyGuestProfile() {
+  const stored = guestStored(GUEST_LANG_KEY);
+  const browser = (navigator.language || "").slice(0, 2).toLowerCase();
+  state.language = VALID_LANGS.includes(stored) ? stored : (VALID_LANGS.includes(browser) ? browser : "en");
+  const secondary = guestStored(GUEST_SECONDARY_KEY);
+  state.secondaryLanguage = VALID_LANGS.includes(secondary) ? secondary : "";
+  state.favorites = [];
+  state.email = "";
+}
+
+// updateAccountChrome shows the signed-in email, or a Sign in link for guests.
+function updateAccountChrome() {
+  $("userEmail").textContent = state.email;
+  $("signInLink").hidden = state.signedIn;
+  const next = "/" + location.hash;
+  const href = "/login?next=" + encodeURIComponent(next);
+  for (const id of ["signInLink", "homeSignIn", "settingsSignIn"]) $(id).href = href;
+}
+
 async function initAccount() {
   try {
     const res = await fetch("/api/me");
-    if (res.ok) syncProfile(await res.json());
+    if (res.ok) {
+      state.signedIn = true;
+      syncProfile(await res.json());
+    } else if (res.status === 401) {
+      state.signedIn = false;
+      applyGuestProfile();
+    }
   } catch (e) {
     // Open/dev mode already works without this; keep the defaults.
   }
+  updateAccountChrome();
 }
 
 // ---- Home -----------------------------------------------------------------
@@ -280,6 +327,15 @@ function renderHomeFavorites() {
 
 async function renderHome() {
   homeEditing = false;
+  $("homeGuest").hidden = true;
+  if (!state.signedIn) {
+    $("homeGuest").hidden = false;
+    $("homeFirstRun").hidden = true;
+    $("homeHotspotsPanel").hidden = true;
+    $("homeGreetingPanel").hidden = true;
+    $("homeCompareLink").hidden = true;
+    return;
+  }
   let profile;
   try {
     const res = await fetch("/api/me");
@@ -607,7 +663,7 @@ function updateBookmarkButton() {
   // Icon-only: filled star when saved (via [aria-pressed], see style.css),
   // outline otherwise. aria-label carries the same info textContent used to.
   btn.setAttribute("aria-pressed", saved ? "true" : "false");
-  btn.setAttribute("aria-label", saved ? t("hotspot.bookmarked") : t("hotspot.bookmark"));
+  btn.setAttribute("aria-label", saved ? t("hotspot.bookmarked") : t(state.signedIn ? "hotspot.bookmark" : "hotspot.bookmarkSignIn"));
 }
 
 // ensureHotspot makes state.hotspot describe locId, fetching its name and
@@ -859,7 +915,11 @@ function buildLanguageSelects() {
 
 async function renderSettings() {
   $("settingsHint").hidden = true;
+  $("logoutBtn").hidden = !state.signedIn;
+  $("settingsSignIn").hidden = state.signedIn;
+  $("settingsGuestHint").hidden = state.signedIn;
   buildLanguageSelects();
+  if (!state.signedIn) return;
   try {
     const res = await fetch("/api/me");
     if (res.ok) syncProfile(await res.json());
@@ -872,15 +932,19 @@ async function renderSettings() {
 async function onPrimaryLanguageChange() {
   const lang = $("primaryLang").value;
   if (!VALID_LANGS.includes(lang)) return;
-  try {
-    const res = await fetch("/api/me/language", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ language: lang }),
-    });
-    if (!res.ok) throw new Error(String(res.status));
-  } catch (e) {
-    showSettingsHint(t("settings.errorPrimary"));
-    return;
+  if (state.signedIn) {
+    try {
+      const res = await fetch("/api/me/language", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: lang }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch (e) {
+      showSettingsHint(t("settings.errorPrimary"));
+      return;
+    }
+  } else {
+    guestStore(GUEST_LANG_KEY, lang);
   }
   state.language = lang;
   applyI18n();
@@ -893,15 +957,19 @@ async function onPrimaryLanguageChange() {
 async function onSecondaryLanguageChange() {
   const lang = $("secondaryLang").value;
   if (lang !== "" && !VALID_LANGS.includes(lang)) return;
-  try {
-    const res = await fetch("/api/me/secondary-language", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ language: lang }),
-    });
-    if (!res.ok) throw new Error(String(res.status));
-  } catch (e) {
-    showSettingsHint(t("settings.errorSecondary"));
-    return;
+  if (state.signedIn) {
+    try {
+      const res = await fetch("/api/me/secondary-language", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: lang }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch (e) {
+      showSettingsHint(t("settings.errorSecondary"));
+      return;
+    }
+  } else {
+    guestStore(GUEST_SECONDARY_KEY, lang);
   }
   state.secondaryLanguage = lang;
   if (currentRoute.name === "hotspot") await loadSpecies();
@@ -911,9 +979,9 @@ async function onLogout() {
   try {
     await fetch("/auth/logout", { method: "POST" });
   } catch (e) {
-    // Either way, send the browser to the sign-in page.
+    // Either way, send the browser back to the (now signed-out) site.
   }
-  window.location = "/login";
+  window.location = "/";
 }
 
 // ---- Learn ------------------------------------------------------------
@@ -1338,6 +1406,10 @@ function wireEvents() {
 
   $("bookmarkBtn").addEventListener("click", async () => {
     if (!state.hotspot) return;
+    if (!state.signedIn) {
+      window.location = "/login?next=" + encodeURIComponent("/" + location.hash);
+      return;
+    }
     const saved = state.favorites.some((f) => f.locId === state.hotspot.locId);
     const btn = $("bookmarkBtn");
     btn.disabled = true;
@@ -1404,7 +1476,7 @@ async function init() {
     history.replaceState(null, "", "#/home");
   }
 
-  window.addEventListener("hashchange", onHashChange);
+  window.addEventListener("hashchange", () => { updateAccountChrome(); onHashChange(); });
   await renderRoute();
   setStatus(t("search.status.initial"));
 }

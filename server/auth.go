@@ -118,25 +118,37 @@ func newAuth(env oauthEnv, users *UserStore, signer *cookieSigner, geoip *GeoIPS
 // case exactly when no sign-in provider is enabled.
 func (a *Auth) openMode() bool { return len(a.providers) == 0 }
 
-// gate is the handler every app route goes through. With a provider enabled it
-// is the login gate (require); in open mode it attaches the fixed development
-// account and lets every request through.
+// gate is the handler every app route goes through. The site is open to
+// everyone: it never blocks a request, it only identifies who is asking. With
+// a provider enabled, a valid session cookie attaches the signed-in user's id
+// to the request context and a visitor without one proceeds as a guest (empty
+// id); in open mode every request acts as the fixed development account.
+// Routes that need an account (the /api/me family) are wrapped in require.
 func (a *Auth) gate(next http.Handler) http.Handler {
-	if !a.openMode() {
-		return a.require(next)
+	if a.openMode() {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), userContextKey{}, devAccountID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), userContextKey{}, devAccountID)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		if userID, ok := a.sessionUser(r); ok {
+			r = r.WithContext(context.WithValue(r.Context(), userContextKey{}, userID))
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
-// require wraps every protected route. A request with a valid session cookie
-// proceeds with the user id attached to its context; anything else is
-// redirected to the login page (browser navigation) or rejected with 401
-// (API/XHR).
+// require wraps the routes that need an account. A request already identified
+// by gate (or carrying a valid session cookie) proceeds with the user id in
+// its context; a guest is redirected to the login page (browser navigation)
+// or rejected with 401 (API/XHR).
 func (a *Auth) require(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if userIDFromContext(r) != "" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if userID, ok := a.sessionUser(r); ok {
 			ctx := context.WithValue(r.Context(), userContextKey{}, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -161,8 +173,8 @@ func (a *Auth) sessionUser(r *http.Request) (string, bool) {
 	return a.signer.verifySession(c.Value)
 }
 
-// userIDFromContext returns the authenticated user's stable id for a request
-// that passed through require().
+// userIDFromContext returns the signed-in user's stable id, or "" for a guest.
+// The id is attached by gate() (or require()).
 func userIDFromContext(r *http.Request) string {
 	id, _ := r.Context().Value(userContextKey{}).(string)
 	return id
@@ -222,7 +234,7 @@ func (a *Auth) handleLogout(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	http.Redirect(w, r, "/login", http.StatusFound)
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 // -- OAuth: authorization redirect -------------------------------------------
@@ -491,4 +503,9 @@ func sanitizeNext(next string) string {
 		return "/"
 	}
 	return next
+}
+
+// requireFunc is require for a single handler function.
+func (a *Auth) requireFunc(h http.HandlerFunc) http.HandlerFunc {
+	return a.require(h).ServeHTTP
 }

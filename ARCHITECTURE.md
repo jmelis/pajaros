@@ -48,10 +48,17 @@ Both need `OAUTH_REDIRECT_BASE_URL` (the externally reachable base URL) for
 their callback. Setting an `_ENABLED` flag without its provider's complete
 credentials is a fatal startup error naming what's missing.
 
+The site is readable by anyone: hotspot, species, compare, credits and
+static routes need no session. Only the account routes (`/api/me*`) require
+sign-in — `Auth.gate` attaches the account to the request context when a
+valid session cookie is present (and never blocks), and `Auth.require` /
+`requireFunc` wrap each account route, answering 401 JSON to guests.
+Saving a hotspot is the one thing guests can't do; the frontend sends them
+to `/login?next=…` when they tap the save star.
+
 With **neither** flag set, the server runs in open/development mode: every
-route is reachable with no session, and every request acts as a single
-fixed account (`dev:local`) so the account-preference routes still work
-locally. `make server-open` forces this regardless of what's in the
+request acts as a single fixed account (`dev:local`), so the account routes
+work locally without any login. `make server-open` forces this regardless of what's in the
 environment; `make server` honors whatever's actually set.
 
 A brand-new account's language preference is seeded from its signup IP's
@@ -70,7 +77,8 @@ Sessions are signed cookies (`server/session.go`), keyed by `SESSION_SECRET`
 — if unset, a random key is generated at startup, so sessions don't survive
 a restart (fine for local dev, not for production). The login page
 (`server/static/login.html`) is served in English regardless of any account
-preference, since it's shown before any preference is known.
+preference, since it's shown before any preference is known. Signing out
+returns to `/`, not the login page.
 
 ## Server endpoints
 
@@ -90,19 +98,21 @@ GET  /api/me/favorites                            saved hotspots (capped at 100/
 PUT/DELETE /api/me/favorites/{locId}               save/remove a hotspot
 
 GET  /login, POST /auth/logout                    (only when a provider is enabled)
+
+Everything above is public except `/api/me*`, which needs a session.
 GET  /auth/{google,apple}[/callback]               OAuth flow
 ```
 
 Two independent rate-limit layers guard the hotspot routes: a global
 per-upstream limiter (`server/ratelimit.go`, currently just
 `WIKIMEDIA_RPS`) caps total outbound traffic across all clients, and a
-per-account keyed limiter (`server/ipratelimit.go`) caps how much of that
-shared budget one account can burn — tighter for the detail views (species
+keyed limiter (`server/ipratelimit.go`) caps how much of that
+shared budget one client can burn — tighter for the detail views (species
 lookups can fan out to Wikimedia, one request per unseen species) than for
-search (a single local `bbolt` lookup, no upstream fan-out at all). In open
-mode there's no account to key by, so it falls back to client IP instead of
-the single fixed dev account, which would otherwise rate-limit everyone
-collectively.
+search (a single local `bbolt` lookup, no upstream fan-out at all). The key is
+the account id for signed-in requests and the client IP for guests and in
+open mode (where every request shares the single fixed dev account, which
+would otherwise rate-limit everyone collectively).
 
 ## Frontend
 
@@ -125,6 +135,12 @@ this area" — see "Place-name search" below), **Hotspot** (info, save
 toggle, explore — by popularity/category/alphabetical — or Learn's
 full-screen card deck, see "Learn mode and species images" below),
 **Settings** (language, secondary language, sign out).
+
+Guests (`state.signedIn === false`, set when `/api/me` answers 401) get the
+same views with three differences: the header shows a "Sign in" link instead
+of the email, Home shows a short sign-in prompt instead of saved hotspots,
+and the language choices are stored in `localStorage` (falling back to the
+browser language, then English) rather than on an account.
 
 Two independent language preferences: the **primary** language drives both
 bird names (the `lang` query param) and UI text — there's no separate
