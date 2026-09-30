@@ -472,23 +472,12 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 /* Leaflet popup */
 .leaflet-popup-content { margin: 12px 14px; font-family: inherit; color: var(--text); line-height: 1.5; }
 .leaflet-popup-content-wrapper { border-radius: var(--radius); box-shadow: var(--shadow); }
+.popup-link { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; cursor: pointer; }
+.popup-text { display: flex; flex-direction: column; }
 .popup-title { font-size: 1rem; font-weight: 600; }
-.popup-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-1); }
-.popup-btn {
-  font: inherit;
-  font-weight: 600;
-  font-size: 0.85rem;
-  padding: 8px 14px;
-  color: #fff;
-  background: var(--accent);
-  border: none;
-  border-radius: 999px;
-  cursor: pointer;
-}
-.popup-btn:hover { opacity: 0.88; }
-.popup-btn-secondary { color: var(--accent-dark); background: var(--fill); }
-@media (prefers-color-scheme: dark) { .popup-btn-secondary { color: var(--accent); } }
-.popup-btn-secondary:hover { background: var(--fill-strong); }
+.popup-count { font-size: 0.85rem; color: var(--muted); }
+.popup-chev { font-size: 1.5rem; line-height: 1; color: var(--accent); }
+.popup-link:hover .popup-title { color: var(--accent); }
 
 /* Overlays */
 .overlay {

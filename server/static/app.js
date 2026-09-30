@@ -318,17 +318,18 @@ function clearHotspotMarkers() {
   hotspotMarkers = [];
 }
 
+// The whole popup is one link to the hotspot page (no buttons); the chevron
+// is the tap affordance. Bookmarking lives on the hotspot page's star.
 function popupHTML(h) {
-  const saved = state.favorites.some((f) => f.locId === h.locId);
-  // GBIF's totalCount is an all-time cumulative figure with no notion of
-  // season -- not shown as a number (marker radius, in addHotspotMarkers/
-  // renderVisibleHotspots, is the "how busy is this place" signal instead).
+  const count = h.totalCount || 0;
   return `
-    <strong class="popup-title">${escapeHtml(h.locName)}</strong>
-    <div class="popup-actions">
-      <button class="popup-btn open-hotspot-btn" type="button" data-locid="${h.locId}" data-locname="${escapeHtml(h.locName)}" data-lat="${h.lat}" data-lng="${h.lng}">${t("search.open")}</button>
-      <button class="popup-btn popup-btn-secondary bookmark-hotspot-btn" type="button" data-locid="${h.locId}" data-locname="${escapeHtml(h.locName)}" data-lat="${h.lat}" data-lng="${h.lng}"${saved ? " disabled" : ""}>${saved ? t("search.bookmarked") : t("search.bookmark")}</button>
-    </div>`;
+    <a class="popup-link" href="#/hotspot/${encodeURIComponent(h.locId)}" data-locid="${escapeHtml(h.locId)}">
+      <span class="popup-text">
+        <strong class="popup-title">${escapeHtml(h.locName)}</strong>
+        <span class="popup-count">${escapeHtml(tn("search.observations", count, { n: count.toLocaleString() }))}</span>
+      </span>
+      <span class="popup-chev" aria-hidden="true">›</span>
+    </a>`;
 }
 
 const MIN_MARKER_RADIUS = 5;
@@ -527,30 +528,10 @@ async function deleteFavorite(locId) {
 // Popup content is injected by Leaflet outside our control, so use event
 // delegation instead of binding a listener per marker.
 document.addEventListener("click", async (e) => {
-  const open = e.target.closest(".open-hotspot-btn");
-  if (open) {
-    navigate("#/hotspot/" + encodeURIComponent(open.dataset.locid));
-    return;
-  }
-  const bookmark = e.target.closest(".bookmark-hotspot-btn");
-  if (!bookmark) return;
-
-  const fav = {
-    locId: bookmark.dataset.locid,
-    locName: bookmark.dataset.locname,
-    lat: parseFloat(bookmark.dataset.lat) || 0,
-    lng: parseFloat(bookmark.dataset.lng) || 0,
-  };
-  const original = bookmark.textContent;
-  bookmark.disabled = true;
-  bookmark.textContent = t("search.bookmarked");
-  try {
-    await putFavorite(fav);
-  } catch (err) {
-    bookmark.disabled = false;
-    bookmark.textContent = original;
-    setStatus(t("search.bookmarkError"));
-  }
+  const open = e.target.closest(".popup-link");
+  if (!open) return;
+  e.preventDefault();
+  navigate("#/hotspot/" + encodeURIComponent(open.dataset.locid));
 });
 
 // ---- Hotspot + species browsing ------------------------------------------
