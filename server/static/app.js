@@ -8,7 +8,7 @@
 const $ = (id) => document.getElementById(id);
 const VALID_LANGS = ["ca", "cs", "da", "de", "en", "eo", "es", "fi", "fr", "hr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
 const BROWSE_MODES = ["popularity", "category", "alphabetical"];
-const VIEW_NAMES = ["home", "search", "hotspot", "credits", "compare", "settings"];
+const VIEW_NAMES = ["home", "search", "hotspot", "credits", "compare", "contact", "settings"];
 const SPECIES_CODE_RE = /^[A-Za-z0-9_-]+$/;
 const LOC_ID_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
 
@@ -195,13 +195,14 @@ async function renderRoute() {
   const route = parseRoute();
   currentRoute = route;
   for (const name of VIEW_NAMES) $("view-" + name).hidden = name !== route.name;
-  updateNav(route.name === "compare" ? "home" : route.name);
+  updateNav(route.name === "compare" ? "home" : route.name === "contact" ? "settings" : route.name);
 
   if (route.name === "home") await renderHome();
   else if (route.name === "search") showSearch();
   else if (route.name === "hotspot") await openHotspot(route.locId, route.speciesCode);
   else if (route.name === "credits") await openCredits(route.locId);
   else if (route.name === "compare") await openCompare(route.locId, route.locIdB);
+  else if (route.name === "contact") await renderContact();
   else if (route.name === "settings") await renderSettings();
 }
 
@@ -707,6 +708,27 @@ async function openHotspot(locId, speciesCode) {
   const browse = loadSpecies();
   if (speciesCode) await loadAndStartLearn(speciesCode);
   await browse;
+}
+
+// ---- Contact --------------------------------------------------------------
+
+let contactEmail;
+
+async function renderContact() {
+  if (contactEmail === undefined) {
+    try {
+      const res = await fetch("/api/contact");
+      contactEmail = res.ok ? (await res.json()).email || "" : "";
+    } catch (e) {
+      contactEmail = "";
+    }
+  }
+  $("contactEmailRow").hidden = !contactEmail;
+  if (contactEmail) {
+    const a = $("contactEmail");
+    a.textContent = contactEmail;
+    a.href = "mailto:" + contactEmail;
+  }
 }
 
 // ---- Photo credits --------------------------------------------------------

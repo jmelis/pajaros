@@ -64,6 +64,7 @@ const maxNearbyDistKm = 100.0
 //
 // Optional (existing):
 //   CACHE_DIR  on-disk upstream/image cache (default "./cache").
+//   CONTACT_EMAIL  address shown on the Contact page (omitted when unset).
 //   PORT, HOST  listen address (default "8080" / "0.0.0.0").
 //   HOTSPOTS_DATA_DIR  directory holding hotspots.bolt and places.bolt
 //                      (default "./data").
@@ -307,6 +308,8 @@ func main() {
 	// Compare reads only local stores (no image fetching), but loads two
 	// species lists per call, so it shares the detail limiter.
 	appMux.HandleFunc("GET /api/compare", instrumentHTTP("/api/compare", hotspotDetailLimiter.middleware(hotspotKey, srv.handleCompare)))
+
+	appMux.HandleFunc("GET /api/contact", instrumentHTTP("/api/contact", srv.handleContact))
 
 	// Per-account preferences and saved hotspots: the only routes that need a
 	// sign-in (guests get a 401). They touch only the local database, so unlike

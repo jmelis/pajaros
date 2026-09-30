@@ -50,6 +50,7 @@
 
     <a class="cta-primary" href="#/search" data-i18n="home.find"></a>
     <a id="homeCompareLink" class="cmp-link" href="#/compare" data-i18n="home.compare" hidden></a>
+    <footer class="credits-footer"><a href="#/contact" data-i18n="contact.link"></a></footer>
   </section>
 
   <!-- Search -->
@@ -129,6 +130,29 @@
     <div id="compareBody" class="view"></div>
   </section>
 
+  <!-- Contact and data sources -->
+  <section id="view-contact" class="view" hidden>
+    <a class="back-link" href="#/settings" data-i18n="contact.back"></a>
+    <h2 class="view-title" data-i18n="contact.title"></h2>
+    <p data-i18n="contact.intro"></p>
+    <p id="contactEmailRow" hidden><span data-i18n="contact.emailLabel"></span> <a id="contactEmail" href="#"></a></p>
+    <h3 class="contact-h" data-i18n="contact.dataTitle"></h3>
+    <p class="hint" data-i18n="contact.dataIntro"></p>
+    <ul class="contact-list">
+      <li><a href="https://www.gbif.org/dataset/4fa7b334-ce0d-4e88-aaae-2e0c138d049e" target="_blank" rel="noopener">eBird Observation Dataset (via GBIF)</a> <span data-i18n="contact.src.obs"></span></li>
+      <li><a href="https://ebird.org/science/use-ebird-data/the-ebird-taxonomy" target="_blank" rel="noopener">eBird / Clements taxonomy</a> <span data-i18n="contact.src.tax"></span></li>
+      <li><a href="https://www.worldbirdnames.org/" target="_blank" rel="noopener">IOC World Bird List</a> <span data-i18n="contact.src.ioc"></span></li>
+      <li><a href="https://www.gbif.org/species/search" target="_blank" rel="noopener">GBIF species API</a> <span data-i18n="contact.src.gbif"></span></li>
+      <li><a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> <span data-i18n="contact.src.geo"></span></li>
+      <li><a href="https://db-ip.com/db/download/ip-to-country-lite" target="_blank" rel="noopener">DB-IP IP to Country Lite</a> <span data-i18n="contact.src.dbip"></span></li>
+      <li><a href="https://commons.wikimedia.org/" target="_blank" rel="noopener">Wikimedia Commons</a> <span data-i18n="contact.src.wm"></span></li>
+      <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> <span data-i18n="contact.src.osm"></span></li>
+      <li><a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a> <span data-i18n="contact.src.leaf"></span></li>
+    </ul>
+    <h3 class="contact-h" data-i18n="contact.privacyTitle"></h3>
+    <p class="hint" data-i18n="contact.privacy"></p>
+  </section>
+
   <!-- Photo credits for one hotspot -->
   <section id="view-credits" class="view" hidden>
     <a id="creditsBack" class="back-link" href="#/home" data-i18n="credits.back"></a>
@@ -156,6 +180,7 @@
       <p id="settingsGuestHint" class="hint" data-i18n="settings.guestHint" hidden></p>
       <p id="settingsHint" class="hint" hidden></p>
       <p class="hint" data-i18n="settings.credits"></p>
+      <p class="hint"><a href="#/contact" data-i18n="contact.link"></a></p>
     </section>
   </section>
 </main>

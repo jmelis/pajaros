@@ -90,6 +90,7 @@ GET  /api/hotspots/{locId}                        hotspot info
 GET  /api/hotspots/{locId}/species                 species list (category/popularity/alphabetical) — Learn's card deck too
 GET  /api/hotspots/{locId}/credits                 photo credits for the hotspot's species (author, license, source)
 GET  /api/compare                                 two hotspots side by side (a, b, lang)
+GET  /api/contact                                 public contact email (CONTACT_EMAIL; empty if unset)
 
 GET  /api/me                                      profile
 GET  /PUT /api/me/language                        primary bird-name + UI language
@@ -122,7 +123,7 @@ no build step: `index.html` (markup), `style.css`, `app.js`, `i18n.json`
 
 Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`,
 `#/hotspot/<locId>/bird/<speciesCode>`, `#/hotspot/<locId>/credits`,
-`#/compare/<locIdA>/<locIdB>`, `#/settings`)
+`#/compare/<locIdA>/<locIdB>`, `#/contact`, `#/settings`)
 so every view survives a reload and is linkable without any server-side
 routing. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
 `index.html`), the canonical iOS primary-navigation placement. The old
@@ -134,7 +135,11 @@ fresh account), **Search** (place-name search, geolocation, map, "search
 this area" — see "Place-name search" below), **Hotspot** (info, save
 toggle, explore — by popularity/category/alphabetical — or Learn's
 full-screen card deck, see "Learn mode and species images" below),
-**Settings** (language, secondary language, sign out).
+**Settings** (language, secondary language, sign out), and a small
+**Contact** page linked from Settings and the Home footer: a contact email
+(shown only when `CONTACT_EMAIL` is set, so the address is a deployment
+choice rather than part of the source), every data source with its licence,
+and a short note on what an account stores.
 
 Guests (`state.signedIn === false`, set when `/api/me` answers 401) get the
 same views with three differences: the header shows a "Sign in" link instead
@@ -571,7 +576,7 @@ second even for thousands of species, and logs to `migration.log`.
 
 **Photo credits.** Commons photos are CC BY / CC BY-SA, which require showing
 the author, license and source. The hotspot view and the Learn overlay both
-end in a "Credits" footer link to `#/hotspot/<locId>/credits`, a text-only
+end in an "Image credits" footer link to `#/hotspot/<locId>/credits`, a text-only
 page (no images) listing, per species at that hotspot, each photo's title,
 author, license link and Commons link. `handleHotspotCredits`
 (`server/credits.go`) builds it from each species' cached image metadata, so
