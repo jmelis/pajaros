@@ -902,11 +902,11 @@ const LEARN_SECONDARY_RETRIES = 5;
 const LEARN_RETRY_MS = 3000;
 const LEARN_DRAG_THRESHOLD = 80;
 
-function learnLoadSlide(imgEl, url, maxAttempts, onGiveUp, attempt = 0) {
+function learnLoadSlide(imgEl, url, maxAttempts, { onLoad, onGiveUp }, attempt = 0) {
   const probe = new Image();
-  probe.onload = () => { imgEl.src = url; imgEl.dataset.loaded = "1"; };
+  probe.onload = () => { imgEl.src = url; imgEl.dataset.loaded = "1"; if (onLoad) onLoad(); };
   probe.onerror = () => {
-    if (attempt < maxAttempts) setTimeout(() => learnLoadSlide(imgEl, url, maxAttempts, onGiveUp, attempt + 1), LEARN_RETRY_MS);
+    if (attempt < maxAttempts) setTimeout(() => learnLoadSlide(imgEl, url, maxAttempts, { onLoad, onGiveUp }, attempt + 1), LEARN_RETRY_MS);
     else if (onGiveUp) onGiveUp();
   };
   probe.src = url;
@@ -1031,11 +1031,35 @@ const learn = {
     }
     card.appendChild(slidesWrap);
 
-    // Photos within one bird are cycled by the chevrons on the image (and
-    // never by swipe or timer), so the horizontal drag stays unambiguous:
-    // it always moves through the deck of birds.
+    // Photos within one bird are cycled only by the next-photo button on the
+    // image (never by swipe or timer), so the horizontal drag stays
+    // unambiguous: it always moves through the deck of birds. Only slides
+    // whose photo has actually loaded take part in the cycle, so the dots and
+    // the button appear once there is more than one real photo to show.
     const dots = document.createElement("div");
+    dots.className = "learn-dots";
+    slides.forEach((_, i) => {
+      const dot = document.createElement("span");
+      dot.className = "learn-dot" + (i === 0 ? " active" : "");
+      dot.hidden = true;
+      dots.appendChild(dot);
+    });
+    card.appendChild(dots);
+
+    const nextBtn = document.createElement("button");
+    nextBtn.type = "button";
+    nextBtn.className = "learn-next-photo";
+    nextBtn.hidden = true;
+    nextBtn.setAttribute("aria-label", t("learn.nextPhoto"));
+    nextBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 7V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/></svg>`;
+
     let shown = 0;
+    const isLoaded = (i) => slides[i].dataset.loaded === "1";
+    const refreshControls = () => {
+      const loaded = slides.filter((_, i) => isLoaded(i)).length;
+      slides.forEach((_, i) => { dots.children[i].hidden = loaded < 2 || !isLoaded(i); });
+      nextBtn.hidden = loaded < 2;
+    };
     const showSlide = (next) => {
       slides[shown].classList.remove("learn-image-active");
       dots.children[shown].classList.remove("active");
@@ -1043,28 +1067,19 @@ const learn = {
       dots.children[next].classList.add("active");
       shown = next;
     };
-    const cycle = (delta) => {
+    nextBtn.addEventListener("click", () => {
       let next = shown;
       do {
-        next = (next + delta + slides.length) % slides.length;
-      } while (slides[next].dataset.gaveUp === "1" && next !== shown);
+        next = (next + 1) % slides.length;
+      } while (!isLoaded(next) && next !== shown);
       if (next !== shown) showSlide(next);
-    };
+    });
+    card.appendChild(nextBtn);
 
-    if (slides.length > 1) {
-      dots.className = "learn-dots";
-      slides.forEach((_, i) => {
-        const dot = document.createElement("span");
-        dot.className = "learn-dot" + (i === 0 ? " active" : "");
-        dots.appendChild(dot);
-      });
-      card.appendChild(dots);
-    }
     slides.forEach((img, i) => {
-      learnLoadSlide(img, urls[i], i === 0 ? LEARN_PRIMARY_RETRIES : LEARN_SECONDARY_RETRIES, () => {
-        img.dataset.gaveUp = "1";
-        if (dots.children[i]) dots.children[i].hidden = true;
-        if (shown === i) showSlide(0);
+      learnLoadSlide(img, urls[i], i === 0 ? LEARN_PRIMARY_RETRIES : LEARN_SECONDARY_RETRIES, {
+        onLoad: refreshControls,
+        onGiveUp: () => { if (shown === i) showSlide(0); },
       });
     });
 
@@ -1076,20 +1091,6 @@ const learn = {
       (secondaryNameFor(item.speciesCode) ? `<div class="learn-sub">${escapeHtml(secondaryNameFor(item.speciesCode))}</div>` : "") +
       (item.sciName ? `<div class="learn-sci">${escapeHtml(item.sciName)}</div>` : "");
     card.appendChild(names);
-
-    if (slides.length > 1) {
-      const chevron = (cls, label, path, delta) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "learn-chevron " + cls;
-        btn.setAttribute("aria-label", t(label));
-        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
-        btn.addEventListener("click", () => cycle(delta));
-        card.appendChild(btn);
-      };
-      chevron("learn-chevron-left", "learn.previousPhoto", "m15 18-6-6 6-6", -1);
-      chevron("learn-chevron-right", "learn.nextPhoto", "m9 18 6-6-6-6", 1);
-    }
 
     body.appendChild(card);
     this.wireDrag(card);
@@ -1103,7 +1104,7 @@ const learn = {
     let startX = 0, dx = 0, dragging = false;
 
     const onDown = (e) => {
-      if (e.target.closest(".learn-chevron")) return;
+      if (e.target.closest(".learn-next-photo")) return;
       dragging = true;
       startX = e.clientX;
       card.setPointerCapture(e.pointerId);

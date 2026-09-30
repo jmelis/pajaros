@@ -434,8 +434,10 @@ and drag/arrow-key/top-bar-button navigation client-side (`static/app.js`'s
 `learn` object) — there's no separate session endpoint or server-side state
 for it. It's started by the Learn button on the hotspot view. Horizontal
 drag and the top-bar arrows move between birds; a bird's own photos are
-cycled only by the chevrons overlaid on the image (no timer, no swipe), so
-the drag gesture is never ambiguous.
+cycled only by the next-photo button in the image's bottom-right corner (no
+timer, no swipe), so the drag gesture is never ambiguous. Only photos that
+have actually loaded join that cycle; the button and dots stay hidden until a
+second photo is ready.
 
 Each card shows up to `maxImagesPerSpecies` (4) images, all from Wikimedia
 (`server/wikimedia.go`) and cached to disk. Only two human-curated sources

@@ -589,7 +589,7 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
   right: 0;
   bottom: 0;
   z-index: 2;
-  padding: var(--space-4) var(--space-2) var(--space-2);
+  padding: var(--space-4) calc(var(--space-2) * 2 + 40px) var(--space-2) var(--space-2);
   background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
   color: #fff;
   pointer-events: none;
@@ -598,11 +598,11 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 .learn-sub { font-weight: 600; opacity: 0.9; }
 .learn-sci { font-style: italic; opacity: 0.75; }
 
-.learn-chevron {
+.learn-next-photo {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 3;
   width: 40px;
   height: 40px;
   display: flex;
@@ -610,14 +610,13 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
   justify-content: center;
   border: none;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.45);
   color: #fff;
   cursor: pointer;
 }
-.learn-chevron:hover { background: rgba(0, 0, 0, 0.5); }
-.learn-chevron svg { width: 22px; height: 22px; }
-.learn-chevron-left { left: var(--space-2); }
-.learn-chevron-right { right: var(--space-2); }
+.learn-next-photo[hidden] { display: none; }
+.learn-next-photo:hover { background: rgba(0, 0, 0, 0.6); }
+.learn-next-photo svg { width: 22px; height: 22px; }
 
 @keyframes learn-bounce {
   0%, 100% { transform: translateX(0); }
