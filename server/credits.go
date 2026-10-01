@@ -26,10 +26,11 @@ type ImageCredit struct {
 	SourceURL  string `json:"sourceUrl"`
 }
 
-// handleHotspotCredits lists the photo credits for every species at a
-// hotspot, from each species' cached image metadata — so it names exactly the
-// photos the app has downloaded and can show, no more. Species with no cached
-// photo are omitted; ordered by common name in the requested language.
+// handleHotspotCredits lists the photo credits for the species at a hotspot,
+// from each species' cached image metadata — so it names exactly the photos
+// the app has downloaded and can show, no more. The optional ?species=<code>
+// narrows it to that one species. Species with no cached photo are omitted;
+// ordered by common name in the requested language.
 func (s *Server) handleHotspotCredits(w http.ResponseWriter, r *http.Request) {
 	locID := r.PathValue("locId")
 	if !validLocID(locID) {
@@ -47,8 +48,12 @@ func (s *Server) handleHotspotCredits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	only := r.URL.Query().Get("species")
 	out := []SpeciesCredits{}
 	for _, code := range codes {
+		if only != "" && code != only {
+			continue
+		}
 		taxon := taxa[code]
 		if taxon.SciName == "" {
 			continue

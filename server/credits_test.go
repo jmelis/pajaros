@@ -56,6 +56,16 @@ func TestHandleHotspotCredits(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/hotspots/50.1,4.2/credits?lang=en&species="+got[0].SpeciesCode, nil))
+	var one []SpeciesCredits
+	if err := json.Unmarshal(rec.Body.Bytes(), &one); err != nil {
+		t.Fatal(err)
+	}
+	if len(one) != 1 || one[0].SpeciesCode != got[0].SpeciesCode {
+		t.Errorf("species filter returned %+v, want only %s", one, got[0].SpeciesCode)
+	}
+
+	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/hotspots/bogus/credits", nil))
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("invalid locId: status %d, want 400", rec.Code)

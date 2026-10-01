@@ -8,7 +8,7 @@
 const $ = (id) => document.getElementById(id);
 const VALID_LANGS = ["ca", "cs", "da", "de", "en", "eo", "es", "fi", "fr", "hr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
 const BROWSE_MODES = ["popularity", "category", "alphabetical"];
-const VIEW_NAMES = ["home", "search", "hotspot", "credits", "compare", "contact", "settings"];
+const VIEW_NAMES = ["home", "search", "hotspot", "credits", "compare", "about", "settings"];
 const SPECIES_CODE_RE = /^[A-Za-z0-9_-]+$/;
 const LOC_ID_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
 
@@ -192,7 +192,7 @@ function parseRoute() {
     const locId = parts[1] ? decodeURIComponent(parts[1]) : "";
     const code = parts[2] === "bird" && parts[3] ? decodeURIComponent(parts[3]) : "";
     return {
-      name: parts[2] === "credits" ? "credits" : "hotspot",
+      name: parts[4] === "credits" ? "credits" : "hotspot",
       locId,
       speciesCode: SPECIES_CODE_RE.test(code) ? code : "",
     };
@@ -226,14 +226,14 @@ async function renderRoute() {
   currentRoute = route;
   trackPage();
   for (const name of VIEW_NAMES) $("view-" + name).hidden = name !== route.name;
-  updateNav(route.name === "compare" ? "home" : route.name === "contact" ? "settings" : route.name);
+  updateNav(route.name === "compare" ? "home" : route.name === "about" ? "settings" : route.name);
 
   if (route.name === "home") await renderHome();
   else if (route.name === "search") showSearch();
   else if (route.name === "hotspot") await openHotspot(route.locId, route.speciesCode);
-  else if (route.name === "credits") await openCredits(route.locId);
+  else if (route.name === "credits") await openCredits(route.locId, route.speciesCode);
   else if (route.name === "compare") await openCompare(route.locId, route.locIdB);
-  else if (route.name === "contact") await renderContact();
+  else if (route.name === "about") await renderAbout();
   else if (route.name === "settings") await renderSettings();
 }
 
@@ -363,7 +363,6 @@ async function renderHome() {
     $("homeFirstRun").hidden = true;
     $("homeHotspotsPanel").hidden = true;
     $("homeGreetingPanel").hidden = true;
-    $("homeCompareLink").hidden = true;
     return;
   }
   let profile;
@@ -382,10 +381,6 @@ async function renderHome() {
 
   syncProfile(profile);
   const firstRun = state.favorites.length === 0;
-
-  const homeCompare = $("homeCompareLink");
-  homeCompare.hidden = state.favorites.length < 2;
-  if (!homeCompare.hidden) homeCompare.href = compareHash(state.favorites[0].locId, state.favorites[1].locId);
 
   $("homeFirstRun").hidden = !firstRun;
   $("homeHotspotsPanel").hidden = firstRun;
@@ -686,8 +681,18 @@ function wireSortMenu() {
   updateSortLabel();
 }
 
+// The compare link only appears when this hotspot has a saved one to be
+// compared with.
+function updateCompareLink() {
+  if (!state.hotspot) return;
+  const link = $("hotspotCompareLink");
+  link.hidden = !state.favorites.some((f) => f.locId !== state.hotspot.locId);
+  link.href = compareHash(state.hotspot.locId, "");
+}
+
 function updateBookmarkButton() {
   if (!state.hotspot) return;
+  updateCompareLink();
   const saved = state.favorites.some((f) => f.locId === state.hotspot.locId);
   const btn = $("bookmarkBtn");
   // Icon-only: filled star when saved (via [aria-pressed], see style.css),
@@ -718,7 +723,7 @@ async function ensureHotspot(locId) {
   return true;
 }
 
-function creditsHash(locId) { return "#/hotspot/" + encodeURIComponent(locId) + "/credits"; }
+function creditsHash(locId, speciesCode) { return birdHash(locId, speciesCode) + "/credits"; }
 
 function birdHash(locId, speciesCode) {
   return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode);
@@ -731,19 +736,17 @@ async function openHotspot(locId, speciesCode) {
   if (!(await ensureHotspot(locId))) return;
 
   $("hotspotName").textContent = state.hotspot.locName || state.hotspot.locId;
-  $("hotspotCreditsLink").href = creditsHash(locId);
-  $("hotspotCompareLink").href = compareHash(locId, "");
   updateBookmarkButton();
   const browse = loadSpecies();
   if (speciesCode) await loadAndStartLearn(speciesCode);
   await browse;
 }
 
-// ---- Contact --------------------------------------------------------------
+// ---- About --------------------------------------------------------------
 
 let contactEmail;
 
-async function renderContact() {
+async function renderAbout() {
   if (contactEmail === undefined) {
     try {
       const res = await fetch("/api/contact");
@@ -752,9 +755,9 @@ async function renderContact() {
       contactEmail = "";
     }
   }
-  $("contactEmailRow").hidden = !contactEmail;
+  $("aboutEmailRow").hidden = !contactEmail;
   if (contactEmail) {
-    const a = $("contactEmail");
+    const a = $("aboutEmail");
     a.textContent = contactEmail;
     a.href = "mailto:" + contactEmail;
   }
@@ -792,23 +795,21 @@ function renderCreditPhoto(img) {
   return li;
 }
 
-async function openCredits(locId) {
-  if (!LOC_ID_RE.test(locId)) { navigate("#/home"); return; }
-  const stale = () => currentRoute.name !== "credits" || currentRoute.locId !== locId;
+async function openCredits(locId, speciesCode) {
+  if (!LOC_ID_RE.test(locId) || !speciesCode) { navigate("#/home"); return; }
+  const stale = () => currentRoute.name !== "credits" || currentRoute.locId !== locId || currentRoute.speciesCode !== speciesCode;
   window.scrollTo(0, 0);
-  $("creditsBack").href = "#/hotspot/" + encodeURIComponent(locId);
-  $("creditsHotspot").textContent = "";
+  $("creditsBack").href = birdHash(locId, speciesCode);
   $("creditsList").innerHTML = "";
   $("creditsStatus").textContent = t("credits.loading");
 
   const loaded = await ensureHotspot(locId);
   if (stale()) return;
   if (!loaded) { $("creditsStatus").textContent = t("hotspot.error"); return; }
-  $("creditsHotspot").textContent = state.hotspot.locName;
 
   let species;
   try {
-    const res = await fetch(`/api/hotspots/${encodeURIComponent(locId)}/credits?lang=${encodeURIComponent(state.language)}`);
+    const res = await fetch(`/api/hotspots/${encodeURIComponent(locId)}/credits?species=${encodeURIComponent(speciesCode)}&lang=${encodeURIComponent(state.language)}`);
     if (!res.ok) throw new Error(String(res.status));
     species = await res.json();
   } catch (e) {
@@ -1123,7 +1124,6 @@ const learn = {
     this.done = false;
     this.active = true;
     $("learnOverlay").hidden = false;
-    $("learnCreditsLink").href = creditsHash(locId);
     this.keyHandler = (e) => this.onKeyDown(e);
     document.addEventListener("keydown", this.keyHandler);
     this.render();
@@ -1199,6 +1199,7 @@ const learn = {
     const body = $("learnBody");
     body.innerHTML = "";
 
+    $("learnCreditsLink").hidden = this.done;
     if (this.done) {
       $("learnProgress").textContent = "";
       const wrap = document.createElement("div");
@@ -1216,7 +1217,7 @@ const learn = {
     }
 
     const item = this.cards[this.index];
-    $("learnCreditsLink").href = creditsHash(item.locId || this.locId);
+    $("learnCreditsLink").href = creditsHash(item.locId || this.locId, item.speciesCode);
     $("learnProgress").textContent = t("learn.progress", { i: this.index + 1, n: this.cards.length });
 
     const card = document.createElement("div");

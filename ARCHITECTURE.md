@@ -88,7 +88,7 @@ GET  /healthz                                    liveness/readiness, ungated
 GET  /api/hotspots                               nearby search (lat, lng, dist)
 GET  /api/hotspots/{locId}                        hotspot info
 GET  /api/hotspots/{locId}/species                 species list (category/popularity/alphabetical) — Learn's card deck too
-GET  /api/hotspots/{locId}/credits                 photo credits for the hotspot's species (author, license, source)
+GET  /api/hotspots/{locId}/credits                 photo credits for the hotspot's species, or one with ?species=<code> (author, license, source)
 GET  /api/compare                                 two hotspots side by side (a, b, lang)
 GET  /api/contact                                 public contact email (CONTACT_EMAIL; empty if unset)
 GET  /api/analytics                               Umami script URL + site id (UMAMI_SCRIPT_URL, UMAMI_WEBSITE_ID; empty unless both set)
@@ -123,8 +123,8 @@ no build step: `index.html` (markup), `style.css`, `app.js`, `i18n.json`
 (en/es/fr UI strings).
 
 Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`,
-`#/hotspot/<locId>/bird/<speciesCode>`, `#/hotspot/<locId>/credits`,
-`#/compare/<locIdA>/<locIdB>`, `#/contact`, `#/settings`)
+`#/hotspot/<locId>/bird/<speciesCode>`, `#/hotspot/<locId>/bird/<speciesCode>/credits`,
+`#/compare/<locIdA>/<locIdB>`, `#/about`, `#/settings`)
 so every view survives a reload and is linkable without any server-side
 routing. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
 `index.html`), the canonical iOS primary-navigation placement. The old
@@ -137,7 +137,7 @@ this area" — see "Place-name search" below), **Hotspot** (info, save
 toggle, explore — by popularity/category/alphabetical — or Learn's
 full-screen card deck, see "Learn mode and species images" below),
 **Settings** (language, secondary language, sign out), and a small
-**Contact** page linked from Settings: a contact email
+**About** page, linked only from Settings: a contact email
 (shown only when `CONTACT_EMAIL` is set, so the address is a deployment
 choice rather than part of the source), every data source with its licence,
 and a short note on what an account stores.
@@ -149,7 +149,7 @@ tracking exists. Auto-tracking is off because the app is hash-routed:
 `renderRoute` reports each view as a page (`/hotspot/<locId>`, `/compare/...`)
 and `trackEvent` reports `bookmark`, `share-hotspot` and `learn-start`.
 Account details (email, user id) are never sent to it, which is what keeps
-it outside cookie-consent requirements; the Contact page's privacy note
+it outside cookie-consent requirements; the About page's privacy note
 says so.
 
 Guests (`state.signedIn === false`, set when `/api/me` answers 401) get the
@@ -586,17 +586,19 @@ the layout migration, it is pure local disk I/O, finishes in well under a
 second even for thousands of species, and logs to `migration.log`.
 
 **Photo credits.** Commons photos are CC BY / CC BY-SA, which require showing
-the author, license and source. The hotspot view and the Learn overlay both
-end in an "Image credits" footer link to `#/hotspot/<locId>/credits`, a text-only
-page (no images) listing, per species at that hotspot, each photo's title,
-author, license link and Commons link. `handleHotspotCredits`
-(`server/credits.go`) builds it from each species' cached image metadata, so
-it names exactly the photos the app has downloaded; species with no cached
-photo are omitted. The frontend only links `https://` URLs, since license and
+the author, license and source. The Learn overlay's footer has an "Image credits"
+link, which follows the current card, to
+`#/hotspot/<locId>/bird/<speciesCode>/credits`, a text-only page (no images)
+listing that species' photos with each one's title, author, license link and
+Commons link. `handleHotspotCredits` (`server/credits.go`) builds it from the
+species' cached image metadata (`?species=<code>` narrows the hotspot's list
+to one species), so it names exactly the photos the app has downloaded;
+species with no cached photo are omitted. The frontend only links `https://` URLs, since license and
 source URLs come from Commons metadata.
 
-**Compare.** `#/compare/<a>/<b>` (linked from a hotspot's footer and from
-Home once two hotspots are saved) puts two hotspots side by side.
+**Compare.** `#/compare/<a>/<b>` (linked only from a hotspot's footer, as
+"Compare with a saved hotspot", which shows when the account has another saved
+hotspot) puts two hotspots side by side.
 `GET /api/compare` (`server/compare.go`) reads only the local stores — no
 image or Wikimedia work — and returns the union of both species lists with
 each side's record count, popularity rank and share of that hotspot's total

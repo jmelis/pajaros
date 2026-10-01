@@ -42,7 +42,6 @@
     </section>
 
     <a class="cta-primary" href="#/search" data-i18n="home.find"></a>
-    <a id="homeCompareLink" class="cmp-link" href="#/compare" data-i18n="home.compare" hidden></a>
   </section>
 
   <!-- Search -->
@@ -105,10 +104,8 @@
       </div>
       <div id="groups"></div>
     </div>
-    <footer class="credits-footer">
-      <a id="hotspotCompareLink" href="#/compare" data-i18n="hotspot.compare"></a>
-      <span aria-hidden="true"> · </span>
-      <a id="hotspotCreditsLink" href="#/home" data-i18n="credits.link"></a>
+    <footer class="hotspot-footer">
+      <a id="hotspotCompareLink" href="#/compare" data-i18n="hotspot.compare" hidden></a>
     </footer>
   </section>
 
@@ -122,34 +119,33 @@
     <div id="compareBody" class="view"></div>
   </section>
 
-  <!-- Contact and data sources -->
-  <section id="view-contact" class="view" hidden>
-    <a class="back-link" href="#/settings" data-i18n="contact.back"></a>
-    <h2 class="view-title" data-i18n="contact.title"></h2>
-    <p data-i18n="contact.intro"></p>
-    <p id="contactEmailRow" hidden><span data-i18n="contact.emailLabel"></span> <a id="contactEmail" href="#"></a></p>
-    <h3 class="contact-h" data-i18n="contact.dataTitle"></h3>
-    <p class="hint" data-i18n="contact.dataIntro"></p>
-    <ul class="contact-list">
-      <li><a href="https://www.gbif.org/dataset/4fa7b334-ce0d-4e88-aaae-2e0c138d049e" target="_blank" rel="noopener">eBird Observation Dataset (via GBIF)</a> <span data-i18n="contact.src.obs"></span></li>
-      <li><a href="https://ebird.org/science/use-ebird-data/the-ebird-taxonomy" target="_blank" rel="noopener">eBird / Clements taxonomy</a> <span data-i18n="contact.src.tax"></span></li>
-      <li><a href="https://www.worldbirdnames.org/" target="_blank" rel="noopener">IOC World Bird List</a> <span data-i18n="contact.src.ioc"></span></li>
-      <li><a href="https://www.gbif.org/species/search" target="_blank" rel="noopener">GBIF species API</a> <span data-i18n="contact.src.gbif"></span></li>
-      <li><a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> <span data-i18n="contact.src.geo"></span></li>
-      <li><a href="https://db-ip.com/db/download/ip-to-country-lite" target="_blank" rel="noopener">DB-IP IP to Country Lite</a> <span data-i18n="contact.src.dbip"></span></li>
-      <li><a href="https://commons.wikimedia.org/" target="_blank" rel="noopener">Wikimedia Commons</a> <span data-i18n="contact.src.wm"></span></li>
-      <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> <span data-i18n="contact.src.osm"></span></li>
-      <li><a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a> <span data-i18n="contact.src.leaf"></span></li>
+  <!-- About: contact, data sources, privacy -->
+  <section id="view-about" class="view" hidden>
+    <a class="back-link" href="#/settings" data-i18n="about.back"></a>
+    <h2 class="view-title" data-i18n="about.title"></h2>
+    <p data-i18n="about.intro"></p>
+    <p id="aboutEmailRow" hidden><span data-i18n="about.emailLabel"></span> <a id="aboutEmail" href="#"></a></p>
+    <h3 class="about-h" data-i18n="about.dataTitle"></h3>
+    <p class="hint" data-i18n="about.dataIntro"></p>
+    <ul class="about-list">
+      <li><a href="https://www.gbif.org/dataset/4fa7b334-ce0d-4e88-aaae-2e0c138d049e" target="_blank" rel="noopener">eBird Observation Dataset (via GBIF)</a> <span data-i18n="about.src.obs"></span></li>
+      <li><a href="https://ebird.org/science/use-ebird-data/the-ebird-taxonomy" target="_blank" rel="noopener">eBird / Clements taxonomy</a> <span data-i18n="about.src.tax"></span></li>
+      <li><a href="https://www.worldbirdnames.org/" target="_blank" rel="noopener">IOC World Bird List</a> <span data-i18n="about.src.ioc"></span></li>
+      <li><a href="https://www.gbif.org/species/search" target="_blank" rel="noopener">GBIF species API</a> <span data-i18n="about.src.gbif"></span></li>
+      <li><a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> <span data-i18n="about.src.geo"></span></li>
+      <li><a href="https://db-ip.com/db/download/ip-to-country-lite" target="_blank" rel="noopener">DB-IP IP to Country Lite</a> <span data-i18n="about.src.dbip"></span></li>
+      <li><a href="https://commons.wikimedia.org/" target="_blank" rel="noopener">Wikimedia Commons</a> <span data-i18n="about.src.wm"></span></li>
+      <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> <span data-i18n="about.src.osm"></span></li>
+      <li><a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a> <span data-i18n="about.src.leaf"></span></li>
     </ul>
-    <h3 class="contact-h" data-i18n="contact.privacyTitle"></h3>
-    <p class="hint" data-i18n="contact.privacy"></p>
+    <h3 class="about-h" data-i18n="about.privacyTitle"></h3>
+    <p class="hint" data-i18n="about.privacy"></p>
   </section>
 
-  <!-- Photo credits for one hotspot -->
+  <!-- Photo credits for one species -->
   <section id="view-credits" class="view" hidden>
     <a id="creditsBack" class="back-link" href="#/home" data-i18n="credits.back"></a>
     <h2 class="view-title" data-i18n="credits.title"></h2>
-    <p id="creditsHotspot" class="credits-hotspot"></p>
     <p class="hint" data-i18n="credits.intro"></p>
     <p id="creditsStatus" class="status"></p>
     <ul id="creditsList" class="credits-list"></ul>
@@ -171,8 +167,7 @@
       </div>
       <p id="settingsGuestHint" class="hint" data-i18n="settings.guestHint" hidden></p>
       <p id="settingsHint" class="hint" hidden></p>
-      <p class="hint" data-i18n="settings.credits"></p>
-      <p class="hint"><a href="#/contact" data-i18n="contact.link"></a></p>
+      <p class="hint"><a href="#/about" data-i18n="about.link"></a></p>
     </section>
   </section>
 </main>

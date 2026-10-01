@@ -157,16 +157,7 @@ async function openCompare(a, b) {
   $("compareBack").href = a && LOC_ID_RE.test(a) ? "#/hotspot/" + encodeURIComponent(a) : "#/home";
   cmp.data = null;
 
-  if (!LOC_ID_RE.test(a || "")) {
-    if (state.favorites.length >= 2) {
-      const hash = compareHash(state.favorites[0].locId, state.favorites[1].locId);
-      history.replaceState(null, "", hash);
-      await renderRoute();
-    } else {
-      $("compareStatus").textContent = t("compare.start");
-    }
-    return;
-  }
+  if (!LOC_ID_RE.test(a || "")) { navigate("#/home"); return; }
 
   if (!b || !LOC_ID_RE.test(b) || a === b) {
     const origin = await cmpFetchHotspot(a);
