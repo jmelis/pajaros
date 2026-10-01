@@ -15,6 +15,11 @@ import (
 // however many times the server restarts afterwards.
 const imagePolicyFile = ".image-policy"
 
+// migrationLogName is the append-only operations log migrateImagePolicy
+// writes under CACHE_DIR, alongside the normal log.Printf output, so a trim
+// stays auditable after pod logs have rotated away.
+const migrationLogName = "migration.log"
+
 // imagePolicyVersion names the current sourcing policy (Wikipedia infobox +
 // Commons quality images only — see wikimedia.go). Bump it to make the next
 // startup re-trim the cache under a new policy.

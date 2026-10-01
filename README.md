@@ -27,31 +27,22 @@ make deploy        # ...and point the GitOps manifest at the new tag
 ## Species image cache
 
 Learn card photos are fetched on demand from Wikimedia/iNaturalist and
-cached to disk (`CACHE_DIR`, default `./cache`) — nothing to refresh or
-migrate manually in normal operation. If `CACHE_DIR` has leftovers from an
-older cache layout, the server folds them into the current one itself, on
-every startup, before it starts listening (see "Learn mode and species
-images" in `ARCHITECTURE.md`) — local disk I/O only, done in well under a
-second, logged to both stdout and `<CACHE_DIR>/migration.log`.
+cached to disk (`CACHE_DIR`, default `./cache`) — nothing to refresh
+manually in normal operation. When the image sourcing policy changes
+(`imagePolicyVersion` in `server/imagepolicy.go`), the server re-trims the
+cache once at startup (see "Learn mode and species images" in
+`ARCHITECTURE.md`), logged to stdout and `<CACHE_DIR>/migration.log`.
 
-Three offline modes of the same binary are there for when you want more than
+One offline mode of the same binary is there for when you want more than
 that automatic minimum:
 
 ```
 go run . warmcache          # pre-fetch images for a high-value species subset
-go run . migrateimages       # eagerly top every species up to the full image
-                             # count now, instead of waiting on live traffic
-go run . trimextraimages     # drop every cached species' images but the
-                             # first and clear its top-up marker, so a
-                             # changed sourcing policy reaches already
-                             # -cached species via the normal lazy top-up
-                             # path instead of a bespoke re-fetch
 ```
 
-Run any of them against a local `CACHE_DIR`, then `rsync` the resulting
-`cache/` directory up to the deployed server's host path — see
-`server/warmcache.go`, `server/migrateimages.go`, and
-`server/trimextraimages.go` for what each one actually does.
+Run it against a local `CACHE_DIR`, then `rsync` the resulting `cache/`
+directory up to the deployed server's host path — see `server/warmcache.go`
+for what it does.
 
 ## Refresh the bird data
 

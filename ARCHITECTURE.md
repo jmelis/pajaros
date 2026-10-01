@@ -534,42 +534,28 @@ rather than blocking the request:
   `maxImagesPerSpecies` available isn't re-queued on every later request.
 
 `EnsureFetched` (no `Async`) is the synchronous version of the same two
-steps, for offline batch tools (`warmcache`, `migrateimages`) that want a
+steps, for offline batch tools (`warmcache`) that want a
 species fully resolved before moving to the next one rather than firing
 into the background.
 
-An existing cache built before per-species multi-image support (one image
-directly under `server/cache/`, no buckets) is upgraded automatically, every
-time the server starts (`migrateOldCacheLayout` in `server/migrateimages.go`,
-called from `main()` right after the cache opens, before the server starts
-listening): each already-downloaded image is moved into its bucket — a
-rename, no re-fetching, no network call at all — leaving that species
-exactly as if it had just gotten its first image live, so the existing
-background top-up queue picks up the rest once it's actually viewed. This is
-pure local disk I/O, so it finishes in well under a second even for
-hundreds of species — the deployment's own readiness probe is the only
-"maintenance window" this needs; nothing else has to wait for it. Idempotent
-and silent once there's nothing old-format left: a species whose bucket
-already has its first image is left alone (its now-redundant old flat file
-is just removed), and a cache with no old-format entries at all returns
-immediately without logging anything.
-
-Every rename/removal is logged twice — via the normal logger (`kubectl
-logs` etc.) and appended to `<CACHE_DIR>/migration.log`, timestamped — so a
-migration stays auditable, and reversible by hand, even after pod logs have
-rotated away or the pod that ran it is gone.
-
-`go run . migrateimages` is the same logic run as a one-off CLI mode,
-for when you'd rather eagerly top every migrated species up toward
-`maxImagesPerSpecies` right away instead of waiting for organic traffic to
-view them.
+**Several processes, one cache directory.** Replicas share `CACHE_DIR`, so the
+filesystem is the coordination point. Before fetching a species (first image or
+top-up) a process takes a non-blocking `flock` on `<bucket>/<slug>.lock`
+(`tryLockSpecies`); if another process holds it, the fetch is skipped — that
+process's result lands on disk and every replica serves it, and the frontend's
+retry on the image URLs covers the wait. This is what keeps replicas from
+spending the Wikimedia budget twice on the same species. The kernel releases the
+lock when its holder exits, so a crashed pod leaves nothing stale; lock files
+themselves are empty and stay in place. Files are written via a uniquely named
+temp file and an atomic rename (`writeFileAtomic`), so concurrent writers never
+share a temp file. The rate limiters (`WIKIMEDIA_RPS`, the per-account and
+per-IP ones) are per process, so N replicas allow N times those rates.
 
 The cache is otherwise fetch-once: a species that's already fully resolved
 is never revisited by ordinary traffic, so a change of image sourcing policy
 would only affect species fetched afterwards. To carry a policy change to
 already-cached species, startup runs `migrateImagePolicy`
-(`server/imagepolicy.go`, called from `main()` right after the layout
-migration): for every cached species it keeps the first image (the title
+(`server/imagepolicy.go`, called from `main()` right after the cache opens): for every cached species it keeps the first image (the title
 photo, which is the Wikipedia infobox photo where the species has one),
 deletes the others, and clears the `.topped` and `.missing` markers. The
 normal lazy path then refills the rest in the background the next time each
@@ -581,9 +567,9 @@ slots 2-4 (and formerly "no image" species) are resolved under
 `<CACHE_DIR>/.image-policy` records the policy version (`imagePolicyVersion`)
 the cache was last trimmed under; the migration runs only when it differs, so
 ordinary restarts never discard refilled photos. A fresh cache just records
-the version. Bumping the constant re-runs the trim on the next start. Like
-the layout migration, it is pure local disk I/O, finishes in well under a
-second even for thousands of species, and logs to `migration.log`.
+the version. Bumping the constant re-runs the trim on the next start. It is
+pure local disk I/O, finishes in well under a second even for thousands of
+species, and logs to `migration.log`.
 
 **Photo credits.** Commons photos are CC BY / CC BY-SA, which require showing
 the author, license and source. The Learn overlay's footer has an "Image credits"
@@ -637,3 +623,15 @@ toolchain needed) rather than inside the image build.
 image tag in a sibling GitOps repo's manifest — ArgoCD deploys what's
 committed there, not what's on disk, so the target prints the `git commit`
 command rather than running it.
+
+**Rollouts and replicas.** On SIGTERM the server keeps serving for
+`SHUTDOWN_DELAY` (default 5s) so the ingress drops the pod from the Service's
+endpoints, then closes the listener and gives in-flight requests
+`SHUTDOWN_TIMEOUT` (default 20s) to finish; the two must fit within the pod's
+`terminationGracePeriodSeconds` (default 30s). With that, a `RollingUpdate`
+(`maxUnavailable: 0`, `maxSurge: 1`) drops no requests. Replicas must run on
+the same node, because `CACHE_DIR` and the SQLite database live on a hostPath;
+SQLite runs in WAL mode with a busy timeout, which handles a few processes on
+one host. Session and OAuth-state cookies are signed with `SESSION_SECRET`, so
+any replica can verify them. See "Several processes, one cache directory"
+above for the image cache.

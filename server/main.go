@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
+	"syscall"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -70,7 +73,13 @@ const maxNearbyDistKm = 100.0
 //   PORT, HOST  listen address (default "8080" / "0.0.0.0").
 //   HOTSPOTS_DATA_DIR  directory holding hotspots.bolt and places.bolt
 //                      (default "./data").
-//   WIKIMEDIA_RPS  Wikimedia rate limit (default 8/s).
+//   WIKIMEDIA_RPS  Wikimedia rate limit (default 8/s). Per process: with N
+//                  replicas the combined rate is N times this.
+//   SHUTDOWN_DELAY    on SIGTERM, how long to keep serving before closing the
+//                     listener, so the ingress stops routing here (default 5s).
+//   SHUTDOWN_TIMEOUT  then how long in-flight requests get to finish (default
+//                     20s). Delay + timeout must fit in the pod's
+//                     terminationGracePeriodSeconds (default 30s).
 //
 // Authentication (all optional; the server starts fine without any of them):
 //   SESSION_SECRET  HMAC key for signing session cookies. If unset, a random
@@ -141,15 +150,6 @@ func main() {
 		}
 		return
 	}
-	// `go run . migrateimages` upgrades an existing on-disk image cache to
-	// the current bucketed, multi-image-per-species layout — see
-	// migrateimages.go.
-	if len(os.Args) > 1 && os.Args[1] == "migrateimages" {
-		if err := runMigrateImages(); err != nil {
-			log.Fatalf("migrateimages: %v", err)
-		}
-		return
-	}
 	cacheDir := os.Getenv("CACHE_DIR")
 	if cacheDir == "" {
 		cacheDir = "./cache"
@@ -167,23 +167,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("cache dir %q: %v", cacheDir, err)
 	}
-	// Fold any leftover old-format cache entries into the current bucketed
-	// layout before serving — pure local disk I/O (renames), no network
-	// calls, so even a large backlog finishes well before the readiness
-	// probe's first check; that natural gate is the only "maintenance
-	// window" this needs. Non-fatal: live traffic already self-heals
-	// anything left behind (see cache.go's EnsureFetchedAsync), so a
-	// migration hiccup here shouldn't keep the server from starting.
-	if migrated, err := migrateOldCacheLayout(cache, cacheDir); err != nil {
-		log.Printf("cache layout migration: %v (continuing — live traffic will self-heal)", err)
-	} else if len(migrated) > 0 {
-		log.Printf("cache layout migration: moved %d species into the bucketed cache layout at startup", len(migrated))
-	}
-
 	// Re-trim the cache once under the current image sourcing policy (keep
 	// each species' title photo, drop the rest, reopen "no image" species) so
 	// the normal background fetching refills it — see imagepolicy.go. Local
-	// disk I/O only; non-fatal for the same reason as the migration above.
+	// disk I/O only; non-fatal because live traffic keeps working with whatever
+	// is on disk.
 	if err := migrateImagePolicy(cache, cacheDir); err != nil {
 		log.Printf("image policy migration: %v (continuing — old photos stay until the next restart)", err)
 	}
@@ -333,7 +321,45 @@ func main() {
 
 	addr := host + ":" + port
 	log.Printf("listening on %s (cache dir: %s, user db: %s)", addr, cacheDir, dbPath)
-	log.Fatal(http.ListenAndServe(addr, mux))
+
+	httpSrv := &http.Server{Addr: addr, Handler: mux}
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- httpSrv.ListenAndServe() }()
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM, os.Interrupt)
+	select {
+	case err := <-serveErr:
+		log.Fatal(err)
+	case sig := <-sigs:
+		signal.Stop(sigs) // a second signal now kills the process outright
+		// On SIGTERM (a rolling update or scale-down) keep serving while the
+		// ingress notices this pod is leaving the Service's endpoints;
+		// otherwise it keeps routing new requests to a closed listener.
+		if sig == syscall.SIGTERM {
+			delay := durationFromEnv("SHUTDOWN_DELAY", 5*time.Second)
+			log.Printf("SIGTERM: still serving for %s while the pod is removed from the Service", delay)
+			time.Sleep(delay)
+		}
+		timeout := durationFromEnv("SHUTDOWN_TIMEOUT", 20*time.Second)
+		log.Printf("shutting down: draining in-flight requests (up to %s)", timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		if err := httpSrv.Shutdown(ctx); err != nil {
+			log.Printf("shutdown: %v", err)
+		}
+	}
+}
+
+// durationFromEnv parses envVar as a Go duration ("5s"), falling back to def
+// when unset or invalid.
+func durationFromEnv(envVar string, def time.Duration) time.Duration {
+	if v := os.Getenv(envVar); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d >= 0 {
+			return d
+		}
+	}
+	return def
 }
 
 // buildRootMux assembles the top-level handler: the public login page and

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -114,6 +115,33 @@ func (c *ImageCache) toppedMarkerPath(sciName string) string {
 	return filepath.Join(c.speciesDir(sciName), slugify(sciName)+".topped")
 }
 
+// lockPath is the per-species lock file tryLockSpecies takes. It is left in
+// place after use (an empty file per species); only the lock on it matters.
+func (c *ImageCache) lockPath(sciName string) string {
+	return filepath.Join(c.speciesDir(sciName), slugify(sciName)+".lock")
+}
+
+// tryLockSpecies takes an exclusive, non-blocking flock on sciName's lock
+// file. Replicas share CACHE_DIR, so this is what keeps two pods from both
+// fetching the same species from Wikimedia: ok=false means another process
+// is already on it and the caller should skip — the winner's result lands on
+// disk and every pod sees it. The kernel drops the lock when its holder
+// exits, so a crashed pod never leaves a stale lock behind.
+func (c *ImageCache) tryLockSpecies(sciName string) (unlock func(), ok bool, err error) {
+	f, err := os.OpenFile(c.lockPath(sciName), os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		f.Close()
+		if err == syscall.EWOULDBLOCK {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return func() { f.Close() }, true, nil // closing the fd releases the lock
+}
+
 // ImageURLFor is the deterministic /images/ URL for a species' first image,
 // regardless of whether it's cached yet — see ImageURLsFor.
 func (c *ImageCache) ImageURLFor(sciName string) string {
@@ -209,7 +237,7 @@ func (c *ImageCache) enqueueTopUp(sciName string) {
 // EnsureFetched synchronously resolves sciName all the way — first image
 // then top-up — and only returns once both are done (or confirmed there's
 // nothing to find). Unlike EnsureFetchedAsync, this blocks the caller: it's
-// for offline batch tools (warmcache, migrateimages) that want a species
+// for offline batch tools (warmcache) that want a species
 // fully resolved before moving to the next one, not live request serving.
 func (c *ImageCache) EnsureFetched(sciName string) error {
 	if err := c.ensureFirstImage(sciName); err != nil {
@@ -225,6 +253,18 @@ func (c *ImageCache) EnsureFetched(sciName string) error {
 // image found" marker, fetching from Wikimedia if this is the
 // first time we've seen this species. Cheap no-op once resolved either way.
 func (c *ImageCache) ensureFirstImage(sciName string) error {
+	if fileExists(c.imagePath(sciName, 0)) || fileExists(c.missingMarkerPath(sciName)) {
+		return nil
+	}
+	unlock, ok, err := c.tryLockSpecies(sciName)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil // another process is fetching it
+	}
+	defer unlock()
+	// Re-check under the lock: the previous holder may have just finished.
 	if fileExists(c.imagePath(sciName, 0)) || fileExists(c.missingMarkerPath(sciName)) {
 		return nil
 	}
@@ -253,8 +293,20 @@ func (c *ImageCache) ensureFirstImage(sciName string) error {
 // its metadata, up to maxImagesPerSpecies, then writes the "topped" marker
 // regardless of outcome — a species that genuinely has fewer than
 // maxImagesPerSpecies available shouldn't be re-queued on every later
-// request. Safe to call repeatedly/concurrently — cheap no-op once topped.
+// request. Safe to call repeatedly, concurrently and from several processes
+// — cheap no-op once topped, and only one process tops a species up at a time.
 func (c *ImageCache) topUpImages(sciName string) error {
+	unlock, ok, err := c.tryLockSpecies(sciName)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil // another process is on it; it writes the marker
+	}
+	defer unlock()
+	if fileExists(c.toppedMarkerPath(sciName)) {
+		return nil // the previous holder just finished
+	}
 	defer func() {
 		if err := os.WriteFile(c.toppedMarkerPath(sciName), []byte{}, 0o644); err != nil {
 			log.Printf("write topped marker %s: %v", sciName, err)
@@ -345,13 +397,28 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-// writeFileAtomic writes to a temp file in the same directory and renames it
-// into place, so a concurrent reader (or, later, an inotify-watching sidecar)
-// never observes a partially-written file.
+// writeFileAtomic writes to a uniquely named temp file in the same directory
+// and renames it into place, so a concurrent reader never observes a
+// partially-written file and concurrent writers (other replicas sharing the
+// cache directory) never share a temp file.
 func writeFileAtomic(path string, data []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmp := f.Name()
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(tmp, 0o644) // CreateTemp makes it 0600
+	}
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		os.Remove(tmp)
+	}
+	return err
 }
