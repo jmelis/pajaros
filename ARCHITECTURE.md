@@ -136,14 +136,14 @@ this area" — see "Place-name search" below), **Hotspot** (info, save
 toggle, explore — by popularity/category/alphabetical — or Learn's
 full-screen card deck, see "Learn mode and species images" below),
 **Settings** (language, secondary language, sign out), and a small
-**Contact** page linked from Settings and the Home footer: a contact email
+**Contact** page linked from Settings: a contact email
 (shown only when `CONTACT_EMAIL` is set, so the address is a deployment
 choice rather than part of the source), every data source with its licence,
 and a short note on what an account stores.
 
 Guests (`state.signedIn === false`, set when `/api/me` answers 401) get the
 same views with three differences: the header shows a "Sign in" link instead
-of the email, Home shows a short sign-in prompt instead of saved hotspots,
+of the email, Home shows only the Find button (no saved hotspots; features behind sign-in prompt for it when used),
 and the language choices are stored in `localStorage` (falling back to the
 browser language, then English) rather than on an account.
 

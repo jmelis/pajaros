@@ -258,7 +258,7 @@ function updateAccountChrome() {
   $("signInLink").hidden = state.signedIn;
   const next = "/" + location.hash;
   const href = "/login?next=" + encodeURIComponent(next);
-  for (const id of ["signInLink", "homeSignIn", "settingsSignIn"]) $(id).href = href;
+  for (const id of ["signInLink", "settingsSignIn"]) $(id).href = href;
 }
 
 async function initAccount() {
@@ -328,9 +328,7 @@ function renderHomeFavorites() {
 
 async function renderHome() {
   homeEditing = false;
-  $("homeGuest").hidden = true;
   if (!state.signedIn) {
-    $("homeGuest").hidden = false;
     $("homeFirstRun").hidden = true;
     $("homeHotspotsPanel").hidden = true;
     $("homeGreetingPanel").hidden = true;
