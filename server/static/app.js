@@ -362,7 +362,6 @@ async function renderHome() {
   if (!state.signedIn) {
     $("homeFirstRun").hidden = true;
     $("homeHotspotsPanel").hidden = true;
-    $("homeGreetingPanel").hidden = true;
     return;
   }
   let profile;
@@ -373,7 +372,6 @@ async function renderHome() {
   } catch (e) {
     $("homeFirstRun").hidden = true;
     $("homeHotspotsPanel").hidden = false;
-    $("homeGreetingPanel").hidden = false;
     $("homeFavorites").innerHTML = "";
     $("homeNoFavorites").hidden = true;
     return;
@@ -384,7 +382,6 @@ async function renderHome() {
 
   $("homeFirstRun").hidden = !firstRun;
   $("homeHotspotsPanel").hidden = firstRun;
-  $("homeGreetingPanel").hidden = firstRun;
   renderHomeFavorites();
 }
 

@@ -427,8 +427,6 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 .first-run { text-align: center; }
 
 /* Hero: just a quiet greeting line above the favorites list. */
-.hero { padding: 2px 2px 0; }
-.hero-greeting { color: var(--muted); font-size: 0.92rem; margin: 0 0 var(--space-2); }
 
 .section-head { display: flex; align-items: center; justify-content: space-between; padding-inline: 2px; }
 .edit-link { color: var(--accent); font-size: 0.9rem; font-weight: 500; background: none; border: none; padding: 4px 0; }
@@ -552,8 +550,8 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
   padding: 0 var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom));
 }
 .learn-footer a,
-.hotspot-footer a { color: var(--muted); font-size: 0.82rem; }
-.hotspot-footer { margin-top: var(--space-4); text-align: center; }
+.hotspot-compare { display: block; margin: 0 0 var(--space-3); font-size: 0.9rem; }
+.hotspot-compare[hidden] { display: none; }
 
 .about-h { margin: var(--space-3) 0 0; font-size: 1rem; }
 .about-list { margin: 0; padding-left: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); font-size: 0.9rem; }
