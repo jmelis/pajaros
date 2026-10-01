@@ -757,10 +757,7 @@ async function renderAbout() {
   $("aboutContactSignIn").hidden = state.signedIn;
   $("aboutContactForm").hidden = !state.signedIn;
   $("contactStatus").textContent = "";
-  if (state.signedIn) {
-    $("contactReplyNote").hidden = !state.email;
-    $("contactReplyNote").textContent = state.email ? t("about.contactReplyNote", { email: state.email }) : "";
-  } else {
+  if (!state.signedIn) {
     $("aboutContactLogin").href = "/login?next=" + encodeURIComponent("/" + location.hash);
   }
 }
