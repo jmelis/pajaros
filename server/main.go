@@ -34,6 +34,7 @@ type Server struct {
 	species  hotspotSpeciesSource
 	cache    *ImageCache
 	users    *UserStore
+	contact  *contactMailer // nil when the contact form isn't configured
 }
 
 // validLocID matches a hotspot ID — "lat,lng" (see hotspots_data.go's Hotspot type),
@@ -67,7 +68,11 @@ const maxNearbyDistKm = 100.0
 //
 // Optional (existing):
 //   CACHE_DIR  on-disk upstream/image cache (default "./cache").
-//   CONTACT_EMAIL  address shown on the Contact page (omitted when unset).
+//   RESEND_API_KEY, CONTACT_FROM, CONTACT_TO  enable the About page's contact
+//                  form for signed-in users: messages are sent through Resend
+//                  from CONTACT_FROM (an address on a Resend-verified domain)
+//                  to CONTACT_TO, which is never shown to visitors. The form
+//                  is hidden unless all three are set.
 //   UMAMI_SCRIPT_URL, UMAMI_WEBSITE_ID  self-hosted Umami tracker script and
 //                  site id; analytics load only when both are set.
 //   PORT, HOST  listen address (default "8080" / "0.0.0.0").
@@ -238,6 +243,7 @@ func main() {
 		species:  species,
 		cache:    cache,
 		users:    users,
+		contact:  newContactMailerFromEnv(),
 	}
 
 	prometheus.MustRegister(&dbGaugeCollector{users: users, hotspots: hotspots, places: places})
@@ -299,7 +305,11 @@ func main() {
 	// species lists per call, so it shares the detail limiter.
 	appMux.HandleFunc("GET /api/compare", instrumentHTTP("/api/compare", hotspotDetailLimiter.middleware(hotspotKey, srv.handleCompare)))
 
-	appMux.HandleFunc("GET /api/contact", instrumentHTTP("/api/contact", srv.handleContact))
+	// Contact: the form is signed-in only, and capped per account so one
+	// account can't flood the owner's inbox or burn the Resend quota.
+	contactLimiter := newKeyedRateLimiter("contact", 3, 3.0/60) // burst 3, 3/hour sustained
+	appMux.HandleFunc("GET /api/contact", instrumentHTTP("/api/contact", srv.handleContactStatus))
+	appMux.HandleFunc("POST /api/contact", instrumentHTTP("/api/contact", auth.requireFunc(contactLimiter.middleware(accountKey, srv.handleSendContact))))
 	appMux.HandleFunc("GET /api/analytics", instrumentHTTP("/api/analytics", srv.handleAnalytics))
 
 	// Per-account preferences and saved hotspots: the only routes that need a

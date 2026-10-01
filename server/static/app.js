@@ -741,22 +741,54 @@ async function openHotspot(locId, speciesCode) {
 
 // ---- About --------------------------------------------------------------
 
-let contactEmail;
+let contactEnabled;
 
 async function renderAbout() {
-  if (contactEmail === undefined) {
+  if (contactEnabled === undefined) {
     try {
       const res = await fetch("/api/contact");
-      contactEmail = res.ok ? (await res.json()).email || "" : "";
+      contactEnabled = res.ok && Boolean((await res.json()).enabled);
     } catch (e) {
-      contactEmail = "";
+      contactEnabled = false;
     }
   }
-  $("aboutEmailRow").hidden = !contactEmail;
-  if (contactEmail) {
-    const a = $("aboutEmail");
-    a.textContent = contactEmail;
-    a.href = "mailto:" + contactEmail;
+  $("aboutContact").hidden = !contactEnabled;
+  if (!contactEnabled) return;
+  $("aboutContactSignIn").hidden = state.signedIn;
+  $("aboutContactForm").hidden = !state.signedIn;
+  $("contactStatus").textContent = "";
+  if (state.signedIn) {
+    $("contactReplyNote").hidden = !state.email;
+    $("contactReplyNote").textContent = state.email ? t("about.contactReplyNote", { email: state.email }) : "";
+  } else {
+    $("aboutContactLogin").href = "/login?next=" + encodeURIComponent("/" + location.hash);
+  }
+}
+
+async function onContactSubmit(e) {
+  e.preventDefault();
+  const box = $("contactMessage");
+  const btn = $("contactSend");
+  const status = $("contactStatus");
+  const message = box.value.trim();
+  if (!message) return;
+  btn.disabled = true;
+  status.textContent = t("about.contactSending");
+  try {
+    const res = await fetch("/api/contact", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+    if (res.ok) {
+      box.value = "";
+      status.textContent = t("about.contactSent");
+    } else {
+      status.textContent = t(res.status === 429 ? "about.contactRateLimited" : "about.contactError");
+    }
+  } catch (err) {
+    status.textContent = t("about.contactError");
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -1496,6 +1528,7 @@ function wireEvents() {
   $("primaryLang").addEventListener("change", onPrimaryLanguageChange);
   $("secondaryLang").addEventListener("change", onSecondaryLanguageChange);
   $("logoutBtn").addEventListener("click", onLogout);
+  $("aboutContactForm").addEventListener("submit", onContactSubmit);
 }
 
 // ---- Boot -----------------------------------------------------------------

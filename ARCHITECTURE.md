@@ -90,7 +90,7 @@ GET  /api/hotspots/{locId}                        hotspot info
 GET  /api/hotspots/{locId}/species                 species list (category/popularity/alphabetical) — Learn's card deck too
 GET  /api/hotspots/{locId}/credits                 photo credits for the hotspot's species, or one with ?species=<code> (author, license, source)
 GET  /api/compare                                 two hotspots side by side (a, b, lang)
-GET  /api/contact                                 public contact email (CONTACT_EMAIL; empty if unset)
+GET  /api/contact                                 whether the contact form is configured ({"enabled": bool})
 GET  /api/analytics                               Umami script URL + site id (UMAMI_SCRIPT_URL, UMAMI_WEBSITE_ID; empty unless both set)
 
 GET  /api/me                                      profile
@@ -98,10 +98,11 @@ GET  /PUT /api/me/language                        primary bird-name + UI languag
 GET  /PUT /api/me/secondary-language               optional subtitle language
 GET  /api/me/favorites                            saved hotspots (capped at 100/account)
 PUT/DELETE /api/me/favorites/{locId}               save/remove a hotspot
+POST /api/contact                                 email a message to the site owner (see "Contact form")
 
 GET  /login, POST /auth/logout                    (only when a provider is enabled)
 
-Everything above is public except `/api/me*`, which needs a session.
+Everything above is public except `/api/me*` and `POST /api/contact`, which need a session.
 GET  /auth/{google,apple}[/callback]               OAuth flow
 ```
 
@@ -137,10 +138,24 @@ this area" — see "Place-name search" below), **Hotspot** (info, save
 toggle, explore — by popularity/category/alphabetical — or Learn's
 full-screen card deck, see "Learn mode and species images" below),
 **Settings** (language, secondary language, sign out), and a small
-**About** page, linked only from Settings: a contact email
-(shown only when `CONTACT_EMAIL` is set, so the address is a deployment
-choice rather than part of the source), every data source with its licence,
-and a short note on what an account stores.
+**About** page, linked only from Settings: a contact form (see "Contact
+form"), every data source with its licence, and a short note on what an
+account stores.
+
+**Contact form.** Visitors reach the site owner without the owner's address
+appearing anywhere in the page or source. A signed-in account posts a message
+to `POST /api/contact` (`server/contact.go`); the server emails it through
+Resend's HTTP API from `CONTACT_FROM` (an address on a Resend-verified domain)
+to `CONTACT_TO`, with the account's own email as `Reply-To` so replying goes
+straight to the sender. Requiring a session is what keeps bots out without a
+captcha, and the endpoint adds a per-account limit (burst 3, 3 an hour,
+per process like the other limiters), a 4000-character cap, and a
+`Content-Type: application/json` requirement that a cross-site form post can't
+satisfy. The feature is on only when `RESEND_API_KEY`, `CONTACT_FROM` and
+`CONTACT_TO` are all set; otherwise `GET /api/contact` reports
+`enabled: false` and the About page omits the section. Guests see a "sign in
+to send a message" link in its place. Resend's error detail is logged, never
+returned to the client.
 
 **Analytics.** Usage is measured with a self-hosted Umami, which is
 cookieless and anonymous. The frontend loads its script only when

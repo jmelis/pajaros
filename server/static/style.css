@@ -259,7 +259,7 @@ a.btn { text-decoration: none; display: inline-block; }
   font-size: 0.76rem;
   font-weight: 500;
 }
-input[type=number], input[type=search], select {
+input[type=number], input[type=search], select, textarea {
   width: 100%;
   font: inherit;
   color: inherit;
@@ -268,10 +268,11 @@ input[type=number], input[type=search], select {
   border: none;
   border-radius: var(--radius-sm);
 }
-input[type=number]:focus, input[type=search]:focus, select:focus {
+input[type=number]:focus, input[type=search]:focus, select:focus, textarea:focus {
   outline: none;
   box-shadow: 0 0 0 2px var(--accent);
 }
+textarea { resize: vertical; }
 .hint { margin: var(--space-2) 0 0; color: var(--muted); font-size: 0.82rem; }
 
 /* Place search */
@@ -556,6 +557,9 @@ input[type=number]:focus, input[type=search]:focus, select:focus {
 .about-h { margin: var(--space-3) 0 0; font-size: 1rem; }
 .about-list { margin: 0; padding-left: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); font-size: 0.9rem; }
 .about-list span { color: var(--muted); }
+.contact-form { display: flex; flex-direction: column; gap: var(--space-2); }
+.contact-form .hint { margin: 0; }
+.contact-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .back-link { display: inline-block; margin-bottom: var(--space-2); color: var(--muted); font-size: 0.9rem; text-decoration: none; }
 .credits-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 .credit-name { font-weight: 600; }
