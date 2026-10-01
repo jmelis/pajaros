@@ -152,6 +152,36 @@ function showSettingsHint(msg) {
   hint.hidden = false;
 }
 
+// ---- Analytics ------------------------------------------------------------
+
+// Umami is cookieless and anonymous; nothing about the signed-in account is
+// ever sent to it. The script only loads when the server is configured with it.
+async function initAnalytics() {
+  try {
+    const res = await fetch("/api/analytics");
+    if (!res.ok) return;
+    const { scriptUrl, websiteId } = await res.json();
+    if (!scriptUrl || !websiteId) return;
+    const s = document.createElement("script");
+    s.defer = true;
+    s.src = scriptUrl;
+    s.dataset.websiteId = websiteId;
+    s.dataset.autoTrack = "false";
+    s.dataset.doNotTrack = "true";
+    s.onload = trackPage;
+    document.head.appendChild(s);
+  } catch (e) { /* analytics are optional */ }
+}
+
+function trackPage() {
+  if (!window.umami) return;
+  window.umami.track((p) => ({ ...p, url: "/" + location.hash.replace(/^#\/?/, ""), title: currentRoute ? currentRoute.name : "" }));
+}
+
+function trackEvent(name, data) {
+  if (window.umami) window.umami.track(name, data);
+}
+
 // ---- Routing --------------------------------------------------------------
 
 function parseRoute() {
@@ -194,6 +224,7 @@ function updateNav(name) {
 async function renderRoute() {
   const route = parseRoute();
   currentRoute = route;
+  trackPage();
   for (const name of VIEW_NAMES) $("view-" + name).hidden = name !== route.name;
   updateNav(route.name === "compare" ? "home" : route.name === "contact" ? "settings" : route.name);
 
@@ -1345,6 +1376,7 @@ const learn = {
 
 async function startLearn() {
   if (!state.hotspot) return;
+  trackEvent("learn-start");
   const btn = $("learnStart");
   btn.disabled = true;
   try {
@@ -1422,6 +1454,7 @@ function wireEvents() {
     const name = h.locName || h.locId;
     const copied = await shareLink(name, t("hotspot.shareText", { place: name }), location.origin + location.pathname + "#/hotspot/" + encodeURIComponent(h.locId));
     if (copied) setHotspotStatus(t("share.linkCopied"));
+    trackEvent("share-hotspot");
   });
 
   $("bookmarkBtn").addEventListener("click", async () => {
@@ -1435,7 +1468,7 @@ function wireEvents() {
     btn.disabled = true;
     try {
       if (saved) await deleteFavorite(state.hotspot.locId);
-      else await putFavorite(state.hotspot);
+      else { await putFavorite(state.hotspot); trackEvent("bookmark"); }
       updateBookmarkButton();
     } catch (e) {
       setHotspotStatus(t("hotspot.bookmarkError"));
@@ -1472,6 +1505,7 @@ function wireEvents() {
 async function init() {
   I18N = await loadTranslations();
   await initAccount();
+  initAnalytics();
 
   // The pre-existing deep link /?locId=…&lang=…&mode=… keeps working: lang
   // overrides the account preference for this load, mode picks the browse

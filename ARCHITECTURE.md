@@ -91,6 +91,7 @@ GET  /api/hotspots/{locId}/species                 species list (category/popula
 GET  /api/hotspots/{locId}/credits                 photo credits for the hotspot's species (author, license, source)
 GET  /api/compare                                 two hotspots side by side (a, b, lang)
 GET  /api/contact                                 public contact email (CONTACT_EMAIL; empty if unset)
+GET  /api/analytics                               Umami script URL + site id (UMAMI_SCRIPT_URL, UMAMI_WEBSITE_ID; empty unless both set)
 
 GET  /api/me                                      profile
 GET  /PUT /api/me/language                        primary bird-name + UI language
@@ -140,6 +141,16 @@ full-screen card deck, see "Learn mode and species images" below),
 (shown only when `CONTACT_EMAIL` is set, so the address is a deployment
 choice rather than part of the source), every data source with its licence,
 and a short note on what an account stores.
+
+**Analytics.** Usage is measured with a self-hosted Umami, which is
+cookieless and anonymous. The frontend loads its script only when
+`/api/analytics` returns both values, so the deployment decides whether
+tracking exists. Auto-tracking is off because the app is hash-routed:
+`renderRoute` reports each view as a page (`/hotspot/<locId>`, `/compare/...`)
+and `trackEvent` reports `bookmark`, `share-hotspot` and `learn-start`.
+Account details (email, user id) are never sent to it, which is what keeps
+it outside cookie-consent requirements; the Contact page's privacy note
+says so.
 
 Guests (`state.signedIn === false`, set when `/api/me` answers 401) get the
 same views with three differences: the header shows a "Sign in" link instead

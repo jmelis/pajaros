@@ -65,6 +65,8 @@ const maxNearbyDistKm = 100.0
 // Optional (existing):
 //   CACHE_DIR  on-disk upstream/image cache (default "./cache").
 //   CONTACT_EMAIL  address shown on the Contact page (omitted when unset).
+//   UMAMI_SCRIPT_URL, UMAMI_WEBSITE_ID  self-hosted Umami tracker script and
+//                  site id; analytics load only when both are set.
 //   PORT, HOST  listen address (default "8080" / "0.0.0.0").
 //   HOTSPOTS_DATA_DIR  directory holding hotspots.bolt and places.bolt
 //                      (default "./data").
@@ -310,6 +312,7 @@ func main() {
 	appMux.HandleFunc("GET /api/compare", instrumentHTTP("/api/compare", hotspotDetailLimiter.middleware(hotspotKey, srv.handleCompare)))
 
 	appMux.HandleFunc("GET /api/contact", instrumentHTTP("/api/contact", srv.handleContact))
+	appMux.HandleFunc("GET /api/analytics", instrumentHTTP("/api/analytics", srv.handleAnalytics))
 
 	// Per-account preferences and saved hotspots: the only routes that need a
 	// sign-in (guests get a 401). They touch only the local database, so unlike
