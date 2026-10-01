@@ -80,7 +80,7 @@ func wikimediaGetJSON(apiURL string, query url.Values, out any) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", birdquizUA)
+	req.Header.Set("User-Agent", birdsnearbyUA)
 
 	resp, err := doThrottled(wikimediaLimiter, req)
 	if err != nil {
@@ -438,7 +438,7 @@ func downloadImage(downloadURL string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", birdquizUA)
+	req.Header.Set("User-Agent", birdsnearbyUA)
 	resp, err := doThrottled(limiter, req)
 	if err != nil {
 		return nil, err

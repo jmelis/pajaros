@@ -1,11 +1,11 @@
 # Architecture
 
-How birdquiz is built and why. For how to run it or refresh its data, see
+How birdsnearby is built and why. For how to run it or refresh its data, see
 `README.md`.
 
 ## Overview
 
-birdquiz is a Go server that serves a bird learning app: search hotspots
+birdsnearby is a Go server that serves a bird learning app: search hotspots
 worldwide, browse the species seen at one, and learn them in a full-screen
 swipeable card deck (Learn mode). The frontend is a small vanilla-JS
 single-page app embedded in the binary. Accounts and preferences live in

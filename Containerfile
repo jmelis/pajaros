@@ -1,4 +1,4 @@
-# birdquiz's UI ships inside the binary (server/main.go go:embed static), so
+# birdsnearby's UI ships inside the binary (server/main.go go:embed static), so
 # the image needs nothing but the binary itself and somewhere writable for
 # CACHE_DIR / USER_DB_PATH (a PVC, mounted by the deployment manifest).
 #

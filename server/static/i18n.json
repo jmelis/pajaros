@@ -1,6 +1,6 @@
 {
   "en": {
-    "app.title": "birdquiz",
+    "app.title": "birdsnearby",
     "app.tagline": "field guide",
     "nav.aria": "Main navigation",
     "nav.home": "Home",
@@ -95,7 +95,7 @@
     "contact.link": "Contact",
     "contact.back": "← Back to settings",
     "contact.title": "Contact",
-    "contact.intro": "birdquiz is a personal project that shows which birds are reported at a place and helps you learn them. Questions, corrections and ideas are welcome.",
+    "contact.intro": "birdsnearby is a personal project that shows which birds are reported at a place and helps you learn them. Questions, corrections and ideas are welcome.",
     "contact.emailLabel": "Email:",
     "contact.dataTitle": "Data and licences",
     "contact.dataIntro": "Everything here is built on open data. Thank you to the people and projects behind it.",
@@ -187,7 +187,7 @@
     "compare.foot": "Counts are observation records from the GBIF eBird dataset, the same numbers behind the popularity order in Browse. Ranks break ties by name."
   },
   "fr": {
-    "app.title": "birdquiz",
+    "app.title": "birdsnearby",
     "app.tagline": "guide de terrain",
     "nav.aria": "Navigation principale",
     "nav.home": "Accueil",
@@ -282,7 +282,7 @@
     "contact.link": "Contact",
     "contact.back": "← Retour aux réglages",
     "contact.title": "Contact",
-    "contact.intro": "birdquiz est un projet personnel qui montre quels oiseaux sont signalés à un endroit et aide à les apprendre. Questions, corrections et idées sont les bienvenues.",
+    "contact.intro": "birdsnearby est un projet personnel qui montre quels oiseaux sont signalés à un endroit et aide à les apprendre. Questions, corrections et idées sont les bienvenues.",
     "contact.emailLabel": "E-mail :",
     "contact.dataTitle": "Données et licences",
     "contact.dataIntro": "Tout repose sur des données ouvertes. Merci aux personnes et aux projets qui les rendent disponibles.",
@@ -374,7 +374,7 @@
     "compare.foot": "Les chiffres sont des observations du jeu de données eBird de GBIF, les mêmes que pour l’ordre de popularité dans Parcourir. Les égalités sont départagées par nom."
   },
   "es": {
-    "app.title": "birdquiz",
+    "app.title": "birdsnearby",
     "app.tagline": "guía de campo",
     "nav.aria": "Navegación principal",
     "nav.home": "Inicio",
@@ -469,7 +469,7 @@
     "contact.link": "Contacto",
     "contact.back": "← Volver a ajustes",
     "contact.title": "Contacto",
-    "contact.intro": "birdquiz es un proyecto personal que muestra qué aves se registran en un lugar y te ayuda a aprenderlas. Preguntas, correcciones e ideas son bienvenidas.",
+    "contact.intro": "birdsnearby es un proyecto personal que muestra qué aves se registran en un lugar y te ayuda a aprenderlas. Preguntas, correcciones e ideas son bienvenidas.",
     "contact.emailLabel": "Correo:",
     "contact.dataTitle": "Datos y licencias",
     "contact.dataIntro": "Todo se apoya en datos abiertos. Gracias a las personas y proyectos que los hacen posibles.",

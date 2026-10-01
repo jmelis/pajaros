@@ -98,7 +98,7 @@ const maxNearbyDistKm = 100.0
 //   GOOGLE_CLIENT_ID
 //   GOOGLE_CLIENT_SECRET
 //   OAUTH_REDIRECT_BASE_URL  externally reachable base URL of this server,
-//                            e.g. "https://birdquiz.example.com". Callback URLs
+//                            e.g. "https://birdsnearby.example.com". Callback URLs
 //                            are <base>/auth/google/callback and
 //                            <base>/auth/apple/callback.
 //

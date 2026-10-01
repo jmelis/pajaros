@@ -1,4 +1,4 @@
-# birdquiz
+# birdsnearby
 
 A family bird-learning web app: search hotspots worldwide, browse the
 species seen at one, learn them in a full-screen swipeable card deck. Go
