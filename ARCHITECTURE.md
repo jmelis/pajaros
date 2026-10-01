@@ -635,3 +635,22 @@ SQLite runs in WAL mode with a busy timeout, which handles a few processes on
 one host. Session and OAuth-state cookies are signed with `SESSION_SECRET`, so
 any replica can verify them. See "Several processes, one cache directory"
 above for the image cache.
+
+**Replica count is coupled to other settings.** The Wikimedia rate limiter is
+per process, so the manifest's `WIKIMEDIA_RPS` is the total budget (8/s)
+divided by the number of replicas. `terminationGracePeriodSeconds` must exceed
+`SHUTDOWN_DELAY` + `SHUTDOWN_TIMEOUT`. A rollout briefly runs `replicas + 1`
+pods, each with a 3Gi memory limit; `hotspots.bolt` (~5GB, mmap) is shared
+through the page cache. Moving off a single-node hostPath (a PVC, or
+spreading pods across nodes) would break both the cache `flock` and SQLite's
+WAL sharing.
+
+**Metrics.** The server exposes Prometheus metrics at `/metrics`
+(`server/metrics.go`). VictoriaMetrics scrapes each replica separately, through
+the headless `birdquiz-headless` Service and `dns_sd_configs`, because
+scraping the load-balanced Service would alternate between pods' counters. The
+Grafana dashboard therefore aggregates across instances: gauges describing
+shared state (accounts, favorites, hotspots and places loaded — every replica
+reads the same files) use `max()`, per-process counters and gauges use
+`sum()`, and the process panels (RSS, goroutines, CPU) show one series per
+`instance`. A new panel needs the same treatment.
