@@ -67,3 +67,14 @@ to paste. Read that repo's `CLAUDE.md` first.
   it too; protecting the external APIs from waste is a stated priority.
 - **Memory.** Each pod has a 3Gi limit and a rollout briefly runs `replicas + 1`
   pods; `hotspots.bolt` is a ~5GB mmap shared by the page cache.
+- **Metrics are scraped per pod.** VictoriaMetrics scrapes the
+  `birdquiz-headless` Service via `dns_sd_configs`
+  (`k8s/applications/victoriametrics/configmap.yaml`), one target per replica,
+  because scraping the load-balanced Service would alternate between pods'
+  counters. The Grafana dashboard (`k8s/applications/grafana/dashboard-configmap.yaml`,
+  `birdquiz.json`) therefore aggregates: shared-state gauges (users, favorites,
+  hotspots/places loaded) use `max()`, per-process gauges and counters use
+  `sum()`, and the process panels (RSS, goroutines, CPU) show one series per
+  `instance`. A new panel needs the same treatment. VictoriaMetrics does not
+  reload its scrape config when the ConfigMap changes; restart it
+  (`kubectl rollout restart deploy/victoriametrics`) after a scrape-config edit.
