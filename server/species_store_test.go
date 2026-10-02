@@ -27,6 +27,13 @@ func newTestSpeciesStore(t *testing.T) *SpeciesStore {
 		if err := b.Put([]byte("1.5,2.5"), blob); err != nil {
 			return err
 		}
+		year := seasonal.Encode([]seasonal.Entry{
+			{ID: 0, Months: seasonal.Months{20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20}},
+			{ID: 1, Months: seasonal.Months{0: 10, 1: 10, 11: 10}},
+		})
+		if err := b.Put([]byte("3.5,4.5"), year); err != nil {
+			return err
+		}
 		return b.Put([]byte("9,9"), nil)
 	})
 	if err != nil {

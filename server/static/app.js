@@ -8,6 +8,7 @@
 const $ = (id) => document.getElementById(id);
 const VALID_LANGS = ["ca", "cs", "da", "de", "en", "eo", "es", "fi", "fr", "hr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
 const BROWSE_MODES = ["popularity", "category", "alphabetical", "seasonality"];
+const DEFAULT_BROWSE_MODE = "popularity";
 const VIEW_NAMES = ["home", "search", "hotspot", "credits", "compare", "about", "settings"];
 const SPECIES_CODE_RE = /^[A-Za-z0-9_-]+$/;
 const LOC_ID_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
@@ -89,24 +90,28 @@ function applyI18n() {
   updateMonthOptions();
 }
 
-function monthName(m, style = "long") {
-  const name = new Intl.DateTimeFormat(state.language, { month: style, timeZone: "UTC" }).format(new Date(Date.UTC(2000, m - 1, 1)));
+function monthName(m) {
+  const name = new Intl.DateTimeFormat(state.language, { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2000, m - 1, 1)));
   return name.charAt(0).toLocaleUpperCase(state.language) + name.slice(1);
 }
 
-// monthRanges renders a month bitmask (bit m-1 = month m) as runs, wrapping
-// over the year end: "Nov–Feb", "Jun", "Mar–May, Oct".
-function monthRanges(mask) {
-  const on = (i) => (mask & (1 << (((i % 12) + 12) % 12))) !== 0;
-  const runs = [];
-  for (let i = 0; i < 12; i++) {
-    if (!on(i) || on(i - 1)) continue;
-    let len = 1;
-    while (len < 12 && on(i + len)) len++;
-    const first = monthName(i + 1, "short");
-    runs.push(len === 1 ? first : first + "\u2013" + monthName(((i + len - 1) % 12) + 1, "short"));
-  }
-  return runs.join(", ");
+// seasonChart draws a species' 12 monthly bars (January first, heights 0..100
+// relative to its own best month) as a tiny inline SVG. A month with no
+// records is a faint baseline, so gaps read as gaps.
+function seasonChart(bars, name) {
+  const H = 22, W = 12, LABEL = 9;
+  const peak = bars.indexOf(Math.max(...bars)) + 1; // -1 (no data) never wins
+  const cols = bars.map((v, i) => {
+    const h = v > 0 ? Math.max(1, Math.round((v / 100) * H)) : 1;
+    const month = v < 0 ? t("browse.noDataMonth", { month: monthName(i + 1) }) : monthName(i + 1);
+    const initial = escapeHtml(Array.from(month)[0].toUpperCase());
+    return `<g><title>${escapeHtml(month)}</title>` +
+      (v < 0
+        ? ""
+        : `<rect x="${i * W + 1}" y="${H - h}" width="${W - 2}" height="${h}"${v ? "" : ' opacity="0.25"'}/>`) +
+      `<text x="${i * W + W / 2}" y="${H + LABEL}" text-anchor="middle">${initial}</text></g>`;
+  }).join("");
+  return `<svg class="season-chart" viewBox="0 0 ${12 * W} ${H + LABEL + 1}" role="img" aria-label="${escapeHtml(t("browse.peaksIn", { name, month: monthName(peak) }))}">${cols}</svg>`;
 }
 
 function currentMonth() {
@@ -251,8 +256,10 @@ function trackEvent(name, data) {
 function parseRoute() {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
   const parts = path.split("/").filter(Boolean);
-  const qMonth = Number(new URLSearchParams(query || "").get("month"));
+  const q = new URLSearchParams(query || "");
+  const qMonth = Number(q.get("month"));
   const month = Number.isInteger(qMonth) && qMonth >= 1 && qMonth <= 12 ? qMonth : 0;
+  const sort = BROWSE_MODES.includes(q.get("sort")) ? q.get("sort") : "";
   const name = parts[0] || "home";
   if (name === "hotspot") {
     const locId = parts[1] ? decodeURIComponent(parts[1]) : "";
@@ -262,6 +269,7 @@ function parseRoute() {
       locId,
       speciesCode: SPECIES_CODE_RE.test(code) ? code : "",
       month,
+      sort,
     };
   }
   if (name === "compare") {
@@ -291,11 +299,16 @@ function updateNav(name) {
 async function renderRoute() {
   const route = parseRoute();
   currentRoute = route;
-  // A link's month overrides the selection; a link without one keeps it.
+  // A link's month and sort order override the selection; a link without
+  // them keeps it.
   if (route.month && route.month !== state.month) {
     state.month = route.month;
     state.monthIsCurrent = false;
     updateMonthOptions();
+  }
+  if (route.sort && route.sort !== currentBrowseMode()) {
+    document.querySelector(`input[name="mode"][value="${route.sort}"]`).checked = true;
+    updateSortLabel();
   }
   trackPage();
   for (const name of VIEW_NAMES) $("view-" + name).hidden = name !== route.name;
@@ -793,18 +806,23 @@ async function ensureHotspot(locId) {
   return true;
 }
 
-// The selected month rides in the hash so shared hotspot and Learn links
-// open on the same month's birds.
-function monthSuffix() { return effectiveMonth() ? "?month=" + effectiveMonth() : ""; }
+// The selected month and sort order ride in the hash so shared hotspot and
+// Learn links open on the same view. The default order is left out.
+function routeQuery() {
+  const q = [];
+  if (effectiveMonth()) q.push("month=" + effectiveMonth());
+  if (currentBrowseMode() !== DEFAULT_BROWSE_MODE) q.push("sort=" + currentBrowseMode());
+  return q.length ? "?" + q.join("&") : "";
+}
 
-function hotspotHash(locId) { return "#/hotspot/" + encodeURIComponent(locId) + monthSuffix(); }
+function hotspotHash(locId) { return "#/hotspot/" + encodeURIComponent(locId) + routeQuery(); }
 
 function birdHash(locId, speciesCode) {
-  return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode) + monthSuffix();
+  return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode) + routeQuery();
 }
 
 function creditsHash(locId, speciesCode) {
-  return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode) + "/credits" + monthSuffix();
+  return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode) + "/credits" + routeQuery();
 }
 
 // A shared bird link (#/hotspot/<locId>/bird/<code>) opens the hotspot with
@@ -969,7 +987,7 @@ function speciesCard(sp) {
       <div class="com">${escapeHtml(sp.comName)}</div>
       ${secondaryNameFor(sp.speciesCode) ? `<div class="sub">${escapeHtml(secondaryNameFor(sp.speciesCode))}</div>` : ""}
       <div class="sci">${escapeHtml(sp.sciName)}</div>
-      ${sp.season === "seasonal" ? `<div class="months">${escapeHtml(monthRanges(sp.seasonMonths))}</div>` : ""}
+      ${sp.seasonBars ? seasonChart(sp.seasonBars, sp.comName) : ""}
     </div>
   `;
   // imageMissing means the server already confirmed no photo exists — no
@@ -1623,13 +1641,16 @@ function wireEvents() {
   });
 
   for (const radio of document.querySelectorAll('input[name="mode"]')) {
-    radio.addEventListener("change", () => { if (state.hotspot) loadSpecies(); });
+    radio.addEventListener("change", () => {
+      if (parseRoute().name === "hotspot") history.replaceState(null, "", location.hash.split("?")[0] + routeQuery());
+      if (state.hotspot) loadSpecies();
+    });
   }
 
   $("monthSelect").addEventListener("change", (e) => {
     state.monthIsCurrent = e.target.value === "now";
     state.month = state.monthIsCurrent ? currentMonth() : Number(e.target.value);
-    if (parseRoute().name === "hotspot") history.replaceState(null, "", location.hash.split("?")[0] + monthSuffix());
+    if (parseRoute().name === "hotspot") history.replaceState(null, "", location.hash.split("?")[0] + routeQuery());
     if (state.hotspot) loadSpecies();
   });
 

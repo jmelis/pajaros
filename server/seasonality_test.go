@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/jmelis/pajaros/server/internal/seasonal"
@@ -40,17 +42,19 @@ func TestClassifySeasons(t *testing.T) {
 			t.Errorf("species %d = %q, want %q", id, kind(id), want)
 		}
 	}
-	if m := got[2].Months; m != 1<<5|1<<6|1<<7 {
-		t.Errorf("summer species months = %012b, want Jun-Aug", m)
-	}
 	if got[2].Peak != 7 {
 		t.Errorf("summer species peak = %d, want 7 (July)", got[2].Peak)
 	}
-	if m := got[3].Months; m != 1<<0|1<<1|1<<11 {
-		t.Errorf("winter species months = %012b, want Dec, Jan, Feb", m)
+	// Bars: relative to the species' own best month, nonzero exactly where
+	// the species has records, and the peak month at full height.
+	if b := got[2].Bars; b[6] != 100 || b[5] == 0 || b[7] == 0 || b[0] != 0 || b[11] != 0 {
+		t.Errorf("summer species bars = %v, want 100 in July, nonzero Jun/Aug, zero in winter", b)
 	}
-	if got[4].Months != 1<<0|1<<4 {
-		t.Errorf("occasional species months = %012b, want the recorded ones", got[4].Months)
+	if b := got[3].Bars; b[0] == 0 || b[1] == 0 || b[11] == 0 || b[6] != 0 || (b[0] != 100 && b[1] != 100 && b[11] != 100) {
+		t.Errorf("winter species bars = %v, want a Dec-Feb run with its peak inside it", b)
+	}
+	if b := got[4].Bars; b[0] == 0 || b[4] == 0 || b[2] != 0 {
+		t.Errorf("occasional species bars = %v, want only the recorded months set", b)
 	}
 }
 
@@ -74,16 +78,18 @@ func TestClassifySeasonsTooLittleData(t *testing.T) {
 	}
 }
 
-func TestApplySeasonsOrder(t *testing.T) {
+func TestSortBySeason(t *testing.T) {
 	cards := []SpeciesCard{
 		{SciName: "occ"}, {SciName: "none"}, {SciName: "wint"}, {SciName: "year"}, {SciName: "summ"},
 	}
-	applySeasons(cards, map[string]SpeciesSeason{
+	seasons := map[string]SpeciesSeason{
 		"occ":  {Kind: seasonOccasional, Total: 2},
 		"wint": {Kind: seasonSeasonal, Peak: 1, Total: 50},
 		"year": {Kind: seasonYearRound, Total: 900},
 		"summ": {Kind: seasonSeasonal, Peak: 7, Total: 500},
-	})
+	}
+	labelSeasons(cards, seasons)
+	sortBySeason(cards, seasons)
 	var order []string
 	for _, c := range cards {
 		order = append(order, c.SciName)
@@ -101,16 +107,44 @@ func TestApplySeasonsOrder(t *testing.T) {
 
 func TestSpeciesSeasonsFromStore(t *testing.T) {
 	s := newTestSpeciesStore(t)
-	// Too little data in the shared fixture (busiest species has 40 in
-	// October only, so effort is fine) — just check names resolve and errors pass through.
-	got, err := s.Seasons("1.5,2.5")
+	got, err := s.Seasons("3.5,4.5")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := got["Strix aluco"]; !ok {
-		t.Errorf("owl missing from %v", got)
+	if got["Strix aluco"].Kind != seasonSeasonal || got["Erithacus rubecula"].Kind != seasonYearRound {
+		t.Errorf("seasons not resolved by scientific name: %v", got)
+	}
+	if thin, err := s.Seasons("1.5,2.5"); err != nil || len(thin) != 0 {
+		t.Errorf("hotspot with records in 3 months classified: %v, %v", thin, err)
 	}
 	if _, err := s.Seasons("0,0"); err != errUnknownHotspot {
 		t.Errorf("unknown hotspot err = %v", err)
+	}
+}
+
+func TestClassifySeasonsThinMonths(t *testing.T) {
+	// January has no records and May only a couple: those months say nothing
+	// about presence, so a bird seen in every other month is year-round and
+	// both months are marked no-data rather than 0.
+	robin := seasonal.Months{0, 20, 20, 20, 1, 20, 20, 20, 20, 20, 20, 20}
+	crow := seasonal.Months{0, 15, 15, 15, 1, 15, 15, 15, 15, 15, 15, 15}
+	got := classifySeasons([]seasonal.Entry{{ID: 0, Months: robin}, {ID: 1, Months: crow}})
+	if got[1].Kind != seasonYearRound {
+		t.Errorf("bird in every month with data = %q, want year-round", got[1].Kind)
+	}
+	if b := got[1].Bars; b[0] != noData || b[4] != noData || b[1] == noData {
+		t.Errorf("bars = %v, want no-data in Jan and May only", b)
+	}
+}
+
+func TestSeasonBarsMarshalAsArray(t *testing.T) {
+	cards := []SpeciesCard{{SciName: "a"}}
+	labelSeasons(cards, map[string]SpeciesSeason{"a": {Kind: seasonSeasonal, Bars: [12]int8{0, 5, 100, noData}}})
+	b, err := json.Marshal(cards[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"seasonBars":[0,5,100,-1,0,0,0,0,0,0,0,0]`) {
+		t.Errorf("seasonBars not a JSON number array: %s", b)
 	}
 }

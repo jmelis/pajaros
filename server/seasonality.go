@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"sort"
 
 	"github.com/jmelis/pajaros/server/internal/seasonal"
@@ -14,10 +15,13 @@ const (
 )
 
 const (
-	// minEffort is the busiest species' record count in the hotspot's
-	// busiest month; with fewer records than this there is too little data
-	// to call anything seasonal, so no species is classified.
-	minEffort = 5
+	// minEffort is the busiest species' record count (the month's observer
+	// effort) a month needs to say anything about which species are present;
+	// a thinner month is "no data", neither present nor absent.
+	minEffort = 3
+	// minMonths is how many months with data a hotspot needs before any
+	// species is classified.
+	minMonths = 6
 	// occasionalTotal and occasionalRate: a species with at most this many
 	// records overall, or whose best month reaches under this fraction of the
 	// month's observer effort, is occasional.
@@ -26,18 +30,20 @@ const (
 	// presentFrac: a month counts as "present" when the species' rate in it
 	// is at least this fraction of its own best month.
 	presentFrac = 0.25
-	// yearRoundMonths: present in at least this many months = year-round.
-	yearRoundMonths = 9
+	// yearRoundFrac: present in at least this fraction of the months with
+	// data = year-round.
+	yearRoundFrac = 0.75
 )
 
 // SpeciesSeason is one species' place in a hotspot's year.
 type SpeciesSeason struct {
 	SciName string
 	Kind    string
-	// Months is a bitmask, bit m-1 set for calendar month m: the months the
-	// species is present in (for occasional ones, any month with a record).
-	Months uint16
-	Total  int
+	// Bars is the species' reporting rate per calendar month (index 0 =
+	// January), 0..100 relative to its own best month; any month with a
+	// record is at least 1. noData marks a month too thin to tell.
+	Bars  [12]int8
+	Total int
 	// Peak is the calendar month (1..12) where the species is most frequent.
 	Peak int
 }
@@ -46,8 +52,11 @@ type SpeciesSeason struct {
 // occasional from their per-month record counts. Counts are checklist
 // records, so months with more observers have more of everything; the
 // busiest species' counts approximate each month's observer effort, and a
-// species' rate is its count over that effort. Returns nil when the hotspot
-// has too little data (see minEffort).
+// species' rate is its count over that effort. Months whose effort is below
+// minEffort carry no information and are left out; nil is returned when fewer
+// than minMonths months remain.
+const noData = -1
+
 func classifySeasons(entries []seasonal.Entry) map[uint16]SpeciesSeason {
 	var effort [12]float64
 	for m := 0; m < 12; m++ {
@@ -70,53 +79,57 @@ func classifySeasons(entries []seasonal.Entry) map[uint16]SpeciesSeason {
 			effort[m] = float64(sum) / float64(len(top))
 		}
 	}
-	busiest := 0.0
-	for _, f := range effort {
-		if f > busiest {
-			busiest = f
+	known := 0
+	var thin [12]bool
+	for m, f := range effort {
+		if f < minEffort {
+			thin[m] = true
+		} else {
+			known++
 		}
 	}
-	if busiest < minEffort {
+	if known < minMonths {
 		return nil
 	}
 
 	out := make(map[uint16]SpeciesSeason, len(entries))
 	for _, e := range entries {
-		var rate [12]float64
-		peakRate, peak := 0.0, 0
-		var recorded uint16
+		var rate, raw [12]float64 // rate is capped at 1; raw is not
+		peakRate, peakRaw, peak := 0.0, 0.0, 0
 		for m := 0; m < 12; m++ {
-			if e.Months[m] == 0 {
+			if e.Months[m] == 0 || thin[m] {
 				continue
 			}
-			recorded |= 1 << m
-			if effort[m] > 0 {
-				rate[m] = float64(e.Months[m]) / effort[m]
-				if rate[m] > 1 {
-					rate[m] = 1
-				}
-			}
+			raw[m] = float64(e.Months[m]) / effort[m]
+			rate[m] = math.Min(raw[m], 1)
 			if rate[m] > peakRate {
 				peakRate, peak = rate[m], m+1
 			}
+			peakRaw = math.Max(peakRaw, raw[m])
 		}
 		total := e.Months.Total()
 		s := SpeciesSeason{Total: total, Peak: peak}
+		for m := 0; m < 12; m++ {
+			switch {
+			case thin[m]:
+				s.Bars[m] = noData
+			case e.Months[m] > 0 && peakRaw > 0:
+				s.Bars[m] = int8(math.Max(1, math.Round(100*raw[m]/peakRaw)))
+			}
+		}
 		if total <= occasionalTotal || peakRate < occasionalRate {
-			s.Kind, s.Months = seasonOccasional, recorded
+			s.Kind = seasonOccasional
 			if peak == 0 {
-				s.Peak = firstMonth(recorded)
+				s.Peak = firstMonth(e.Months)
 			}
 		} else {
-			present, n := uint16(0), 0
+			n := 0
 			for m := 0; m < 12; m++ {
-				if rate[m] >= presentFrac*peakRate {
-					present |= 1 << m
+				if !thin[m] && rate[m] >= presentFrac*peakRate {
 					n++
 				}
 			}
-			s.Months = present
-			if n >= yearRoundMonths {
+			if float64(n) >= yearRoundFrac*float64(known) {
 				s.Kind = seasonYearRound
 			} else {
 				s.Kind = seasonSeasonal
@@ -127,9 +140,9 @@ func classifySeasons(entries []seasonal.Entry) map[uint16]SpeciesSeason {
 	return out
 }
 
-func firstMonth(mask uint16) int {
-	for m := 0; m < 12; m++ {
-		if mask&(1<<m) != 0 {
+func firstMonth(months seasonal.Months) int {
+	for m, n := range months {
+		if n > 0 {
 			return m + 1
 		}
 	}

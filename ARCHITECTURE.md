@@ -127,10 +127,12 @@ Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`,
 `#/hotspot/<locId>/bird/<speciesCode>`, `#/hotspot/<locId>/bird/<speciesCode>/credits`,
 `#/compare/<locIdA>/<locIdB>`, `#/about`, `#/settings`)
 so every view survives a reload and is linkable without any server-side
-routing. Hotspot, bird and credits routes take an optional `?month=1-12` after
-the path; it sets the month selector (a link without it keeps the current
-selection) and the app keeps it in the hash as the selector changes, so shared
-Learn links open on the same month's birds. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
+routing. Hotspot, bird and credits routes take optional `?month=1-12` and
+`?sort=<popularity|category|alphabetical|seasonality>` after the path (joined
+with `&`); they set the month selector and sort menu (a link without them keeps
+the current selection) and the app keeps them in the hash as the controls
+change (the default sort is left out), so shared links open on the same view
+and Learn links on the same month's birds. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
 `index.html`), the canonical iOS primary-navigation placement. The old
 deep-link shape (`/?locId=…&lang=…&mode=…`) still works and lands on that
 hotspot's view.
@@ -424,13 +426,18 @@ into year-round, seasonal and occasional (`server/seasonality.go`), from the
 same twelve monthly counts; there is no extra stored data. Counts are
 checklist records, so busy months inflate everything. Each month's observer
 effort is approximated by the mean count of that month's three most-reported
-species, and a species' rate is its count over that effort. Occasional: at
+species, and a species' rate is its count over that effort. A month whose
+effort is under three records is "no data" (many hotspots have few checklists
+and whole months with none): it counts neither as present nor absent. Occasional: at
 most two records, or a best-month rate under 5%. Otherwise a month is
 "present" when the rate is at least 25% of the species' best month; present
-in 9 or more months is year-round, fewer is seasonal. The cards carry the
-group and the present-months bitmask (bit m-1 = month m), which the frontend
-renders as ranges ("Nov–Feb"). The view ignores the month selector, and a
-hotspot with too little data (busiest month under five records) comes back
+in at least 75% of the months that have data is year-round, fewer is
+seasonal. Each card carries its group and its twelve effort-adjusted monthly
+rates (`seasonBars`, 0-100 relative to the species' own best month, January
+first, -1 for a no-data month), which the frontend draws as a small inline
+bar chart on every species card; this is attached in every sort order, while
+`mode=seasonality` also groups and orders by season. The Seasons view ignores
+the month selector (the charts always cover the whole year), and a hotspot with data in fewer than six months comes back
 unclassified, as a plain list.
 
 Opening the file is close to instant (bbolt just mmaps it) regardless of
