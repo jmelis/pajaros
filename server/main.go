@@ -18,6 +18,8 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
+	"github.com/jmelis/pajaros/server/internal/seasonal"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -76,7 +78,7 @@ const maxNearbyDistKm = 100.0
 //   UMAMI_SCRIPT_URL, UMAMI_WEBSITE_ID  self-hosted Umami tracker script and
 //                  site id; analytics load only when both are set.
 //   PORT, HOST  listen address (default "8080" / "0.0.0.0").
-//   HOTSPOTS_DATA_DIR  directory holding hotspots.bolt and places.bolt
+//   HOTSPOTS_DATA_DIR  directory holding hotspots_seasonal.bolt and places.bolt
 //                      (default "./data").
 //   WIKIMEDIA_RPS  Wikimedia rate limit (default 8/s). Per process: with N
 //                  replicas the combined rate is N times this.
@@ -139,6 +141,11 @@ type SpeciesCard struct {
 	// count at the hotspot (see hotspotSpeciesSource.PopularityCounts). nil
 	// means unmatched/no data, not zero.
 	NearbyCount *int `json:"nearbyCount,omitempty"`
+	// Season and SeasonMonths are set only in "seasonality" mode: one of
+	// yearround/seasonal/occasional, and the months (bit m-1 = month m) the
+	// species is present in. Absent when the hotspot has too little data.
+	Season       string `json:"season,omitempty"`
+	SeasonMonths int    `json:"seasonMonths,omitempty"`
 	// ImageMissing is true once a Wikimedia lookup has already confirmed no
 	// freely-licensed photo exists for this species — distinct from "not
 	// fetched yet", which is the common case and just leaves this false.
@@ -192,9 +199,9 @@ func main() {
 		dataDir = "./data"
 	}
 	loadStart := time.Now()
-	hotspotsDB, err := bolt.Open(filepath.Join(dataDir, "hotspots.bolt"), 0o444, &bolt.Options{ReadOnly: true})
+	hotspotsDB, err := bolt.Open(filepath.Join(dataDir, seasonal.FileName), 0o444, &bolt.Options{ReadOnly: true})
 	if err != nil {
-		log.Fatalf("open hotspots.bolt: %v", err)
+		log.Fatalf("open %s: %v", seasonal.FileName, err)
 	}
 	defer hotspotsDB.Close()
 	hotspots, err := openHotspotStore(hotspotsDB)
@@ -222,7 +229,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("geoip snapshot: %v", err)
 	}
-	speciesStore := openSpeciesStore(hotspotsDB, taxonomy)
+	speciesStore, err := openSpeciesStore(hotspotsDB, taxonomy)
+	if err != nil {
+		log.Fatalf("species store: %v", err)
+	}
 	species := NewSpeciesResolver(taxonomy, speciesStore)
 
 	// Persistence for user identity and preferences. The SQLite database is
@@ -467,14 +477,21 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	month, ok := parseMonth(w, r)
+	if !ok {
+		return
+	}
 	mode := r.URL.Query().Get("mode")
 	if mode == "" {
 		mode = "category"
 	}
 
-	codes, taxa, err := s.species.Species(locID, lang)
+	if mode == "seasonality" {
+		month = 0 // the seasonal view always looks at the whole year
+	}
+	codes, taxa, err := s.species.Species(locID, lang, month)
 	if err != nil {
-		log.Printf("Species(%s, %s): %v", locID, lang, err)
+		log.Printf("Species(%s, %s, month %d): %v", locID, lang, month, err)
 		http.Error(w, "failed to look up hotspot species", http.StatusNotFound)
 		return
 	}
@@ -505,11 +522,11 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 
 	switch mode {
 	case "popularity":
-		nearbyCounts, err := s.species.PopularityCounts(locID)
+		nearbyCounts, err := s.species.PopularityCounts(locID, month)
 		if err != nil {
 			// Popularity data is a nice-to-have — fall back to category
 			// order rather than fail the whole request.
-			log.Printf("PopularityCounts(%s): %v — falling back to category order", locID, err)
+			log.Printf("PopularityCounts(%s, month %d): %v — falling back to category order", locID, month, err)
 		} else {
 			for i := range cards {
 				if count, ok := nearbyCounts[cards[i].SciName]; ok {
@@ -529,10 +546,33 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 		}
 	case "alphabetical":
 		sort.SliceStable(cards, func(i, j int) bool { return cards[i].ComName < cards[j].ComName })
+	case "seasonality":
+		seasons, err := s.species.Seasonality(locID)
+		if err != nil {
+			log.Printf("Seasonality(%s): %v — falling back to category order", locID, err)
+		} else {
+			applySeasons(cards, seasons)
+		}
 	}
 
 	hotspotSpeciesCount.WithLabelValues(mode).Observe(float64(len(cards)))
 	writeJSON(w, cards)
+}
+
+// parseMonth reads the optional ?month= query value: 1..12 selects one
+// calendar month (all years pooled), absent or 0 means the whole year. Any
+// other value writes a 400 and returns ok=false, so callers just return.
+func parseMonth(w http.ResponseWriter, r *http.Request) (month int, ok bool) {
+	v := r.URL.Query().Get("month")
+	if v == "" {
+		return 0, true
+	}
+	m, err := strconv.Atoi(v)
+	if err != nil || m < 0 || m > 12 {
+		http.Error(w, "month must be 0 (whole year) or 1-12", http.StatusBadRequest)
+		return 0, false
+	}
+	return m, true
 }
 
 // resolveLang returns the effective, already-validated bird-name language for
@@ -564,4 +604,40 @@ func writeJSON(w http.ResponseWriter, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		log.Printf("writeJSON: %v", err)
 	}
+}
+
+// applySeasons labels each card with its season and orders the cards by
+// group (year-round, seasonal, occasional): year-round and occasional ones
+// by how often they are reported, seasonal ones by the month they peak in so
+// the group reads like a calendar. Cards with no season data stay last, in
+// their incoming order.
+func applySeasons(cards []SpeciesCard, seasons map[string]SpeciesSeason) {
+	rank := map[string]int{seasonYearRound: 0, seasonSeasonal: 1, seasonOccasional: 2}
+	for i := range cards {
+		if sp, ok := seasons[cards[i].SciName]; ok {
+			cards[i].Season = sp.Kind
+			cards[i].SeasonMonths = int(sp.Months)
+		}
+	}
+	key := func(c SpeciesCard) (group, peak, total int) {
+		sp, ok := seasons[c.SciName]
+		if !ok {
+			return len(rank), 0, 0
+		}
+		if sp.Kind == seasonSeasonal {
+			return rank[sp.Kind], sp.Peak, -sp.Total
+		}
+		return rank[sp.Kind], 0, -sp.Total
+	}
+	sort.SliceStable(cards, func(i, j int) bool {
+		gi, pi, ti := key(cards[i])
+		gj, pj, tj := key(cards[j])
+		if gi != gj {
+			return gi < gj
+		}
+		if pi != pj {
+			return pi < pj
+		}
+		return ti < tj
+	})
 }

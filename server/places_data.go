@@ -30,7 +30,7 @@ type Place struct {
 }
 
 // PlaceStore answers place-name search from places.bolt — a small (tens of
-// MB) sibling of hotspots.bolt, opened as its own mmap-backed handle.
+// MB) sibling of hotspots_seasonal.bolt, opened as its own mmap-backed handle.
 type PlaceStore struct {
 	db    *bolt.DB
 	count int
@@ -64,7 +64,7 @@ func (s *PlaceStore) Len() int { return s.count }
 // TopPlacePerCountry returns, for every country code seen in the store, its
 // most populous place — used to anchor "this country's best-known
 // location" for things like cache warming, where an exact busiest-point
-// lookup would need a full scan of hotspots.bolt instead of this one scan
+// lookup would need a full scan of hotspots_seasonal.bolt instead of this one scan
 // of the much smaller places.bolt. A full bucket scan (not a lookup bbolt
 // is optimized for), but cmd/gensnapshot's places subcommand builds under
 // a quarter-million rows, so it's cheap as a one-off offline pass.

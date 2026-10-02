@@ -87,7 +87,7 @@ GET  /healthz                                    liveness/readiness, ungated
 
 GET  /api/hotspots                               nearby search (lat, lng, dist)
 GET  /api/hotspots/{locId}                        hotspot info
-GET  /api/hotspots/{locId}/species                 species list (category/popularity/alphabetical) — Learn's card deck too
+GET  /api/hotspots/{locId}/species                 species list (category/popularity/alphabetical/seasonality; optional month=1-12, ignored by seasonality) — Learn's card deck too
 GET  /api/hotspots/{locId}/credits                 photo credits for the hotspot's species, or one with ?species=<code> (author, license, source)
 GET  /api/compare                                 two hotspots side by side (a, b, lang)
 GET  /api/contact                                 whether the contact form is configured ({"enabled": bool})
@@ -127,7 +127,10 @@ Hash-based routing (`#/home`, `#/search`, `#/hotspot/<locId>`,
 `#/hotspot/<locId>/bird/<speciesCode>`, `#/hotspot/<locId>/bird/<speciesCode>/credits`,
 `#/compare/<locIdA>/<locIdB>`, `#/about`, `#/settings`)
 so every view survives a reload and is linkable without any server-side
-routing. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
+routing. Hotspot, bird and credits routes take an optional `?month=1-12` after
+the path; it sets the month selector (a link without it keeps the current
+selection) and the app keeps it in the hash as the selector changes, so shared
+Learn links open on the same month's birds. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
 `index.html`), the canonical iOS primary-navigation placement. The old
 deep-link shape (`/?locId=…&lang=…&mode=…`) still works and lands on that
 hotspot's view.
@@ -135,7 +138,7 @@ hotspot's view.
 Views: **Home** (saved hotspots, a search shortcut — a welcome screen for a
 fresh account), **Search** (place-name search, geolocation, map, "search
 this area" — see "Place-name search" below), **Hotspot** (info, save
-toggle, explore — by popularity/category/alphabetical — or Learn's
+toggle, explore — by popularity/category/alphabetical/seasons — or Learn's
 full-screen card deck, see "Learn mode and species images" below),
 **Settings** (language, secondary language, sign out), and a small
 **About** page, linked only from Settings: a contact form (see "Contact
@@ -290,6 +293,11 @@ Properties of this dataset that shape the design:
 - **Annual static snapshot, not a rolling feed.** One EOD dataset key
   exists on GBIF; whatever the latest complete year is when queried is
   what you get. It advances roughly once a year when Cornell republishes.
+- **Records carry a month, so seasonality is queryable.** Every record has
+  its observation date; the build keeps the calendar month (all years
+  pooled) per species per hotspot, so "which birds are typical here in
+  October" is answerable. The dataset ends at the last complete year, so
+  there is no "past few weeks" view, only a time-of-year one.
 - **No eBird hotspot ID in the mirror.** Records carry `locality` (free
   text) and `decimalLatitude`/`decimalLongitude`, but no `locationID` —
   there's no clean join key back to an eBird `L123456` hotspot ID, and
@@ -311,19 +319,33 @@ showing" by default is a query-time concern, not a build-time one.
 
 ### bbolt schema
 
-A single `bbolt` file, `hotspots.bolt` — mmap-backed, so opening it doesn't
+A single `bbolt` file, `hotspots_seasonal.bolt` — mmap-backed, so opening it doesn't
 load anything into RAM, and each lookup only pages in the data it touches.
 Not `go:embed`'d or committed to git (low single-digit GB): it's `scp`'d to
-the serving host and read from `HOTSPOTS_DATA_DIR`. Four buckets, all pure
+the serving host and read from `HOTSPOTS_DATA_DIR`. The name changes whenever
+the stored encoding does (`seasonal.FileName`), so a new file can be copied
+next to the one the running server reads, the new server deployed, and the old
+file deleted afterwards. Four buckets, all pure
 key-value lookups (never scanned or joined — a relational layer buys
 nothing here):
 
-- **`species_by_hotspot`**: hotspot ID (`"lat,lng"`) → a binary blob of
-  `[uint16 speciesID, varint count]` pairs, sorted by count descending.
-  Backs `SpeciesStore.Lookup`. Integer species IDs (not repeated
-  scientific-name text) keep this compact — measured against
-  Massachusetts's ~13K hotspots, this encoding (4.2MB) beats a normalized
-  SQLite schema (5.3MB gzipped) and JSON-encoded `bbolt` values (16.8MB).
+- **`species_by_hotspot`**: hotspot ID (`"lat,lng"`) → a bit-packed blob of
+  every species' exact record count for each calendar month (January to
+  December, years pooled). Backs `SpeciesStore.Lookup(id, month)`, where
+  month 0 sums the year. The format lives in `server/internal/seasonal`,
+  shared by the build tool and the server so the two cannot drift. Species
+  are integer IDs, not name text; a hotspot averages about a dozen species,
+  each seen in about 1.8 months. The encoder writes each hotspot both ways
+  and keeps the smaller: month-major (a 12-bit month mask, then per month
+  a gamma-coded species count and species IDs as Rice-coded gaps) or
+  species-major (gap-coded IDs, each with a one-month shortcut or a 12-bit
+  month mask, then counts). Counts are Rice or Elias-gamma coded with
+  parameters chosen per hotspot and stored in the blob's first byte. Bits
+  rather than bytes because the values are tiny (most counts are below 8,
+  most ID gaps need under 11 bits), and a blob is only ever decoded whole.
+  Per-hotspot key and page overhead (~35 bytes) is larger than the value
+  itself, so this bucket is about the size an all-year list would be even
+  though it holds twelve months.
 - **`hotspot_by_id`**: hotspot ID → an encoded `{lat, lng, name,
   totalCount}` record (the ID itself isn't repeated in the value, since
   it's already the bucket key). Backs `HotspotStore.Info`, a single `Get`.
@@ -335,9 +357,12 @@ nothing here):
   radius could reach with a handful of direct `Get`s, decode, and
   haversine-filter — full entries are stored here (not just IDs) so
   `Nearby` never needs a second `Get` per candidate.
-- **`hotspot_meta`**: a couple of small fixed keys, currently just the
-  total hotspot count, so `HotspotStore.Len()` is a single lookup instead
-  of a full bucket scan.
+- **`hotspot_meta`**: a couple of small fixed keys: the total hotspot
+  count, so `HotspotStore.Len()` is a single lookup instead of a full
+  bucket scan, and `species_format`, the label of the
+  `species_by_hotspot` encoding. The server refuses to open a file whose
+  label differs from the one it decodes. (The file name itself changes with
+  the encoding, so a new file can sit beside the old one during a rollout.)
 
 At global scale (~20 million hotspots) this lands in the low single-digit
 GB. Every `Put` during the build happens in strictly ascending key order
@@ -349,14 +374,16 @@ size versus the default.
 ### Build algorithm (`server/cmd/gensnapshot/hotspots.go`)
 
 The input is a GBIF SQL Download: `decimallatitude`, `decimallongitude`,
-`locality`, `species`, `n`, `ORDER BY decimalLatitude, decimalLongitude`.
+`locality`, `species`, `month`, `n` (a row per hotspot, species and month),
+`ORDER BY decimalLatitude, decimalLongitude`.
 Because it's sorted, the build is a single streaming pass with memory
 bounded well below total row or point count — no giant in-memory map of
 the ~20 million worldwide hotspots at any point (species-level state) or
 close to it (grid-level state):
 
-1. Accumulate the *current* point's species counts, locality counts, and
-   running total. The moment `(lat, lng)` changes, the point is complete:
+1. Accumulate the *current* point's per-species monthly counts, locality
+   counts, and running total (a row with no usable month is counted and
+   skipped, and reported at the end). The moment `(lat, lng)` changes, the point is complete:
    encode it into `species_by_hotspot` and `hotspot_by_id`, then reset. (A
    cheap guard checks each new point's coordinates are `>=` the previous
    one — if the input weren't actually sorted, this fails loudly instead
@@ -376,13 +403,14 @@ close to it (grid-level state):
 4. `species_by_hotspot`/`hotspot_by_id` entries are batched (500,000 at a
    time) into single `bbolt` transactions — no read-modify-write, since
    sorted input guarantees each point's ID is seen exactly once.
-5. The total point count is written to `hotspot_meta` at the end.
+5. The total point count and the species format label are written to
+   `hotspot_meta` at the end.
 
 ### Wiring
 
-`main.go` opens `hotspots.bolt` once, read-only, as a single shared
+`main.go` opens `hotspots_seasonal.bolt` once, read-only, as a single shared
 `*bbolt.DB` handle: `HotspotStore` answers `Info`/`Nearby`/`Len` from its
-three buckets, `SpeciesStore` answers `Lookup(hotspotID)` from the sibling
+three buckets, `SpeciesStore` answers `Lookup(hotspotID, month)` from the sibling
 bucket. `SpeciesResolver` sits on top of `SpeciesStore`, implementing the
 `hotspotSpeciesSource` interface `main.go` calls against — an interface
 purely for testability, so tests can hand the server made-up species codes
@@ -390,6 +418,20 @@ without touching real data. A hotspot's ID is
 its `"lat,lng"` string, which is both its `bbolt` key (in every
 hotspot-keyed bucket) and its API path segment (`/api/hotspots/{locId}`) —
 no separate ID translation anywhere.
+
+**Seasons.** `GET .../species?mode=seasonality` groups a hotspot's species
+into year-round, seasonal and occasional (`server/seasonality.go`), from the
+same twelve monthly counts; there is no extra stored data. Counts are
+checklist records, so busy months inflate everything. Each month's observer
+effort is approximated by the mean count of that month's three most-reported
+species, and a species' rate is its count over that effort. Occasional: at
+most two records, or a best-month rate under 5%. Otherwise a month is
+"present" when the rate is at least 25% of the species' best month; present
+in 9 or more months is year-round, fewer is seasonal. The cards carry the
+group and the present-months bitmask (bit m-1 = month m), which the frontend
+renders as ranges ("Nov–Feb"). The view ignores the month selector, and a
+hotspot with too little data (busiest month under five records) comes back
+unclassified, as a plain list.
 
 Opening the file is close to instant (bbolt just mmaps it) regardless of
 how many hotspots it holds — this replaced an earlier design that loaded
@@ -424,7 +466,7 @@ the size.
 ### bbolt schema
 
 `places.bolt` — a separate, much smaller (tens of MB) sibling of
-`hotspots.bolt`, opened as its own mmap-backed handle. Two buckets:
+`hotspots_seasonal.bolt`, opened as its own mmap-backed handle. Two buckets:
 
 - **`place_by_name`**: key is the normalized (lowercased, trimmed) name
   followed by a NUL separator and the GeoNames numeric ID, so a prefix scan
@@ -478,7 +520,8 @@ second network round-trip — everything it filters is already in
 Learn is a full-screen, swipeable deck of a hotspot's species — pure
 browsing, no scoring or spaced repetition. The frontend fetches
 `GET /api/hotspots/{locId}/species?mode=popularity` (the same endpoint and
-ordering Browse's popularity mode uses) and drives its own card, dot-index,
+ordering Browse's popularity mode uses, including the month selector's
+`month=` value) and drives its own card, dot-index,
 and drag/arrow-key/top-bar-button navigation client-side (`static/app.js`'s
 `learn` object) — there's no separate session endpoint or server-side state
 for it. It's started by the Learn button on the hotspot view. Horizontal
@@ -489,7 +532,8 @@ have actually loaded join that cycle; the button and dots stay hidden until a
 second photo is ready.
 
 Learn is deep-linkable: `#/hotspot/<locId>/bird/<speciesCode>` opens the
-hotspot's Learn deck on that bird (an unknown code falls back to the plain
+hotspot's Learn deck on that bird, in the month's popularity order when the
+link carries `?month=` (an unknown code falls back to the plain
 hotspot with a notice). While Learn is open the address bar always holds that
 bird's link — `learn.syncURL()` rewrites it with `history.replaceState` on
 every card change, so swiping adds no history entries — and closing Learn
@@ -655,7 +699,7 @@ above for the image cache.
 per process, so the manifest's `WIKIMEDIA_RPS` is the total budget (8/s)
 divided by the number of replicas. `terminationGracePeriodSeconds` must exceed
 `SHUTDOWN_DELAY` + `SHUTDOWN_TIMEOUT`. A rollout briefly runs `replicas + 1`
-pods, each with a 3Gi memory limit; `hotspots.bolt` (~5GB, mmap) is shared
+pods, each with a 3Gi memory limit; `hotspots_seasonal.bolt` (~5GB, mmap) is shared
 through the page cache. Moving off a single-node hostPath (a PVC, or
 spreading pods across nodes) would break both the cache `flock` and SQLite's
 WAL sharing.

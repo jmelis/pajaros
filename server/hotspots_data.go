@@ -17,7 +17,7 @@ import (
 // under.
 const gridDegrees = 1.0
 
-// Bucket names in hotspots.bolt (built by cmd/gensnapshot — see
+// Bucket names in hotspots_seasonal.bolt (built by cmd/gensnapshot — see
 // ARCHITECTURE.md). hotspot_by_id and hotspot_by_grid_cell hold
 // the metadata (lat, lng, name, totalCount) this file serves; species data
 // lives in species_store.go's own sibling bucket.
@@ -47,7 +47,7 @@ type Hotspot struct {
 	TotalCount int     `json:"totalCount"`
 }
 
-// HotspotStore answers hotspot lookups from hotspots.bolt, the same
+// HotspotStore answers hotspot lookups from hotspots_seasonal.bolt, the same
 // mmap-backed bbolt file SpeciesStore reads from (species_store.go) —
 // nothing is loaded into memory at startup. Info is a single Get against
 // hotspot_by_id; Nearby does one Get per candidate grid cell against

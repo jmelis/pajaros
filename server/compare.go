@@ -237,12 +237,12 @@ func (s *Server) handleCompare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	load := func(id string) (compareSide, bool) {
-		codes, taxa, err := s.species.Species(id, lang)
+		codes, taxa, err := s.species.Species(id, lang, 0)
 		if err != nil {
 			log.Printf("compare: Species(%s, %s): %v", id, lang, err)
 			return compareSide{}, false
 		}
-		counts, err := s.species.PopularityCounts(id)
+		counts, err := s.species.PopularityCounts(id, 0)
 		if err != nil {
 			log.Printf("compare: PopularityCounts(%s): %v", id, err)
 			return compareSide{}, false

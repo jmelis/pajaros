@@ -173,7 +173,7 @@ func (t *TaxonomyStore) SortByTaxonOrder(codes []string) {
 
 // StableIDOrder returns every species sorted by eBird speciesCode — the same
 // deterministic ordering cmd/gensnapshot uses to assign each species a
-// uint16 ID when building hotspots.bolt (see its loadSpeciesIndex). Position
+// uint16 ID when building hotspots_seasonal.bolt (see its loadSpeciesIndex). Position
 // i in the returned slice is species ID i; species_store.go uses this to
 // decode bbolt's binary blobs back into species codes/names without needing
 // a separately shipped ID-mapping file. ComName is left empty — callers that

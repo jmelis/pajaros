@@ -8,6 +8,8 @@ import (
 	"time"
 
 	bolt "go.etcd.io/bbolt"
+
+	"github.com/jmelis/pajaros/server/internal/seasonal"
 )
 
 // runWarmCache pre-populates the image cache with a high-value subset of
@@ -15,7 +17,7 @@ import (
 // (from places.bolt), the busiest hotspot within maxNearbyDistKm of that
 // country's most populous place, and every species recorded there. That's
 // an approximation of "the busiest hotspot in the country" — the true
-// answer would need a full scan of hotspots.bolt reverse-geocoded against
+// answer would need a full scan of hotspots_seasonal.bolt reverse-geocoded against
 // places.bolt, which isn't worth the cost here — but it's a close one:
 // top birding sites are rarely far from a country's biggest population
 // centers.
@@ -48,9 +50,9 @@ func runWarmCache() error {
 		cacheDir = "./cache"
 	}
 
-	hotspotsDB, err := bolt.Open(filepath.Join(dataDir, "hotspots.bolt"), 0o444, &bolt.Options{ReadOnly: true})
+	hotspotsDB, err := bolt.Open(filepath.Join(dataDir, seasonal.FileName), 0o444, &bolt.Options{ReadOnly: true})
 	if err != nil {
-		return fmt.Errorf("open hotspots.bolt: %w", err)
+		return fmt.Errorf("open %s: %w", seasonal.FileName, err)
 	}
 	defer hotspotsDB.Close()
 	hotspots, err := openHotspotStore(hotspotsDB)
@@ -72,7 +74,11 @@ func runWarmCache() error {
 	if err != nil {
 		return fmt.Errorf("taxonomy: %w", err)
 	}
-	species := NewSpeciesResolver(taxonomy, openSpeciesStore(hotspotsDB, taxonomy))
+	speciesStore, err := openSpeciesStore(hotspotsDB, taxonomy)
+	if err != nil {
+		return fmt.Errorf("species store: %w", err)
+	}
+	species := NewSpeciesResolver(taxonomy, speciesStore)
 
 	cache, err := NewImageCache(cacheDir)
 	if err != nil {
@@ -91,7 +97,7 @@ func runWarmCache() error {
 			continue
 		}
 		top := nearby[0] // Nearby sorts most-active first
-		codes, taxa, err := species.Species(top.ID, defaultLang)
+		codes, taxa, err := species.Species(top.ID, defaultLang, 0)
 		if err != nil {
 			log.Printf("warmcache: %s: species at %q: %v", cc, top.Name, err)
 			continue

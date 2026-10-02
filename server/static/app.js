@@ -7,7 +7,7 @@
 
 const $ = (id) => document.getElementById(id);
 const VALID_LANGS = ["ca", "cs", "da", "de", "en", "eo", "es", "fi", "fr", "hr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
-const BROWSE_MODES = ["popularity", "category", "alphabetical"];
+const BROWSE_MODES = ["popularity", "category", "alphabetical", "seasonality"];
 const VIEW_NAMES = ["home", "search", "hotspot", "credits", "compare", "about", "settings"];
 const SPECIES_CODE_RE = /^[A-Za-z0-9_-]+$/;
 const LOC_ID_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
@@ -35,6 +35,11 @@ const state = {
   // hotspotMarkers (below) only ever holds a prefix of this, so "show more"
   // can reveal the rest without a second network round-trip.
   hotspotsFull: [],
+  // Calendar month the species lists are limited to (1-12, all years pooled),
+  // or 0 for the whole year.
+  month: 0,
+  // True when the selection is "this month" rather than a fixed month.
+  monthIsCurrent: false,
 };
 
 let currentRoute = { name: "home", locId: "", speciesCode: "" };
@@ -81,6 +86,65 @@ function applyI18n() {
     el.setAttribute("placeholder", t(el.dataset.i18nPlaceholder));
   });
   updateSortLabel();
+  updateMonthOptions();
+}
+
+function monthName(m, style = "long") {
+  const name = new Intl.DateTimeFormat(state.language, { month: style, timeZone: "UTC" }).format(new Date(Date.UTC(2000, m - 1, 1)));
+  return name.charAt(0).toLocaleUpperCase(state.language) + name.slice(1);
+}
+
+// monthRanges renders a month bitmask (bit m-1 = month m) as runs, wrapping
+// over the year end: "Nov–Feb", "Jun", "Mar–May, Oct".
+function monthRanges(mask) {
+  const on = (i) => (mask & (1 << (((i % 12) + 12) % 12))) !== 0;
+  const runs = [];
+  for (let i = 0; i < 12; i++) {
+    if (!on(i) || on(i - 1)) continue;
+    let len = 1;
+    while (len < 12 && on(i + len)) len++;
+    const first = monthName(i + 1, "short");
+    runs.push(len === 1 ? first : first + "\u2013" + monthName(((i + len - 1) % 12) + 1, "short"));
+  }
+  return runs.join(", ");
+}
+
+function currentMonth() {
+  return new Date().getMonth() + 1;
+}
+
+// "All year", "This month (<name>)", then the twelve months, named in the
+// UI language. "This month" is its own entry so the choice reads as
+// "now" rather than as a fixed month.
+function updateMonthOptions() {
+  const sel = $("monthSelect");
+  if (!sel) return;
+  sel.innerHTML = "";
+  const add = (value, text) => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = text;
+    sel.appendChild(opt);
+  };
+  add("0", t("browse.allYear"));
+  add("now", t("browse.thisMonth", { month: monthName(currentMonth()) }));
+  for (let m = 1; m <= 12; m++) add(String(m), monthName(m));
+  sel.value = state.monthIsCurrent ? "now" : String(state.month);
+}
+
+// The query suffix that limits /species to the selected month.
+function monthParam() {
+  return effectiveMonth() ? `&month=${effectiveMonth()}` : "";
+}
+
+// The Seasons view looks at the whole year, so the month selection doesn't
+// apply to it (nor to the Learn deck and links opened from it).
+function effectiveMonth() {
+  return currentBrowseMode() === "seasonality" ? 0 : state.month;
+}
+
+function noneInMonthText(hotspotName) {
+  return t("browse.noneInMonth", { name: hotspotName, month: monthName(state.month) });
 }
 
 function escapeHtml(s) {
@@ -185,8 +249,10 @@ function trackEvent(name, data) {
 // ---- Routing --------------------------------------------------------------
 
 function parseRoute() {
-  const raw = location.hash.replace(/^#\/?/, "");
-  const parts = raw.split("/").filter(Boolean);
+  const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
+  const parts = path.split("/").filter(Boolean);
+  const qMonth = Number(new URLSearchParams(query || "").get("month"));
+  const month = Number.isInteger(qMonth) && qMonth >= 1 && qMonth <= 12 ? qMonth : 0;
   const name = parts[0] || "home";
   if (name === "hotspot") {
     const locId = parts[1] ? decodeURIComponent(parts[1]) : "";
@@ -195,6 +261,7 @@ function parseRoute() {
       name: parts[4] === "credits" ? "credits" : "hotspot",
       locId,
       speciesCode: SPECIES_CODE_RE.test(code) ? code : "",
+      month,
     };
   }
   if (name === "compare") {
@@ -224,6 +291,12 @@ function updateNav(name) {
 async function renderRoute() {
   const route = parseRoute();
   currentRoute = route;
+  // A link's month overrides the selection; a link without one keeps it.
+  if (route.month && route.month !== state.month) {
+    state.month = route.month;
+    state.monthIsCurrent = false;
+    updateMonthOptions();
+  }
   trackPage();
   for (const name of VIEW_NAMES) $("view-" + name).hidden = name !== route.name;
   updateNav(route.name === "compare" ? "home" : route.name === "about" ? "settings" : route.name);
@@ -720,10 +793,18 @@ async function ensureHotspot(locId) {
   return true;
 }
 
-function creditsHash(locId, speciesCode) { return birdHash(locId, speciesCode) + "/credits"; }
+// The selected month rides in the hash so shared hotspot and Learn links
+// open on the same month's birds.
+function monthSuffix() { return effectiveMonth() ? "?month=" + effectiveMonth() : ""; }
+
+function hotspotHash(locId) { return "#/hotspot/" + encodeURIComponent(locId) + monthSuffix(); }
 
 function birdHash(locId, speciesCode) {
-  return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode);
+  return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode) + monthSuffix();
+}
+
+function creditsHash(locId, speciesCode) {
+  return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode) + "/credits" + monthSuffix();
 }
 
 // A shared bird link (#/hotspot/<locId>/bird/<code>) opens the hotspot with
@@ -888,6 +969,7 @@ function speciesCard(sp) {
       <div class="com">${escapeHtml(sp.comName)}</div>
       ${secondaryNameFor(sp.speciesCode) ? `<div class="sub">${escapeHtml(secondaryNameFor(sp.speciesCode))}</div>` : ""}
       <div class="sci">${escapeHtml(sp.sciName)}</div>
+      ${sp.season === "seasonal" ? `<div class="months">${escapeHtml(monthRanges(sp.seasonMonths))}</div>` : ""}
     </div>
   `;
   // imageMissing means the server already confirmed no photo exists — no
@@ -903,6 +985,7 @@ async function loadSpecies() {
   const mode = currentBrowseMode();
   const groups = $("groups");
   groups.innerHTML = "";
+  $("monthSelect").hidden = mode === "seasonality";
 
   // Fetch the secondary-language names first (cached after the first load) so
   // the cards below can render their subtitles immediately.
@@ -914,7 +997,7 @@ async function loadSpecies() {
       ? t("browse.loadingPopularity", { name: hs.locName })
       : t("browse.loading", { name: hs.locName }));
     try {
-      const res = await fetch(`/api/hotspots/${encodeURIComponent(hs.locId)}/species?lang=${lang}&mode=${mode}`);
+      const res = await fetch(`/api/hotspots/${encodeURIComponent(hs.locId)}/species?lang=${lang}&mode=${mode}${monthParam()}`);
       if (!res.ok) { setHotspotStatus(t("browse.error", { status: res.status })); return; }
       species = await res.json();
     } catch (e) {
@@ -927,13 +1010,48 @@ async function loadSpecies() {
     groups.appendChild(grid);
     for (const sp of species) grid.appendChild(speciesCard(sp));
     const key = mode === "popularity" ? "browse.loadedPopularity" : "browse.loadedAlphabetical";
-    setHotspotStatus(tn(key, species.length, { name: hs.locName }));
+    setHotspotStatus(species.length === 0 && state.month ? noneInMonthText(hs.locName) : tn(key, species.length, { name: hs.locName }));
+    return;
+  }
+
+  if (mode === "seasonality") {
+    setHotspotStatus(t("browse.loading", { name: hs.locName }));
+    try {
+      const res = await fetch(`/api/hotspots/${encodeURIComponent(hs.locId)}/species?lang=${lang}&mode=seasonality`);
+      if (!res.ok) { setHotspotStatus(t("browse.error", { status: res.status })); return; }
+      species = await res.json();
+    } catch (e) {
+      setHotspotStatus(t("browse.error", { status: "?" }));
+      return;
+    }
+    state.species = species;
+    // Species arrive grouped (year-round, seasonal, occasional); a heading
+    // goes up whenever the group changes. A hotspot with too little data
+    // comes back without groups, as one plain list.
+    let current = null;
+    let grid = null;
+    for (const sp of species) {
+      if (!grid || sp.season !== current) {
+        current = sp.season;
+        if (current) {
+          const heading = document.createElement("h3");
+          heading.className = "family-heading";
+          heading.textContent = t("browse.season." + current);
+          groups.appendChild(heading);
+        }
+        grid = document.createElement("div");
+        grid.className = "family-grid";
+        groups.appendChild(grid);
+      }
+      grid.appendChild(speciesCard(sp));
+    }
+    setHotspotStatus(tn("browse.loadedSeasonality", species.length, { name: hs.locName }));
     return;
   }
 
   setHotspotStatus(t("browse.loadingCategory", { name: hs.locName }));
   try {
-    const res = await fetch(`/api/hotspots/${encodeURIComponent(hs.locId)}/species?lang=${lang}&mode=category`);
+    const res = await fetch(`/api/hotspots/${encodeURIComponent(hs.locId)}/species?lang=${lang}&mode=category${monthParam()}`);
     if (!res.ok) { setHotspotStatus(t("browse.error", { status: res.status })); return; }
     species = await res.json();
   } catch (e) {
@@ -960,7 +1078,7 @@ async function loadSpecies() {
     }
     currentGrid.appendChild(speciesCard(sp));
   }
-  setHotspotStatus(tn("browse.loadedCategory", species.length, { name: hs.locName }));
+  setHotspotStatus(species.length === 0 && state.month ? noneInMonthText(hs.locName) : tn("browse.loadedCategory", species.length, { name: hs.locName }));
 }
 
 // ---- Settings -------------------------------------------------------------
@@ -1164,7 +1282,7 @@ const learn = {
     // the user already navigated somewhere else.
     const route = parseRoute();
     if (!this.quiet && route.name === "hotspot" && route.locId === this.locId && route.speciesCode) {
-      history.replaceState(null, "", "#/hotspot/" + encodeURIComponent(this.locId));
+      history.replaceState(null, "", hotspotHash(this.locId));
       currentRoute = Object.assign({}, route, { speciesCode: "" });
     }
     if (this.keyHandler) document.removeEventListener("keydown", this.keyHandler);
@@ -1215,7 +1333,7 @@ const learn = {
   syncURL() {
     if (this.quiet) return;
     const code = this.done ? "" : this.cards[this.index].speciesCode;
-    const hash = code ? birdHash(this.locId, code) : "#/hotspot/" + encodeURIComponent(this.locId);
+    const hash = code ? birdHash(this.locId, code) : hotspotHash(this.locId);
     if (location.hash !== hash) history.replaceState(null, "", hash);
     currentRoute = Object.assign({}, currentRoute, { speciesCode: code });
   },
@@ -1417,7 +1535,7 @@ async function loadAndStartLearn(speciesCode) {
   setHotspotStatus(t("learn.building"));
   let species;
   try {
-    const res = await fetch(`/api/hotspots/${encodeURIComponent(state.hotspot.locId)}/species?lang=${encodeURIComponent(state.language)}&mode=popularity`);
+    const res = await fetch(`/api/hotspots/${encodeURIComponent(state.hotspot.locId)}/species?lang=${encodeURIComponent(state.language)}&mode=popularity${monthParam()}`);
     if (!res.ok) { setHotspotStatus(t("learn.error", { status: res.status })); return; }
     species = await res.json();
   } catch (e) {
@@ -1425,7 +1543,7 @@ async function loadAndStartLearn(speciesCode) {
     return;
   }
   if (!species || species.length === 0) {
-    setHotspotStatus(t("learn.none"));
+    setHotspotStatus(effectiveMonth() ? noneInMonthText(state.hotspot.locName) : t("learn.none"));
     return;
   }
   let index = 0;
@@ -1433,7 +1551,7 @@ async function loadAndStartLearn(speciesCode) {
     index = species.findIndex((sp) => sp.speciesCode === speciesCode);
     if (index < 0) {
       setHotspotStatus(t("learn.birdNotFound"));
-      history.replaceState(null, "", "#/hotspot/" + encodeURIComponent(state.hotspot.locId));
+      history.replaceState(null, "", hotspotHash(state.hotspot.locId));
       currentRoute = Object.assign({}, currentRoute, { speciesCode: "" });
       return;
     }
@@ -1479,7 +1597,7 @@ function wireEvents() {
     if (!state.hotspot) return;
     const h = state.hotspot;
     const name = h.locName || h.locId;
-    const copied = await shareLink(name, t("hotspot.shareText", { place: name }), location.origin + location.pathname + "#/hotspot/" + encodeURIComponent(h.locId));
+    const copied = await shareLink(name, t("hotspot.shareText", { place: name }), location.origin + location.pathname + hotspotHash(h.locId));
     if (copied) setHotspotStatus(t("share.linkCopied"));
     trackEvent("share-hotspot");
   });
@@ -1507,6 +1625,13 @@ function wireEvents() {
   for (const radio of document.querySelectorAll('input[name="mode"]')) {
     radio.addEventListener("change", () => { if (state.hotspot) loadSpecies(); });
   }
+
+  $("monthSelect").addEventListener("change", (e) => {
+    state.monthIsCurrent = e.target.value === "now";
+    state.month = state.monthIsCurrent ? currentMonth() : Number(e.target.value);
+    if (parseRoute().name === "hotspot") history.replaceState(null, "", location.hash.split("?")[0] + monthSuffix());
+    if (state.hotspot) loadSpecies();
+  });
 
   $("learnStart").addEventListener("click", startLearn);
   // A plain click on a bird opens Learn on it; modified clicks fall through

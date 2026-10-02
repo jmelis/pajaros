@@ -9,6 +9,7 @@ import "fmt"
 type fakeSpeciesSource struct {
 	species map[string]fakeSpeciesEntry // key: locID + "|" + lang
 	counts  map[string]map[string]int   // key: locID -> sciName -> count
+	seasons map[string]map[string]SpeciesSeason
 }
 
 type fakeSpeciesEntry struct {
@@ -31,7 +32,7 @@ func (f *fakeSpeciesSource) setCounts(locID string, counts map[string]int) {
 	f.counts[locID] = counts
 }
 
-func (f *fakeSpeciesSource) Species(locID, lang string) ([]string, map[string]Taxon, error) {
+func (f *fakeSpeciesSource) Species(locID, lang string, month int) ([]string, map[string]Taxon, error) {
 	e, ok := f.species[locID+"|"+lang]
 	if !ok {
 		return nil, nil, fmt.Errorf("unknown hotspot %q (lang %q)", locID, lang)
@@ -39,6 +40,10 @@ func (f *fakeSpeciesSource) Species(locID, lang string) ([]string, map[string]Ta
 	return e.codes, e.taxa, nil
 }
 
-func (f *fakeSpeciesSource) PopularityCounts(locID string) (map[string]int, error) {
+func (f *fakeSpeciesSource) PopularityCounts(locID string, month int) (map[string]int, error) {
 	return f.counts[locID], nil
+}
+
+func (f *fakeSpeciesSource) Seasonality(locID string) (map[string]SpeciesSeason, error) {
+	return f.seasons[locID], nil
 }

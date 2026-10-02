@@ -41,7 +41,7 @@ func (s *Server) handleHotspotCredits(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	codes, taxa, err := s.species.Species(locID, lang)
+	codes, taxa, err := s.species.Species(locID, lang, 0)
 	if err != nil {
 		log.Printf("Species(%s, %s): %v", locID, lang, err)
 		http.Error(w, "failed to look up hotspot species", http.StatusNotFound)

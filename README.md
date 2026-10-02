@@ -12,7 +12,7 @@ make server-open   # http://localhost:8080 — no login required
 make server         # same, but honors GOOGLE_AUTH_ENABLED/APPLE_AUTH_ENABLED
 ```
 
-Needs Go and `server/data/hotspots.bolt` and `server/data/places.bolt`
+Needs Go and `server/data/hotspots_seasonal.bolt` and `server/data/places.bolt`
 present (see below) — everything else is a plain file on disk, no other
 services required. Full env var list is documented at the top of
 `server/main.go`.
@@ -84,7 +84,7 @@ curl -X POST -H "Content-Type: application/json" \
     "sendNotification": true,
     "notificationAddresses": ["you@example.com"],
     "format": "SQL_TSV_ZIP",
-    "sql": "SELECT decimalLatitude, decimalLongitude, locality, species, COUNT(*) AS n FROM occurrence WHERE datasetKey = '\''4fa7b334-ce0d-4e88-aaae-2e0c138d049e'\'' AND decimalLatitude IS NOT NULL GROUP BY decimalLatitude, decimalLongitude, locality, species ORDER BY decimalLatitude, decimalLongitude"
+    "sql": "SELECT decimalLatitude, decimalLongitude, locality, species, \"month\", COUNT(*) AS n FROM occurrence WHERE datasetKey = '\''4fa7b334-ce0d-4e88-aaae-2e0c138d049e'\'' AND decimalLatitude IS NOT NULL GROUP BY decimalLatitude, decimalLongitude, locality, species, \"month\" ORDER BY decimalLatitude, decimalLongitude"
   }'
 ```
 
@@ -94,13 +94,14 @@ Poll `https://api.gbif.org/v1/occurrence/download/<KEY>` until `status` is
 ```
 curl -sL -o gbif_download.zip "<downloadLink>"
 cd server
-go run ./cmd/gensnapshot hotspots gbif_download.zip   # ~20 min, writes data/hotspots.bolt
-scp data/hotspots.bolt <server-host>:<data-dir>
+go run ./cmd/gensnapshot hotspots gbif_download.zip   # ~20 min, writes data/hotspots_seasonal.bolt
+scp data/hotspots_seasonal.bolt <server-host>:<data-dir>
 ```
 
-Then restart the server (or just let it pick up the file — opening it is
-near-instant regardless of size). `server/.gitignore` already excludes
-`hotspots.bolt` — don't `git add` it.
+Rollout order: `scp` the new file first (the running server doesn't read it),
+then deploy the server build that reads `hotspots_seasonal.bolt`, then delete
+the old file (`hotspots.bolt`) from the data directory. `server/.gitignore`
+already excludes the file — don't `git add` it.
 
 **Gotchas:**
 - GBIF account needs a **username** (not email); free signup at
@@ -109,6 +110,13 @@ near-instant regardless of size). `server/.gitignore` already excludes
 - The `ORDER BY` in the query above is required, not optional — the build
   tool depends on sorted input and fails loudly (`"input not sorted by
   point"`) if it isn't.
+- The `month` column is required: the build keeps per-month counts per
+  species per hotspot (the species list's month selector reads them). The
+  download is roughly 10 GB zipped; the build streams it from the zip
+  without unpacking.
+- The file carries a species-format label, and the server refuses to start
+  on one it can't decode. The file name changes whenever the encoding does
+  (`seasonal.FileName`), which is what makes the copy-first rollout above safe.
 - `year` is a reserved word in GBIF's SQL dialect; needs double-quoting
   (`"year"`) if a query ever needs to filter by it.
 
@@ -125,7 +133,7 @@ scp data/places.bolt <server-host>:<data-dir>
 ```
 
 Same directory, same restart-or-let-it-pick-up-the-file story as
-`hotspots.bolt` above; `server/.gitignore` excludes `places.bolt` too. No
+`hotspots_seasonal.bolt` above; `server/.gitignore` excludes `places.bolt` too. No
 account or key needed — GeoNames' dumps are a plain public download.
 `cities500.zip` (every place with population > 500 or that's a seat of
 local government, ~185K rows) is the right file, not `allCountries.zip`

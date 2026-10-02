@@ -10,10 +10,12 @@ import (
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/jmelis/pajaros/server/internal/seasonal"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -26,7 +28,7 @@ import (
 // random-order-insert cost a large unsorted batch would pay.
 const batchPoints = 500_000
 
-// Bucket names in hotspots.bolt. speciesBucketName holds the per-hotspot
+// Bucket names in hotspots_seasonal.bolt. speciesBucketName holds the per-hotspot
 // species popularity data; the other three hold hotspot metadata (lat,
 // lng, name, totalCount). See server/hotspots_data.go, which reads all
 // four (that file's speciesBucketName equivalent is species_store.go's own
@@ -38,6 +40,12 @@ const (
 	hotspotByCellBucket = "hotspot_by_grid_cell"
 	hotspotMetaBucket   = "hotspot_meta"
 	hotspotCountMetaKey = "count"
+
+	// speciesFormatMetaKey/speciesFormatValue label the encoding of
+	// species_by_hotspot values; server/species_store.go refuses a file whose
+	// label differs from the one it decodes.
+	speciesFormatMetaKey = "species_format"
+	speciesFormatValue   = "seasonal-bits-1"
 )
 
 // gridDegrees must match server/hotspots_data.go's constant of the same
@@ -68,7 +76,7 @@ func cellKey(c gridCell) []byte {
 }
 
 // runHotspots streams the GBIF aggregate TSV — columns decimallatitude,
-// decimallongitude, locality, species, n, sorted by (lat, lng) — see
+// decimallongitude, locality, species, month, n, sorted by (lat, lng) — see
 // ARCHITECTURE.md for the exact SQL, which includes
 // "ORDER BY decimalLatitude, decimalLongitude" specifically so this tool
 // can rely on same-point rows being adjacent, and on points themselves
@@ -94,15 +102,17 @@ func cellKey(c gridCell) []byte {
 // band's worth of points (a small fraction of the worldwide total) rather
 // than the whole dataset.
 //
-// Writes one file, data/hotspots.bolt, a bbolt KV store with four buckets:
-//   - species_by_hotspot: hotspot ID -> binary blob of
-//     [uint16 speciesID, varint count] pairs, sorted by count descending.
+// Writes one file, data/hotspots_seasonal.bolt, a bbolt KV store with four buckets:
+//   - species_by_hotspot: hotspot ID -> bit-packed record counts per
+//     species per calendar month (see internal/seasonal).
 //   - hotspot_by_id: hotspot ID -> encoded {lat,lng,name,totalCount}.
 //   - hotspot_by_grid_cell: encoded grid cell -> encoded
 //     {id,lat,lng,name,totalCount} entries for every hotspot in that cell,
 //     packed back-to-back.
-//   - hotspot_meta: small fixed keys, currently just the total hotspot
-//     count (so the server's Len() doesn't need a full bucket scan).
+//   - hotspot_meta: small fixed keys: the total hotspot count (so the
+//     server's Len() doesn't need a full bucket scan) and the species blob
+//     format version (so a server never misreads a file built for another
+//     encoding).
 func runHotspots(tsvPath string) error {
 	speciesIndex, err := loadSpeciesIndex()
 	if err != nil {
@@ -113,7 +123,7 @@ func runHotspots(tsvPath string) error {
 	if err := os.MkdirAll("data", 0o755); err != nil {
 		return err
 	}
-	boltPath := "data/hotspots.bolt"
+	boltPath := filepath.Join("data", seasonal.FileName)
 	os.Remove(boltPath)
 	db, err := bolt.Open(boltPath, 0o644, nil)
 	if err != nil {
@@ -211,7 +221,7 @@ func runHotspots(tsvPath string) error {
 	// once, discarded the moment the key changes.
 	var curKey, curLat, curLng string
 	localityCounts := map[string]int{}
-	speciesCounts := map[uint16]int{}
+	speciesCounts := map[uint16]*seasonal.Months{}
 	total := 0
 	started := false
 
@@ -259,7 +269,7 @@ func runHotspots(tsvPath string) error {
 
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	rows, unresolvedSpecies := 0, 0
+	rows, unresolvedSpecies, badMonth := 0, 0, 0
 	// Detects out-of-order input early rather than silently mis-grouping.
 	// Must compare numerically, not as strings: GBIF's ORDER BY sorts the
 	// underlying doubles, and text order disagrees with numeric order
@@ -276,13 +286,18 @@ func runHotspots(tsvPath string) error {
 		if rows%20_000_000 == 0 {
 			fmt.Fprintf(os.Stderr, "%dM rows processed, %d points so far\n", rows/1_000_000, pointCount)
 		}
-		parts := strings.SplitN(sc.Text(), "\t", 5)
-		if len(parts) != 5 {
+		parts := strings.SplitN(sc.Text(), "\t", 6)
+		if len(parts) != 6 {
 			continue // malformed line (or header row) — skip rather than abort a multi-hour build
 		}
-		lat, lng, locality, species, nStr := parts[0], parts[1], parts[2], parts[3], parts[4]
+		lat, lng, locality, species, monthStr, nStr := parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]
 		n, err := strconv.Atoi(nStr)
 		if err != nil {
+			continue // also skips the header row
+		}
+		month, err := strconv.Atoi(monthStr)
+		if err != nil || month < 1 || month > 12 {
+			badMonth++
 			continue
 		}
 		key := lat + "," + lng
@@ -303,7 +318,7 @@ func runHotspots(tsvPath string) error {
 			}
 			curKey, curLat, curLng = key, lat, lng
 			localityCounts = map[string]int{}
-			speciesCounts = map[uint16]int{}
+			speciesCounts = map[uint16]*seasonal.Months{}
 			total = 0
 			started = true
 			prevLat, prevLng, havePrev = latF, lngF, true
@@ -311,7 +326,12 @@ func runHotspots(tsvPath string) error {
 		localityCounts[locality] += n
 		total += n
 		if spID, ok := speciesIndex[species]; ok {
-			speciesCounts[spID] += n
+			m := speciesCounts[spID]
+			if m == nil {
+				m = new(seasonal.Months)
+				speciesCounts[spID] = m
+			}
+			m[month-1] += uint32(n)
 		} else {
 			unresolvedSpecies++
 		}
@@ -330,39 +350,29 @@ func runHotspots(tsvPath string) error {
 	}
 	if err := db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(hotspotMetaBucket))
-		return b.Put([]byte(hotspotCountMetaKey), appendUvarint(nil, uint64(pointCount)))
+		if err := b.Put([]byte(hotspotCountMetaKey), appendUvarint(nil, uint64(pointCount))); err != nil {
+			return err
+		}
+		return b.Put([]byte(speciesFormatMetaKey), []byte(speciesFormatValue))
 	}); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "%d rows processed, %d hotspots, %d species occurrences unresolved against taxonomy\n",
-		rows, pointCount, unresolvedSpecies)
+	fmt.Fprintf(os.Stderr, "%d rows processed, %d hotspots, %d rows with an unusable month skipped, %d species rows unresolved against taxonomy\n",
+		rows, pointCount, badMonth, unresolvedSpecies)
 	fmt.Fprintf(os.Stderr, "wrote %s (%d hotspots)\n", boltPath, pointCount)
 	return nil
 }
 
-// encodeSpeciesBlob packs speciesID -> count as [uint16 id, varint count]
-// pairs, sorted by count descending (popularity order — no runtime sort
-// needed when the server reads it back).
-func encodeSpeciesBlob(counts map[uint16]int) []byte {
-	type entry struct {
-		id uint16
-		n  int
+// encodeSpeciesBlob packs one hotspot's per-species, per-month counts into
+// the species_by_hotspot value format (see internal/seasonal).
+func encodeSpeciesBlob(counts map[uint16]*seasonal.Months) []byte {
+	entries := make([]seasonal.Entry, 0, len(counts))
+	for id, m := range counts {
+		entries = append(entries, seasonal.Entry{ID: id, Months: *m})
 	}
-	entries := make([]entry, 0, len(counts))
-	for id, n := range counts {
-		entries = append(entries, entry{id, n})
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].n > entries[j].n })
-
-	var buf []byte
-	var tmp [binary.MaxVarintLen64]byte
-	for _, e := range entries {
-		buf = append(buf, byte(e.id), byte(e.id>>8))
-		m := binary.PutUvarint(tmp[:], uint64(e.n))
-		buf = append(buf, tmp[:m]...)
-	}
-	return buf
+	sort.Slice(entries, func(i, j int) bool { return entries[i].ID < entries[j].ID })
+	return seasonal.Encode(entries)
 }
 
 // encodeHotspotByIDValue is the hotspot_by_id bucket's value format. The ID

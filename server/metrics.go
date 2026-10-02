@@ -120,7 +120,7 @@ var (
 		Buckets:   []float64{1, 5, 10, 20, 50, 100, 200, 500},
 	}, []string{"mode"})
 
-	// bboltQueryDuration times the mmap-backed reads against hotspots.bolt
+	// bboltQueryDuration times the mmap-backed reads against hotspots_seasonal.bolt
 	// and places.bolt (see hotspots_data.go, places_data.go, species_store.go)
 	// — fine buckets since these are point lookups/bounded scans expected to
 	// land well under a millisecond most of the time.

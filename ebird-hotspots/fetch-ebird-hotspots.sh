@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Downloads eBird's curated hotspot list, one file per country, from
 # GET /v2/ref/hotspot/{regionCode} — see ARCHITECTURE.md/README.md for why
-# this is a separate source from the GBIF-derived hotspots.bolt data.
+# this is a separate source from the GBIF-derived hotspots_seasonal.bolt data.
 #
 # Usage:
 #   EBIRD_API_KEY=... ./fetch-ebird-hotspots.sh [regions-csv] [out-dir]

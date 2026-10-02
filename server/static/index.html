@@ -82,6 +82,8 @@
     <div id="browseControls">
       <div class="sort-row">
         <button id="learnStart" class="btn btn-primary btn-sm" type="button" data-i18n="hotspot.learn"></button>
+        <div class="sort-controls">
+        <select id="monthSelect" class="month-select" data-i18n-aria="browse.monthAria"></select>
         <div class="sort-control">
           <button id="sortBtn" class="sort-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
             <span id="sortBtnLabel"></span>
@@ -91,13 +93,16 @@
             <li role="option" data-value="popularity" data-i18n="browse.popularity"></li>
             <li role="option" data-value="category" data-i18n="browse.category"></li>
             <li role="option" data-value="alphabetical" data-i18n="browse.alphabetical"></li>
+            <li role="option" data-value="seasonality" data-i18n="browse.seasonality"></li>
           </ul>
+        </div>
         </div>
       </div>
       <div class="segmented" id="modeToggle" role="radiogroup" data-i18n-aria="browse.modeAria" hidden>
         <label><input type="radio" name="mode" value="popularity" checked><span data-i18n="browse.popularity"></span></label>
         <label><input type="radio" name="mode" value="category"><span data-i18n="browse.category"></span></label>
         <label><input type="radio" name="mode" value="alphabetical"><span data-i18n="browse.alphabetical"></span></label>
+        <label><input type="radio" name="mode" value="seasonality"><span data-i18n="browse.seasonality"></span></label>
       </div>
       <div id="groups"></div>
     </div>

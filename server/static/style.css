@@ -343,7 +343,19 @@ textarea { resize: vertical; }
    lightweight preference, not a co-equal mode switch, so it shouldn't carry
    the same visual weight. */
 .sort-row { display: flex; justify-content: space-between; align-items: center; }
+.sort-controls { display: flex; align-items: center; gap: 10px; }
 .sort-control { position: relative; }
+.month-select {
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) { .month-select { color: var(--accent-dark); } }
 .sort-btn {
   display: flex;
   align-items: center;
@@ -421,6 +433,7 @@ textarea { resize: vertical; }
 .card-body { display: flex; flex-direction: column; gap: 2px; padding: var(--space-1) 10px 12px; }
 .card .com { font-weight: 600; font-size: 0.95rem; line-height: 1.3; }
 .card .sci { color: var(--muted); font-style: italic; font-size: 0.8rem; }
+.card .months { color: var(--muted); font-size: 0.8rem; }
 .card .sub { color: var(--accent-dark); font-size: 0.78rem; font-weight: 600; }
 @media (prefers-color-scheme: dark) { .card .sub { color: var(--accent); } }
 
