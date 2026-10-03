@@ -549,6 +549,7 @@ input[type=range]::-moz-range-thumb { width: 28px; height: 28px; border-radius: 
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
+  object-position: center 20%;
   background: var(--img-bg);
 }
 .card-body { display: flex; flex-direction: column; gap: 2px; padding: var(--space-1) 10px 12px; }
