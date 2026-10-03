@@ -2,13 +2,16 @@
 // server ships instead of calling eBird/GBIF live (see ARCHITECTURE.md
 // for the full story on why). Run it from the server/ directory so its
 // relative output paths (data/...) land where the go:embed directives in
-// taxonomy_data.go and hotspots_data.go expect them.
+// taxonomy_data.go and geoip_data.go expect them.
 //
 // Subcommands:
 //
 //	EBIRD_API_KEY=... go run ./cmd/gensnapshot taxonomy <Multiling-IOC-*.xlsx>
 //	go run ./cmd/gensnapshot hotspots <gbif-download.zip | gbif.tsv>
-//	go run ./cmd/gensnapshot places <geonames-cities500.zip | cities500.txt>
+//	go run ./cmd/gensnapshot areas
+//	go run ./cmd/gensnapshot osm <export.geojsonseq> <out.candidates.jsonl>
+//	go run ./cmd/gensnapshot naturalearth <ne_admin_0.geojson> <ne_regions.geojson> <out.candidates.jsonl>
+//	go run ./cmd/gensnapshot places <out places.bolt> <candidates.jsonl>...
 //	go run ./cmd/gensnapshot geoip <dbip-country-lite.csv.gz | .csv>
 //
 // taxonomy makes a single eBird call for taxonomic structure (not blocked
@@ -26,8 +29,12 @@
 // which keeps memory bounded without the cost of an external sort of a
 // 20GB+ file, and never writes the ~20GB unzipped CSV to disk at all.
 //
-// places consumes a GeoNames gazetteer dump (see places.go/ARCHITECTURE.md)
-// straight from its downloaded .zip, the same way hotspots does.
+// areas regroups data/hotspots_seasonal.bolt into data/seasonal_cells.bolt (areas.go).
+//
+// osm turns an `osmium export` of one OpenStreetMap extract into candidate
+// places (osm.go); naturalearth does the same for country outlines and big
+// natural regions (ne.go); places merges all the candidate files into
+// places.bolt (places.go).
 //
 // geoip consumes db-ip.com's free IP-to-country database (see
 // geoip.go/server/geoip_data.go) straight from its downloaded .csv.gz.
@@ -42,7 +49,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: gensnapshot <taxonomy|hotspots|places|geoip>")
+		fmt.Fprintln(os.Stderr, "usage: gensnapshot <taxonomy|hotspots|areas|osm|naturalearth|places|geoip>")
 		os.Exit(2)
 	}
 
@@ -60,12 +67,26 @@ func main() {
 			os.Exit(2)
 		}
 		err = runHotspots(os.Args[2])
-	case "places":
-		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: gensnapshot places <geonames-dump>")
+	case "areas":
+		err = runAreas()
+	case "osm":
+		if len(os.Args) != 4 {
+			fmt.Fprintln(os.Stderr, "usage: gensnapshot osm <export.geojsonseq> <out.candidates.jsonl>")
 			os.Exit(2)
 		}
-		err = runPlaces(os.Args[2])
+		err = runOSM(os.Args[2], os.Args[3])
+	case "naturalearth":
+		if len(os.Args) != 5 {
+			fmt.Fprintln(os.Stderr, "usage: gensnapshot naturalearth <ne_admin_0.geojson> <ne_regions.geojson> <out.candidates.jsonl>")
+			os.Exit(2)
+		}
+		err = runNaturalEarth(os.Args[2], os.Args[3], os.Args[4])
+	case "places":
+		if len(os.Args) < 4 {
+			fmt.Fprintln(os.Stderr, "usage: gensnapshot places <out places.bolt> <candidates.jsonl>...")
+			os.Exit(2)
+		}
+		err = runPlaces(os.Args[2], os.Args[3:])
 	case "geoip":
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "usage: gensnapshot geoip <dbip-country-lite-dump>")

@@ -18,7 +18,7 @@ build:
 	cd server && go build -o birdquiz-server .
 
 # Requires EBIRD_API_KEY (see .envrc); direnv exports it automatically.
-# Sign-in (needed only to save hotspots) is offered if GOOGLE_AUTH_ENABLED/APPLE_AUTH_ENABLED (plus their
+# Sign-in (needed only to save places) is offered if GOOGLE_AUTH_ENABLED/APPLE_AUTH_ENABLED (plus their
 # credentials) are set in the environment -- see server/main.go's env var docs.
 # HOST is forced to 0.0.0.0 here because many shells (macOS in particular)
 # already export HOST as the machine's hostname, which would otherwise

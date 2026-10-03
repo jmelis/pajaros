@@ -6,7 +6,7 @@ import (
 	"sort"
 )
 
-// SpeciesCredits is one species' entry on a hotspot's credits page: the
+// SpeciesCredits is one species' entry on an area's credits page: the
 // attribution for each photo currently cached for it.
 type SpeciesCredits struct {
 	SpeciesCode string        `json:"speciesCode"`
@@ -26,25 +26,25 @@ type ImageCredit struct {
 	SourceURL  string `json:"sourceUrl"`
 }
 
-// handleHotspotCredits lists the photo credits for the species at a hotspot,
+// handleAreaCredits lists the photo credits for the species in an area,
 // from each species' cached image metadata — so it names exactly the photos
 // the app has downloaded and can show, no more. The optional ?species=<code>
 // narrows it to that one species. Species with no cached photo are omitted;
 // ordered by common name in the requested language.
-func (s *Server) handleHotspotCredits(w http.ResponseWriter, r *http.Request) {
-	locID := r.PathValue("locId")
-	if !validLocID(locID) {
-		http.Error(w, "invalid locId", http.StatusBadRequest)
+func (s *Server) handleAreaCredits(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	if !validAreaKey(key) {
+		http.Error(w, "invalid area key", http.StatusBadRequest)
 		return
 	}
 	lang, ok := s.resolveLang(w, r)
 	if !ok {
 		return
 	}
-	codes, taxa, err := s.species.Species(locID, lang, 0)
+	codes, taxa, err := s.species.Species(key, lang, 0)
 	if err != nil {
-		log.Printf("Species(%s, %s): %v", locID, lang, err)
-		http.Error(w, "failed to look up hotspot species", http.StatusNotFound)
+		log.Printf("Species(%s, %s): %v", key, lang, err)
+		http.Error(w, "failed to look up species", http.StatusNotFound)
 		return
 	}
 

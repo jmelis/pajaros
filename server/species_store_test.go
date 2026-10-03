@@ -3,43 +3,33 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"github.com/jmelis/pajaros/server/internal/seasonal"
-	bolt "go.etcd.io/bbolt"
 )
 
 func newTestSpeciesStore(t *testing.T) *SpeciesStore {
 	t.Helper()
-	db, err := bolt.Open(filepath.Join(t.TempDir(), "h.bolt"), 0o644, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.Close() })
-	blob := seasonal.Encode([]seasonal.Entry{
-		{ID: 0, Months: seasonal.Months{5, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0}}, // robin: 5 Jan, 10 Oct
-		{ID: 1, Months: seasonal.Months{9: 40}},                               // owl: Oct only
-		{ID: 2, Months: seasonal.Months{6: 7}},                                // swift: Jul only
-	})
-	err = db.Update(func(tx *bolt.Tx) error {
-		b, _ := tx.CreateBucket([]byte(speciesBucketName))
-		if err := b.Put([]byte("1.5,2.5"), blob); err != nil {
-			return err
-		}
-		year := seasonal.Encode([]seasonal.Entry{
+	areas := map[string][]seasonal.Entry{
+		"c1.500,2.500,5.0": {
+			{ID: 0, Months: seasonal.Months{5, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0}}, // robin: 5 Jan, 10 Oct
+			{ID: 1, Months: seasonal.Months{9: 40}},                               // owl: Oct only
+			{ID: 2, Months: seasonal.Months{6: 7}},                                // swift: Jul only
+		},
+		"c3.500,4.500,5.0": {
 			{ID: 0, Months: seasonal.Months{20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20}},
 			{ID: 1, Months: seasonal.Months{0: 10, 1: 10, 11: 10}},
-		})
-		if err := b.Put([]byte("3.5,4.5"), year); err != nil {
-			return err
-		}
-		return b.Put([]byte("9,9"), nil)
-	})
-	if err != nil {
-		t.Fatal(err)
+		},
+		"c9.000,9.000,5.0": nil,
 	}
-	return &SpeciesStore{db: db, taxonByID: []Taxon{
+	load := func(key string) ([]seasonal.Entry, error) {
+		es, ok := areas[key]
+		if !ok || len(es) == 0 {
+			return nil, errUnknownArea
+		}
+		return es, nil
+	}
+	return &SpeciesStore{entries: load, taxonByID: []Taxon{
 		{SpeciesCode: "eurrob1", SciName: "Erithacus rubecula"},
 		{SpeciesCode: "tawowl1", SciName: "Strix aluco"},
 		{SpeciesCode: "comswi", SciName: "Apus apus"},
@@ -49,7 +39,7 @@ func newTestSpeciesStore(t *testing.T) *SpeciesStore {
 func TestSpeciesLookupByMonth(t *testing.T) {
 	s := newTestSpeciesStore(t)
 
-	all, err := s.Lookup("1.5,2.5", 0)
+	all, err := s.Lookup("c1.500,2.500,5.0", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,27 +48,27 @@ func TestSpeciesLookupByMonth(t *testing.T) {
 		t.Errorf("whole year = %v, want %v", all, want)
 	}
 
-	oct, _ := s.Lookup("1.5,2.5", 10)
+	oct, _ := s.Lookup("c1.500,2.500,5.0", 10)
 	if len(oct) != 2 || oct[0].Code != "tawowl1" || oct[0].Count != 40 || oct[1].Code != "eurrob1" || oct[1].Count != 10 {
 		t.Errorf("october = %v, want owl 40 then robin 10", oct)
 	}
 
-	jan, _ := s.Lookup("1.5,2.5", 1)
+	jan, _ := s.Lookup("c1.500,2.500,5.0", 1)
 	if len(jan) != 1 || jan[0].Code != "eurrob1" || jan[0].Count != 5 {
 		t.Errorf("january = %v, want robin 5 only", jan)
 	}
 
-	mar, err := s.Lookup("1.5,2.5", 3)
+	mar, err := s.Lookup("c1.500,2.500,5.0", 3)
 	if err != nil || len(mar) != 0 {
-		t.Errorf("march = %v, %v; want an empty list and no error for a known hotspot", mar, err)
+		t.Errorf("march = %v, %v; want an empty list and no error for a known area", mar, err)
 	}
 }
 
-func TestSpeciesLookupUnknownHotspot(t *testing.T) {
+func TestSpeciesLookupUnknownArea(t *testing.T) {
 	s := newTestSpeciesStore(t)
-	for _, id := range []string{"0,0", "9,9"} {
-		if _, err := s.Lookup(id, 0); err != errUnknownHotspot {
-			t.Errorf("Lookup(%q) err = %v, want errUnknownHotspot", id, err)
+	for _, id := range []string{"c0.000,0.000,5.0", "c9.000,9.000,5.0"} {
+		if _, err := s.Lookup(id, 0); err != errUnknownArea {
+			t.Errorf("Lookup(%q) err = %v, want errUnknownArea", id, err)
 		}
 	}
 }

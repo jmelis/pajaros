@@ -1,17 +1,22 @@
 "use strict";
 
-// birdsnearby server app. A hash-routed single page with four views: home,
-// search, hotspot and settings. Hash routing survives a reload and is
-// linkable without server rewrites. All user-visible text comes from
-// i18n.json; this file holds translation keys, never literals.
+// birdsnearby server app. A hash-routed single page: home, search, area,
+// compare, credits, about and settings. An "area" is a place from the gazetteer
+// (key p<id>) or a custom circle (key c<lat>,<lng>,<km>); the species shown are
+// pooled over it by the server. Hash routing survives a reload and is linkable
+// without server rewrites. All user-visible text comes from i18n.json; this
+// file holds translation keys, never literals.
 
 const $ = (id) => document.getElementById(id);
 const VALID_LANGS = ["ca", "cs", "da", "de", "en", "eo", "es", "fi", "fr", "hr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
 const BROWSE_MODES = ["popularity", "category", "alphabetical", "seasonality"];
 const DEFAULT_BROWSE_MODE = "popularity";
-const VIEW_NAMES = ["home", "search", "hotspot", "credits", "compare", "about", "settings"];
+const VIEW_NAMES = ["home", "search", "range", "area", "credits", "compare", "about", "settings"];
 const SPECIES_CODE_RE = /^[A-Za-z0-9_-]+$/;
-const LOC_ID_RE = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
+const AREA_KEY_RE = /^(p[1-9]\d*|c-?\d+\.\d{3},-?\d+\.\d{3},\d+\.\d)$/;
+const MIN_RADIUS_KM = 1;
+const MAX_RADIUS_KM = 500;
+const DEFAULT_RADIUS_KM = 5;
 
 // ---- Account / UI state ---------------------------------------------------
 
@@ -21,21 +26,15 @@ const state = {
   favorites: [],
   email: "",
   // False for a visitor who has not signed in: they can browse everything but
-  // cannot save hotspots, and their language choices live in localStorage.
+  // cannot save places, and their language choices live in localStorage.
   signedIn: false,
-  // speciesCode -> name in the secondary language, for the current hotspot.
+  // speciesCode -> name in the secondary language, for the current area.
   secondaryNames: {},
-  // The current hotspot's species in the primary language (Browse's current
+  // The current area's species in the primary language (Browse's current
   // sort order).
   species: [],
-  // { locId, locName, lat, lng } — the hotspot the hotspot view is showing.
-  hotspot: null,
-  // Whether the search view has run its first hotspot search.
-  searchLoaded: false,
-  // Every hotspot from the last /api/hotspots search, most-active first —
-  // hotspotMarkers (below) only ever holds a prefix of this, so "show more"
-  // can reveal the rest without a second network round-trip.
-  hotspotsFull: [],
+  // The area the area view is showing: /api/places/{key}'s AreaInfo.
+  area: null,
   // Calendar month the species lists are limited to (1-12, all years pooled),
   // or 0 for the whole year.
   month: 0,
@@ -43,7 +42,7 @@ const state = {
   monthIsCurrent: false,
 };
 
-let currentRoute = { name: "home", locId: "", speciesCode: "" };
+let currentRoute = { name: "home", key: "", speciesCode: "" };
 
 // ---- i18n -----------------------------------------------------------------
 
@@ -88,6 +87,7 @@ function applyI18n() {
   });
   updateSortLabel();
   updateMonthOptions();
+  updateRangeMonthOptions();
 }
 
 function monthName(m) {
@@ -148,8 +148,8 @@ function effectiveMonth() {
   return currentBrowseMode() === "seasonality" ? 0 : state.month;
 }
 
-function noneInMonthText(hotspotName) {
-  return t("browse.noneInMonth", { name: hotspotName, month: monthName(state.month) });
+function noneInMonthText(areaName) {
+  return t("browse.noneInMonth", { name: areaName, month: monthName(state.month) });
 }
 
 function escapeHtml(s) {
@@ -191,10 +191,11 @@ const MISSING_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 10
 </svg>`;
 const MISSING_URL = "data:image/svg+xml," + encodeURIComponent(MISSING_SVG);
 
-// Images are fetched server-side in the background (see /api/hotspots/.../species),
-// so a card's imageUrl often 404s at first. Preload off-DOM and only swap the
-// visible <img> once it actually loads, retrying for a couple of minutes —
-// long enough to cover a big hotspot's background-fetch queue — before
+// Images are fetched server-side in the background (see
+// /api/places/{key}/species), so a card's imageUrl often 404s at first.
+// Preload off-DOM and only swap the visible <img> once it actually loads,
+// retrying for a couple of minutes — long enough to cover a big area's
+// background-fetch queue — before
 // giving up and leaving the placeholder in place.
 function preloadAndSwap(imgEl, url, attempt = 0) {
   const MAX_ATTEMPTS = 40;
@@ -214,7 +215,7 @@ function secondaryNameFor(speciesCode) {
 // ---- Status lines ---------------------------------------------------------
 
 function setStatus(msg) { $("status").textContent = msg; }
-function setHotspotStatus(msg) { $("hotspotStatus").textContent = msg; }
+function setAreaStatus(msg) { $("areaStatus").textContent = msg; }
 function showSettingsHint(msg) {
   const hint = $("settingsHint");
   hint.textContent = msg;
@@ -253,6 +254,15 @@ function trackEvent(name, data) {
 
 // ---- Routing --------------------------------------------------------------
 
+function safeDecode(s) {
+  try { return decodeURIComponent(s); } catch (e) { return ""; }
+}
+
+// Area keys keep their commas readable in the address bar.
+function encodeKey(key) {
+  return encodeURIComponent(key).replace(/%2C/g, ",");
+}
+
 function parseRoute() {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
   const parts = path.split("/").filter(Boolean);
@@ -261,12 +271,12 @@ function parseRoute() {
   const month = Number.isInteger(qMonth) && qMonth >= 1 && qMonth <= 12 ? qMonth : 0;
   const sort = BROWSE_MODES.includes(q.get("sort")) ? q.get("sort") : "";
   const name = parts[0] || "home";
-  if (name === "hotspot") {
-    const locId = parts[1] ? decodeURIComponent(parts[1]) : "";
-    const code = parts[2] === "bird" && parts[3] ? decodeURIComponent(parts[3]) : "";
+  if (name === "area") {
+    const key = parts[1] ? safeDecode(parts[1]) : "";
+    const code = parts[2] === "bird" && parts[3] ? safeDecode(parts[3]) : "";
     return {
-      name: parts[4] === "credits" ? "credits" : "hotspot",
-      locId,
+      name: parts[4] === "credits" ? "credits" : "area",
+      key,
       speciesCode: SPECIES_CODE_RE.test(code) ? code : "",
       month,
       sort,
@@ -275,13 +285,26 @@ function parseRoute() {
   if (name === "compare") {
     return {
       name,
-      locId: parts[1] ? decodeURIComponent(parts[1]) : "",
-      locIdB: parts[2] ? decodeURIComponent(parts[2]) : "",
+      key: parts[1] ? safeDecode(parts[1]) : "",
+      keyB: parts[2] ? safeDecode(parts[2]) : "",
       speciesCode: "",
     };
   }
-  if (VIEW_NAMES.indexOf(name) !== -1) return { name, locId: "", speciesCode: "" };
-  return { name: "home", locId: "", speciesCode: "" };
+  if (name === "search") {
+    const from = q.get("from") || "";
+    return { name, key: "", speciesCode: "", from: AREA_KEY_RE.test(from) ? from : "" };
+  }
+  if (name === "range") {
+    const code = parts[1] ? safeDecode(parts[1]) : "";
+    const m = Number(q.get("m"));
+    return {
+      name, key: "",
+      speciesCode: SPECIES_CODE_RE.test(code) ? code : "",
+      rangeMonth: Number.isInteger(m) && m >= 1 && m <= 12 ? m : 0,
+    };
+  }
+  if (VIEW_NAMES.indexOf(name) !== -1) return { name, key: "", speciesCode: "" };
+  return { name: "home", key: "", speciesCode: "" };
 }
 
 function navigate(hash) {
@@ -315,17 +338,18 @@ async function renderRoute() {
   updateNav(route.name === "compare" ? "home" : route.name === "about" ? "settings" : route.name);
 
   if (route.name === "home") await renderHome();
-  else if (route.name === "search") showSearch();
-  else if (route.name === "hotspot") await openHotspot(route.locId, route.speciesCode);
-  else if (route.name === "credits") await openCredits(route.locId, route.speciesCode);
-  else if (route.name === "compare") await openCompare(route.locId, route.locIdB);
+  else if (route.name === "search") await showSearch(route.from);
+  else if (route.name === "range") await showRange(route.speciesCode, route.rangeMonth);
+  else if (route.name === "area") await openArea(route.key, route.speciesCode);
+  else if (route.name === "credits") await openCredits(route.key, route.speciesCode);
+  else if (route.name === "compare") await openCompare(route.key, route.keyB);
   else if (route.name === "about") await renderAbout();
   else if (route.name === "settings") await renderSettings();
 }
 
 async function onHashChange() {
   const next = parseRoute();
-  if (learn.active && !(next.name === "hotspot" && next.locId === learn.locId && next.speciesCode)) {
+  if (learn.active && !(next.name === "area" && next.key === learn.areaKey && next.speciesCode)) {
     learn.finish();
   }
   await renderRoute();
@@ -406,13 +430,31 @@ function renderHomeFavorites() {
   list.innerHTML = "";
   for (const f of state.favorites) {
     const li = document.createElement("li");
-    li.className = "hotspot-item" + (homeEditing ? " editing" : "");
+    li.className = "area-item" + (homeEditing ? " editing" : "");
     const a = document.createElement("a");
-    a.className = "hotspot-link";
-    a.href = "#/hotspot/" + encodeURIComponent(f.locId);
-    a.textContent = f.locName || f.locId;
+    a.className = "area-link";
+    a.href = "#/area/" + encodeKey(f.key);
+    const title = document.createElement("span");
+    title.textContent = areaTitle(f);
+    const sub = document.createElement("small");
+    sub.className = "area-sub";
+    sub.textContent = areaSubtitle(f);
+    a.append(title, sub);
     li.appendChild(a);
     if (homeEditing) {
+      const rename = document.createElement("button");
+      rename.className = "rename-btn";
+      rename.type = "button";
+      rename.setAttribute("aria-label", t("home.rename"));
+      rename.textContent = "✎";
+      rename.addEventListener("click", async () => {
+        try {
+          if (await renameFavorite(f.key)) renderHomeFavorites();
+        } catch (e) {
+          showSettingsHint(t("search.bookmarkError"));
+        }
+      });
+      li.appendChild(rename);
       const remove = document.createElement("button");
       remove.className = "remove-btn";
       remove.type = "button";
@@ -420,7 +462,7 @@ function renderHomeFavorites() {
       remove.textContent = "−";
       remove.addEventListener("click", async () => {
         try {
-          await deleteFavorite(f.locId);
+          await deleteFavorite(f.key);
         } catch (e) {
           showSettingsHint(t("search.bookmarkError"));
           return;
@@ -447,7 +489,7 @@ async function renderHome() {
   homeEditing = false;
   if (!state.signedIn) {
     $("homeFirstRun").hidden = true;
-    $("homeHotspotsPanel").hidden = true;
+    $("homeAreasPanel").hidden = true;
     return;
   }
   let profile;
@@ -457,7 +499,7 @@ async function renderHome() {
     profile = await res.json();
   } catch (e) {
     $("homeFirstRun").hidden = true;
-    $("homeHotspotsPanel").hidden = false;
+    $("homeAreasPanel").hidden = false;
     $("homeFavorites").innerHTML = "";
     $("homeNoFavorites").hidden = true;
     return;
@@ -467,150 +509,214 @@ async function renderHome() {
   const firstRun = state.favorites.length === 0;
 
   $("homeFirstRun").hidden = !firstRun;
-  $("homeHotspotsPanel").hidden = firstRun;
+  $("homeAreasPanel").hidden = firstRun;
   renderHomeFavorites();
+}
+
+// ---- Area labels ------------------------------------------------------------
+
+// A place has a name; a custom circle is "Near <locality>" (the server names
+// the closest town or village), or its coordinates in the open sea. Favorites
+// and AreaInfo share these fields: key, name, kind, region, country, lat, lng,
+// radiusKm.
+function areaTitle(a) {
+  const saved = state.favorites.find((f) => f.key === a.key);
+  return (saved && saved.customName) || defaultTitle(a);
+}
+
+// defaultTitle is the label an area has before the user renames it.
+function defaultTitle(a) {
+  if (a.name && a.kind) return a.name;
+  if (a.name) return t("area.near", { place: a.name });
+  return `${a.lat.toFixed(3)}, ${a.lng.toFixed(3)}`;
+}
+
+// "City · Spain", "Region", "Custom area · Galicia · Spain · 5 km radius". A
+// country or a region spanning several countries carries no country. With
+// detail (the area page), a place without an outline also states the radius
+// its species are pooled over.
+function areaSubtitle(a, detail) {
+  const parts = [];
+  if (a.kind) parts.push(t("kind." + a.kind));
+  else parts.push(t("area.custom"));
+  if (a.region) parts.push(a.region);
+  if (a.country) parts.push(a.country);
+  if ((!a.kind || (detail && !a.polygon)) && a.radiusKm) parts.push(t("area.radiusKm", { km: Number(a.radiusKm) }));
+  return parts.join(" · ");
+}
+
+function customKey(lat, lng, km) {
+  return `c${lat.toFixed(3)},${lng.toFixed(3)},${km.toFixed(1)}`;
 }
 
 // ---- Search ---------------------------------------------------------------
 
+// The search view offers two ways in: typing a place name (a prefix search
+// against places.bolt, server/places_data.go) or choosing any centre on the
+// map and a radius, which opens a custom circle.
 let map = null;
-let userMarker = null;
-let hotspotMarkers = [];
+let centreMarker = null;
+let radiusCircle = null;
+let customCentre = null;
 
-function showSearch() {
-  if (map) setTimeout(() => map.invalidateSize(), 0);
-  if (!state.searchLoaded) {
-    state.searchLoaded = true;
-    findHotspots();
+// Picking a place stages it on the map before anything is browsed. A place
+// with a polygon is shown by its outline and cannot be edited; any other
+// (a town, a village, a custom circle) gets a draggable centre and the radius
+// slider, and an edit turns it into a custom circle. Save and "Show birds"
+// both act on stageTarget().
+let outlineLayer = null;
+let stage = null; // {area, polygon, moved, resized}
+
+async function showSearch(from) {
+  if (!map) return;
+  map.invalidateSize();
+  setTimeout(() => map.invalidateSize(), 0);
+  if (!from) { leaveStage(); return; }
+  let a = state.area && state.area.key === from ? state.area : null;
+  if (!a) {
+    try {
+      const res = await fetch(`/api/places/${encodeKey(from)}`);
+      if (!res.ok) { leaveStage(); return; }
+      a = await res.json();
+    } catch (e) { leaveStage(); return; }
   }
+  let rings = null;
+  if (a.polygon) {
+    try {
+      const res = await fetch(`/api/places/${encodeKey(from)}/outline`);
+      if (res.ok) rings = (await res.json()).rings;
+    } catch (e) { /* falls back to the editable circle */ }
+  }
+  if (!currentRoute || currentRoute.name !== "search" || currentRoute.from !== from) return;
+  enterStage(a, rings);
+}
+
+function clearOutline() {
+  if (outlineLayer) { outlineLayer.remove(); outlineLayer = null; }
+}
+
+function enterStage(a, rings) {
+  clearOutline();
+  stage = { area: a, polygon: !!rings, moved: false, resized: false };
+  if (rings) {
+    if (centreMarker) { centreMarker.remove(); centreMarker = null; }
+    if (radiusCircle) { radiusCircle.remove(); radiusCircle = null; }
+    customCentre = null;
+    outlineLayer = L.polygon(rings, { color: "#007aff", weight: 2, fillOpacity: 0.15, interactive: false }).addTo(map);
+    map.fitBounds(outlineLayer.getBounds(), { padding: [16, 16] });
+  } else {
+    $("customRadius").value = kmToSlider(Math.min(MAX_RADIUS_KM, Math.max(MIN_RADIUS_KM, a.radiusKm || DEFAULT_RADIUS_KM)));
+    showCustomRadius();
+    setCustomCentre(a.lat, a.lng, true);
+  }
+  renderStage();
+}
+
+// useCircle drops a polygon place's outline as the pooled area: the outline
+// stays as a faint reference and the place's centre and radius become an
+// editable circle.
+function useCircle() {
+  if (!stage || !stage.polygon) return;
+  const a = stage.area;
+  stage.polygon = false;
+  stage.resized = true;
+  if (outlineLayer) outlineLayer.setStyle({ color: "#8e8e93", weight: 2, dashArray: "6 4", fillOpacity: 0.05 });
+  $("customRadius").value = kmToSlider(Math.min(MAX_RADIUS_KM, Math.max(MIN_RADIUS_KM, a.radiusKm || DEFAULT_RADIUS_KM)));
+  showCustomRadius();
+  setCustomCentre(a.lat, a.lng, false);
+}
+
+function leaveStage() {
+  clearOutline();
+  stage = null;
+  renderStage();
+}
+
+// stageTarget is the area key Save and "Show birds" act on: the staged place
+// itself until it is moved or resized, then the custom circle on the map.
+function stageTarget() {
+  if (stage && stage.polygon) return stage.area.key;
+  if (!customCentre) return null;
+  if (stage && !stage.moved && !stage.resized) return stage.area.key;
+  const lng = ((customCentre.lng + 540) % 360) - 180;
+  return customKey(customCentre.lat, lng, customRadius());
+}
+
+function renderStage() {
+  const head = $("stageHead");
+  head.hidden = !stage || stage.moved;
+  if (!head.hidden) {
+    $("stageName").textContent = areaTitle(stage.area);
+    const shown = stage.resized ? { ...stage.area, radiusKm: customRadius() } : stage.area;
+    $("stageSub").textContent = areaSubtitle(shown, true);
+  }
+  const fixed = !!stage && stage.polygon;
+  $("customRadiusLabel").hidden = fixed;
+  $("useCircle").hidden = !fixed;
+  $("mapHint").hidden = fixed;
+  $("polygonHint").hidden = !fixed;
+  const key = stageTarget();
+  $("customGo").disabled = !key;
+  const star = $("stageSave");
+  const saved = !!key && state.favorites.some((f) => f.key === key);
+  star.disabled = !key;
+  star.setAttribute("aria-pressed", saved ? "true" : "false");
+  star.setAttribute("aria-label", saved ? t("area.bookmarked") : t(state.signedIn ? "area.bookmark" : "area.bookmarkSignIn"));
 }
 
 function initMap() {
-  map = L.map("map").setView([parseFloat($("lat").value), parseFloat($("lng").value)], 12);
+  map = L.map("map").setView([40, 0], 3);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: t("search.mapAttribution"),
   }).addTo(map);
-  // Keeps the plotted markers in sync with whatever's actually in view —
-  // see renderVisibleHotspots.
-  map.on("moveend", renderVisibleHotspots);
+  map.on("click", (e) => {
+    if (stage && stage.polygon) return;
+    if (stage) stage.moved = true;
+    setCustomCentre(e.latlng.lat, e.latlng.lng, false);
+  });
 }
 
-function clearHotspotMarkers() {
-  for (const m of hotspotMarkers) map.removeLayer(m);
-  hotspotMarkers = [];
+// The radius slider is logarithmic (1 km to 500 km) and snaps to 0.1 km
+// below 10 km, 1 km below 100 km and 5 km above, so the readout stays tidy.
+const RADIUS_SLIDER_MAX = 1000;
+
+function sliderToKm(v) {
+  const raw = MIN_RADIUS_KM * Math.pow(MAX_RADIUS_KM / MIN_RADIUS_KM, v / RADIUS_SLIDER_MAX);
+  const step = raw < 10 ? 0.1 : raw < 100 ? 1 : 5;
+  const km = Math.round(raw / step) * step;
+  return Math.min(MAX_RADIUS_KM, Math.max(MIN_RADIUS_KM, Number(km.toFixed(1))));
 }
 
-// The whole popup is one link to the hotspot page (no buttons); the chevron
-// is the tap affordance. Bookmarking lives on the hotspot page's star.
-function popupHTML(h) {
-  const count = h.totalCount || 0;
-  return `
-    <a class="popup-link" href="#/hotspot/${encodeURIComponent(h.locId)}" data-locid="${escapeHtml(h.locId)}">
-      <span class="popup-text">
-        <strong class="popup-title">${escapeHtml(h.locName)}</strong>
-        <span class="popup-count">${escapeHtml(tn("search.observations", count, { n: count.toLocaleString() }))}</span>
-      </span>
-      <span class="popup-chev" aria-hidden="true">›</span>
-    </a>`;
+function kmToSlider(km) {
+  return Math.round((Math.log(km / MIN_RADIUS_KM) / Math.log(MAX_RADIUS_KM / MIN_RADIUS_KM)) * RADIUS_SLIDER_MAX);
 }
 
-const MIN_MARKER_RADIUS = 5;
-const MAX_MARKER_RADIUS = 20;
-
-// Observation counts are heavily right-skewed (a handful of hotspots run
-// into the tens of thousands, most are far smaller), so a log scale spreads
-// that out much better than sqrt does. Scaled relative to the busiest
-// hotspot in *this* search rather than a fixed global max, so the full size
-// range is always used whether the area's counts run into the tens or the
-// tens-of-thousands — the tradeoff is that the same hotspot can render at a
-// different size depending on what else is nearby in the current search.
-function markerRadius(totalCount, maxTotalCount) {
-  if (maxTotalCount <= 0) return MIN_MARKER_RADIUS;
-  const t2 = Math.log1p(totalCount || 0) / Math.log1p(maxTotalCount);
-  return MIN_MARKER_RADIUS + t2 * (MAX_MARKER_RADIUS - MIN_MARKER_RADIUS);
+function customRadius() {
+  const v = parseFloat($("customRadius").value);
+  return Number.isNaN(v) ? DEFAULT_RADIUS_KM : sliderToKm(v);
 }
 
-// HOTSPOT_MARKERS_DEFAULT is how many markers are plotted at once. GBIF's
-// points are dense and uncurated — a busy area can return hundreds of
-// hotspots, most of them one-off personal checklist locations rather than
-// real birding sites — so rather than dump all of them on the map, the
-// current map viewport is the filter: renderVisibleHotspots (wired to the
-// map's moveend event in initMap) always shows just the busiest few among
-// whatever's currently in view. Pan or zoom and it updates live — no
-// separate "show more" control needed.
-const HOTSPOT_MARKERS_DEFAULT = 5;
-
-async function findHotspots() {
-  const lat = parseFloat($("lat").value), lng = parseFloat($("lng").value);
-  if (Number.isNaN(lat) || Number.isNaN(lng)) { setStatus(t("search.status.enterCoords")); return; }
-
-  setStatus(t("search.status.loading"));
-  let hotspots;
-  try {
-    const res = await fetch(`/api/hotspots?lat=${lat}&lng=${lng}`);
-    if (!res.ok) { setStatus(t("search.status.error", { status: res.status })); return; }
-    hotspots = await res.json();
-  } catch (e) {
-    setStatus(t("search.status.error", { status: "?" }));
-    return;
-  }
-
-  if (userMarker) map.removeLayer(userMarker);
-  // autoPan: false — a popup that pans the map to fit itself fires moveend,
-  // which renderVisibleHotspots treats as "the user moved the map" and
-  // rebuilds every marker, destroying the one whose popup just opened. See
-  // the identical note on the hotspot markers below.
-  userMarker = L.marker([lat, lng]).addTo(map).bindPopup(t("search.youAreHere"), { autoPan: false });
-
-  state.hotspotsFull = hotspots;
-  // Deliberately doesn't move the map — every caller (selectPlace,
-  // useLocation, searchHere, the initial default view) already set a
-  // sensible view before calling findHotspots, and re-fitting to the whole
-  // (dense, uncurated — see ARCHITECTURE.md) result set would zoom out to
-  // fit hundreds of points just to frame the 5 actually being shown.
-  // renderVisibleHotspots derives what to plot from whatever view this is.
-  renderVisibleHotspots();
-  setStatus(tn("search.status.found", hotspots.length));
+function showCustomRadius() {
+  $("customRadiusValue").textContent = `${customRadius()} km`;
 }
 
-// renderVisibleHotspots shows the busiest HOTSPOT_MARKERS_DEFAULT hotspots
-// that fall inside the map's *current* viewport — wired to Leaflet's
-// moveend event (initMap), so panning or zooming re-filters live instead of
-// needing a manual reveal. Marker size is still scaled against the full
-// search result's busiest hotspot (state.hotspotsFull), not just what's in
-// view, so a marker's size stays stable as it comes in and out of frame.
-function renderVisibleHotspots() {
-  if (!map) return;
-  clearHotspotMarkers();
-  if (state.hotspotsFull.length === 0) return;
-
-  const bounds = map.getBounds();
-  const visible = state.hotspotsFull
-    .filter((h) => bounds.contains([h.lat, h.lng]))
-    .sort((a, b) => (b.totalCount || 0) - (a.totalCount || 0))
-    .slice(0, HOTSPOT_MARKERS_DEFAULT);
-
-  const maxTotalCount = Math.max(0, ...state.hotspotsFull.map((h) => h.totalCount || 0));
-  for (const h of visible) {
-    const marker = L.circleMarker([h.lat, h.lng], {
-      radius: markerRadius(h.totalCount, maxTotalCount),
-      color: "#007aff",
-      fillColor: "#007aff",
-      fillOpacity: 0.6,
-    }).addTo(map).bindPopup(popupHTML(h), { autoPan: false });
-    hotspotMarkers.push(marker);
-  }
+function drawCustomArea(fit) {
+  if (!customCentre) return;
+  const ll = [customCentre.lat, customCentre.lng];
+  if (!centreMarker) centreMarker = L.marker(ll).addTo(map);
+  else centreMarker.setLatLng(ll);
+  if (!radiusCircle) radiusCircle = L.circle(ll, { radius: customRadius() * 1000, color: "#007aff", weight: 2, fillOpacity: 0.15 }).addTo(map);
+  else radiusCircle.setLatLng(ll).setRadius(customRadius() * 1000);
+  if (fit) map.fitBounds(radiusCircle.getBounds(), { maxZoom: 14 });
+  renderStage();
 }
 
-// ---- Place search -----------------------------------------------------
+function setCustomCentre(lat, lng, fit) {
+  customCentre = { lat, lng };
+  drawCustomArea(fit);
+}
 
-// Typing a place name is the front door for "what's around here" — it
-// replaces raw lat/lng entry (still present as hidden #lat/#lng inputs,
-// unchanged by the rest of the search flow) with a prefix search against
-// places.bolt (server/places_data.go), a GeoNames-derived gazetteer built
-// entirely offline. Picking a suggestion sets those hidden fields and runs
-// the same findHotspots() as the map/geolocation paths.
 let placeSearchTimer = null;
 let placeResults = [];
 
@@ -650,6 +756,7 @@ async function runPlaceSearch(q) {
     hidePlaceSuggestions();
     return;
   }
+  if ($("placeQuery").value.trim() !== q) return;
   renderPlaceSuggestions(results || []);
 }
 
@@ -657,14 +764,14 @@ function renderPlaceSuggestions(results) {
   placeResults = results;
   const list = $("placeSuggestions");
   if (results.length === 0) {
-    list.innerHTML = `<li class="place-suggestion-empty">${t("search.placeNoResults")}</li>`;
+    list.innerHTML = `<li class="place-suggestion-empty">${escapeHtml(t("search.placeNoResults"))}</li>`;
     list.hidden = false;
     return;
   }
   list.innerHTML = results.map((p, i) => `
     <li class="place-suggestion" data-index="${i}">
       <span>${escapeHtml(p.name)}</span>
-      <span class="place-suggestion-country">${escapeHtml(p.countryCode)}</span>
+      <span class="place-suggestion-country">${escapeHtml([t("kind." + p.kind), p.country].filter(Boolean).join(" · "))}</span>
     </li>`).join("");
   list.hidden = false;
 }
@@ -676,48 +783,216 @@ function hidePlaceSuggestions() {
 }
 
 function selectPlace(p) {
-  $("placeQuery").value = p.name;
-  $("lat").value = p.lat.toFixed(6);
-  $("lng").value = p.lng.toFixed(6);
+  $("placeQuery").value = "";
   hidePlaceSuggestions();
-  map.setView([p.lat, p.lng], 12);
-  findHotspots();
+  navigate("#/search?from=p" + p.id);
+}
+
+// ---- Species range map ----------------------------------------------------
+
+// The Atlas tab draws one species' frequency over the world, one translucent
+// rectangle per 1-degree cell; a darker cell is a more frequent species there.
+let rangeMap = null;
+let rangeLayer = null;
+let rangeRequest = 0;
+let rangeMonth = 0;
+let rangeFitted = "";
+let speciesSearchTimer = null;
+let speciesResults = [];
+const RANGE_COLOR = "#d7263d";
+
+function initRangeMap() {
+  if (rangeMap) return;
+  rangeMap = L.map("rangeMap", { worldCopyJump: true, minZoom: 1 }).setView([25, 10], 2);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: t("search.mapAttribution"),
+  }).addTo(rangeMap);
+  rangeLayer = L.layerGroup().addTo(rangeMap);
+}
+
+function updateRangeMonthOptions() {
+  const sel = $("rangeMonth");
+  if (!sel) return;
+  sel.innerHTML = "";
+  const add = (value, text) => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = text;
+    sel.appendChild(opt);
+  };
+  add("0", t("browse.allYear"));
+  for (let m = 1; m <= 12; m++) add(String(m), monthName(m));
+  sel.value = String(rangeMonth);
+}
+
+function rangeHash(code, month) {
+  return "#/range" + (code ? "/" + encodeURIComponent(code) : "") + (code && month ? "?m=" + month : "");
+}
+
+function clearRange() {
+  rangeRequest++;
+  rangeFitted = "";
+  if (rangeLayer) rangeLayer.clearLayers();
+  $("rangeHead").hidden = true;
+  $("rangeLegend").hidden = true;
+  $("rangeHint").hidden = false;
+  $("rangeMonth").disabled = true;
+  $("rangeStatus").textContent = "";
+}
+
+async function showRange(code, month) {
+  initRangeMap();
+  rangeMap.invalidateSize();
+  setTimeout(() => rangeMap.invalidateSize(), 0);
+  rangeMonth = month;
+  updateRangeMonthOptions();
+  if (!code) { clearRange(); return; }
+  const req = ++rangeRequest;
+  $("rangeHint").hidden = true;
+  $("rangeMonth").disabled = false;
+  $("rangeStatus").textContent = t("range.loading");
+  let data;
+  try {
+    const res = await fetch(`/api/species/${encodeURIComponent(code)}/range?lang=${state.language}${month ? "&month=" + month : ""}`);
+    if (!res.ok) throw new Error(String(res.status));
+    data = await res.json();
+  } catch (e) {
+    if (req === rangeRequest) $("rangeStatus").textContent = t("range.error");
+    return;
+  }
+  if (req !== rangeRequest) return;
+  $("rangeName").textContent = data.comName;
+  $("rangeSci").textContent = data.sciName;
+  $("rangeHead").hidden = false;
+  rangeLayer.clearLayers();
+  const renderer = L.canvas({ padding: 0.5 });
+  for (const [lat, lng, pct] of data.cells) {
+    L.rectangle([[lat, lng], [lat + 1, lng + 1]], {
+      renderer, stroke: false, interactive: false,
+      fillColor: RANGE_COLOR, fillOpacity: 0.15 + 0.75 * (pct / data.max),
+    }).addTo(rangeLayer);
+  }
+  $("rangeLegend").hidden = data.cells.length === 0;
+  if (data.cells.length > 0 && rangeFitted !== code) {
+    rangeFitted = code;
+    fitRange(data.cells);
+  }
+  $("rangeStatus").textContent = data.cells.length === 0 ? t("range.noRecords") : "";
+}
+
+// fitRange frames the bulk of a species' range. The 2nd to 98th percentile of
+// cell latitudes and longitudes ignores stray vagrant records, and a range
+// that still spans most of the globe (or wraps the antimeridian) keeps the
+// world view.
+function fitRange(cells) {
+  const pick = (idx, q) => {
+    const v = cells.map((c) => c[idx]).sort((a, b) => a - b);
+    return v[Math.min(v.length - 1, Math.floor(q * v.length))];
+  };
+  const south = pick(0, 0.02), north = pick(0, 0.98) + 1;
+  const west = pick(1, 0.02), east = pick(1, 0.98) + 1;
+  if (east - west > 240) { rangeMap.setView([25, 10], 2); return; }
+  rangeMap.fitBounds([[south, west], [north, east]], { padding: [20, 20], maxZoom: 6 });
+}
+
+function wireSpeciesSearch() {
+  const input = $("speciesQuery");
+  const list = $("speciesSuggestions");
+  const hide = () => { list.hidden = true; list.innerHTML = ""; };
+  const pick = (sp) => {
+    input.value = "";
+    hide();
+    navigate(rangeHash(sp.speciesCode, rangeMonth));
+  };
+  input.addEventListener("input", () => {
+    const q = input.value.trim();
+    clearTimeout(speciesSearchTimer);
+    if (q.length < 2) { hide(); return; }
+    speciesSearchTimer = setTimeout(async () => {
+      let results;
+      try {
+        const res = await fetch(`/api/species?q=${encodeURIComponent(q)}&lang=${state.language}`);
+        if (!res.ok) { hide(); return; }
+        results = await res.json();
+      } catch (e) { hide(); return; }
+      if (input.value.trim() !== q) return;
+      speciesResults = results || [];
+      list.innerHTML = speciesResults.length === 0
+        ? `<li class="place-suggestion-empty">${escapeHtml(t("range.noMatches"))}</li>`
+        : speciesResults.map((sp, i) => `
+          <li class="place-suggestion" data-index="${i}">
+            <span>${escapeHtml(sp.comName)}</span>
+            <span class="place-suggestion-country">${escapeHtml(sp.sciName)}</span>
+          </li>`).join("");
+      list.hidden = false;
+    }, 250);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hide();
+    if (e.key === "Enter" && speciesResults.length > 0 && !list.hidden) {
+      e.preventDefault();
+      pick(speciesResults[0]);
+    }
+  });
+  list.addEventListener("click", (e) => {
+    const li = e.target.closest(".place-suggestion");
+    const sp = li && speciesResults[Number(li.dataset.index)];
+    if (sp) pick(sp);
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#view-range .place-search")) hide();
+  });
+  $("rangeMonth").addEventListener("change", (e) => {
+    const code = parseRoute().speciesCode;
+    if (code) navigate(rangeHash(code, Number(e.target.value)));
+  });
 }
 
 // ---- Favorites ------------------------------------------------------------
 
-async function putFavorite(fav) {
-  const res = await fetch(`/api/me/favorites/${encodeURIComponent(fav.locId)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ locName: fav.locName || "", lat: fav.lat || 0, lng: fav.lng || 0 }),
-  });
+// putFavorite saves an area; the server describes it from its own data.
+async function putFavorite(area) {
+  const res = await fetch(`/api/me/favorites/${encodeKey(area.key)}`, { method: "PUT" });
   if (!res.ok) throw new Error(String(res.status));
-  const existing = state.favorites.find((f) => f.locId === fav.locId);
-  if (existing) {
-    if (fav.locName) existing.locName = fav.locName;
-    if (fav.lat || fav.lng) { existing.lat = fav.lat; existing.lng = fav.lng; }
-  } else {
-    state.favorites.push({ locId: fav.locId, locName: fav.locName || "", lat: fav.lat || 0, lng: fav.lng || 0 });
+  if (!state.favorites.some((f) => f.key === area.key)) {
+    state.favorites.push({
+      key: area.key, name: area.name || "",
+      kind: area.kind || "", region: area.region || "", country: area.country || "", lat: area.lat, lng: area.lng, radiusKm: area.radiusKm,
+    });
   }
 }
 
-async function deleteFavorite(locId) {
-  const res = await fetch(`/api/me/favorites/${encodeURIComponent(locId)}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(String(res.status));
-  state.favorites = state.favorites.filter((f) => f.locId !== locId);
+// renameFavorite asks for a new label for a saved area and stores it; an empty
+// answer restores the place's own name. Returns whether anything changed.
+async function renameFavorite(key) {
+  const fav = state.favorites.find((f) => f.key === key);
+  if (!fav) return false;
+  const answer = window.prompt(t("area.renamePrompt"), areaTitle(fav));
+  if (answer === null) return false;
+  const name = answer.trim().replace(/\s+/g, " ");
+  await putFavoriteName(key, name === defaultTitle(fav) ? "" : name);
+  return true;
 }
 
-// Popup content is injected by Leaflet outside our control, so use event
-// delegation instead of binding a listener per marker.
-document.addEventListener("click", async (e) => {
-  const open = e.target.closest(".popup-link");
-  if (!open) return;
-  e.preventDefault();
-  navigate("#/hotspot/" + encodeURIComponent(open.dataset.locid));
-});
+async function putFavoriteName(key, name) {
+  const res = await fetch(`/api/me/favorites/${encodeKey(key)}/name`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error(String(res.status));
+  const fav = state.favorites.find((f) => f.key === key);
+  if (fav) fav.customName = name;
+}
 
-// ---- Hotspot + species browsing ------------------------------------------
+async function deleteFavorite(key) {
+  const res = await fetch(`/api/me/favorites/${encodeKey(key)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(String(res.status));
+  state.favorites = state.favorites.filter((f) => f.key !== key);
+}
+
+// ---- Area + species browsing ------------------------------------------
 
 function currentBrowseMode() {
   const r = document.querySelector('input[name="mode"]:checked');
@@ -764,49 +1039,56 @@ function wireSortMenu() {
   updateSortLabel();
 }
 
-// The compare link only appears when this hotspot has a saved one to be
+// The compare link only appears when this area has a saved one to be
 // compared with.
 function updateCompareLink() {
-  if (!state.hotspot) return;
-  const link = $("hotspotCompareLink");
-  link.hidden = !state.favorites.some((f) => f.locId !== state.hotspot.locId);
-  link.href = compareHash(state.hotspot.locId, "");
+  if (!state.area) return;
+  const link = $("areaCompareLink");
+  link.hidden = !state.favorites.some((f) => f.key !== state.area.key);
+  link.href = compareHash(state.area.key, "");
 }
 
 function updateBookmarkButton() {
-  if (!state.hotspot) return;
+  if (!state.area) return;
   updateCompareLink();
-  const saved = state.favorites.some((f) => f.locId === state.hotspot.locId);
+  const saved = state.favorites.some((f) => f.key === state.area.key);
   const btn = $("bookmarkBtn");
   // Icon-only: filled star when saved (via [aria-pressed], see style.css),
   // outline otherwise. aria-label carries the same info textContent used to.
   btn.setAttribute("aria-pressed", saved ? "true" : "false");
-  btn.setAttribute("aria-label", saved ? t("hotspot.bookmarked") : t(state.signedIn ? "hotspot.bookmark" : "hotspot.bookmarkSignIn"));
+  $("renameAreaBtn").hidden = !saved;
+  btn.setAttribute("aria-label", saved ? t("area.bookmarked") : t(state.signedIn ? "area.bookmark" : "area.bookmarkSignIn"));
 }
 
-// ensureHotspot makes state.hotspot describe locId, fetching its name and
-// position unless it's already the current hotspot. Returns false (with the
-// hotspot status line set) if the lookup fails.
-async function ensureHotspot(locId) {
-  if (state.hotspot && state.hotspot.locId === locId) return true;
-  state.hotspot = { locId, locName: "", lat: 0, lng: 0 };
+function renderAreaHead() {
+  $("areaName").textContent = areaTitle(state.area);
+  $("areaSub").textContent = areaSubtitle(state.area, true);
+  $("areaMapLink").href = "#/search?from=" + encodeKey(state.area.key);
+}
+
+// ensureArea makes state.area describe key, fetching its details unless it's
+// already the current area. Returns false (with the area status line set) if
+// the lookup fails.
+async function ensureArea(key) {
+  if (state.area && state.area.key === key) return true;
+  state.area = null;
   state.species = [];
   state.secondaryNames = {};
-  $("hotspotName").textContent = locId;
-  setHotspotStatus(t("hotspot.loading"));
+  $("areaName").textContent = "";
+  $("areaSub").textContent = "";
+  setAreaStatus(t("area.loading"));
   try {
-    const res = await fetch(`/api/hotspots/${encodeURIComponent(locId)}`);
-    if (!res.ok) { setHotspotStatus(t("hotspot.error")); return false; }
-    const h = await res.json();
-    state.hotspot = { locId, locName: h.locName || locId, lat: h.lat, lng: h.lng };
+    const res = await fetch(`/api/places/${encodeKey(key)}`);
+    if (!res.ok) { setAreaStatus(t("area.error")); return false; }
+    state.area = await res.json();
   } catch (e) {
-    setHotspotStatus(t("hotspot.error"));
+    setAreaStatus(t("area.error"));
     return false;
   }
   return true;
 }
 
-// The selected month and sort order ride in the hash so shared hotspot and
+// The selected month and sort order ride in the hash so shared area and
 // Learn links open on the same view. The default order is left out.
 function routeQuery() {
   const q = [];
@@ -815,23 +1097,23 @@ function routeQuery() {
   return q.length ? "?" + q.join("&") : "";
 }
 
-function hotspotHash(locId) { return "#/hotspot/" + encodeURIComponent(locId) + routeQuery(); }
+function areaHash(key) { return "#/area/" + encodeKey(key) + routeQuery(); }
 
-function birdHash(locId, speciesCode) {
-  return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode) + routeQuery();
+function birdHash(key, speciesCode) {
+  return "#/area/" + encodeKey(key) + "/bird/" + encodeURIComponent(speciesCode) + routeQuery();
 }
 
-function creditsHash(locId, speciesCode) {
-  return "#/hotspot/" + encodeURIComponent(locId) + "/bird/" + encodeURIComponent(speciesCode) + "/credits" + routeQuery();
+function creditsHash(key, speciesCode) {
+  return "#/area/" + encodeKey(key) + "/bird/" + encodeURIComponent(speciesCode) + "/credits" + routeQuery();
 }
 
-// A shared bird link (#/hotspot/<locId>/bird/<code>) opens the hotspot with
-// Learn already on that bird; the species list loads behind it in parallel.
-async function openHotspot(locId, speciesCode) {
-  if (!LOC_ID_RE.test(locId)) { navigate("#/home"); return; }
-  if (!(await ensureHotspot(locId))) return;
+// A shared bird link (#/area/<key>/bird/<code>) opens the area with Learn
+// already on that bird; the species list loads behind it in parallel.
+async function openArea(key, speciesCode) {
+  if (!AREA_KEY_RE.test(key)) { navigate("#/home"); return; }
+  if (!(await ensureArea(key))) return;
 
-  $("hotspotName").textContent = state.hotspot.locName || state.hotspot.locId;
+  renderAreaHead();
   updateBookmarkButton();
   const browse = loadSpecies();
   if (speciesCode) await loadAndStartLearn(speciesCode);
@@ -920,21 +1202,21 @@ function renderCreditPhoto(img) {
   return li;
 }
 
-async function openCredits(locId, speciesCode) {
-  if (!LOC_ID_RE.test(locId) || !speciesCode) { navigate("#/home"); return; }
-  const stale = () => currentRoute.name !== "credits" || currentRoute.locId !== locId || currentRoute.speciesCode !== speciesCode;
+async function openCredits(key, speciesCode) {
+  if (!AREA_KEY_RE.test(key) || !speciesCode) { navigate("#/home"); return; }
+  const stale = () => currentRoute.name !== "credits" || currentRoute.key !== key || currentRoute.speciesCode !== speciesCode;
   window.scrollTo(0, 0);
-  $("creditsBack").href = birdHash(locId, speciesCode);
+  $("creditsBack").href = birdHash(key, speciesCode);
   $("creditsList").innerHTML = "";
   $("creditsStatus").textContent = t("credits.loading");
 
-  const loaded = await ensureHotspot(locId);
+  const loaded = await ensureArea(key);
   if (stale()) return;
-  if (!loaded) { $("creditsStatus").textContent = t("hotspot.error"); return; }
+  if (!loaded) { $("creditsStatus").textContent = t("area.error"); return; }
 
   let species;
   try {
-    const res = await fetch(`/api/hotspots/${encodeURIComponent(locId)}/credits?species=${encodeURIComponent(speciesCode)}&lang=${encodeURIComponent(state.language)}`);
+    const res = await fetch(`/api/places/${encodeKey(key)}/credits?species=${encodeURIComponent(speciesCode)}&lang=${encodeURIComponent(state.language)}`);
     if (!res.ok) throw new Error(String(res.status));
     species = await res.json();
   } catch (e) {
@@ -963,11 +1245,11 @@ async function openCredits(locId, speciesCode) {
   }
 }
 
-async function loadSecondaryNames(locId) {
+async function loadSecondaryNames(key) {
   state.secondaryNames = {};
   if (!state.secondaryLanguage || state.secondaryLanguage === state.language) return;
   try {
-    const res = await fetch(`/api/hotspots/${encodeURIComponent(locId)}/species?lang=${state.secondaryLanguage}&mode=category`);
+    const res = await fetch(`/api/places/${encodeKey(key)}/species?lang=${state.secondaryLanguage}&mode=category`);
     if (!res.ok) return;
     const species = await res.json();
     for (const sp of species) state.secondaryNames[sp.speciesCode] = sp.comName;
@@ -979,7 +1261,7 @@ async function loadSecondaryNames(locId) {
 function speciesCard(sp) {
   const card = document.createElement("a");
   card.className = "card";
-  card.href = birdHash(state.hotspot.locId, sp.speciesCode);
+  card.href = birdHash(state.area.key, sp.speciesCode);
   card.dataset.code = sp.speciesCode;
   card.innerHTML = `
     <img src="${sp.imageMissing ? MISSING_URL : PLACEHOLDER_URL}" alt="${escapeHtml(sp.comName)}">
@@ -997,8 +1279,9 @@ function speciesCard(sp) {
 }
 
 async function loadSpecies() {
-  const hs = state.hotspot;
-  if (!hs) return;
+  const area = state.area;
+  if (!area) return;
+  const name = areaTitle(area);
   const lang = state.language;
   const mode = currentBrowseMode();
   const groups = $("groups");
@@ -1007,19 +1290,19 @@ async function loadSpecies() {
 
   // Fetch the secondary-language names first (cached after the first load) so
   // the cards below can render their subtitles immediately.
-  await loadSecondaryNames(hs.locId);
+  await loadSecondaryNames(area.key);
 
   let species;
   if (mode === "popularity" || mode === "alphabetical") {
-    setHotspotStatus(mode === "popularity"
-      ? t("browse.loadingPopularity", { name: hs.locName })
-      : t("browse.loading", { name: hs.locName }));
+    setAreaStatus(mode === "popularity"
+      ? t("browse.loadingPopularity", { name })
+      : t("browse.loading", { name }));
     try {
-      const res = await fetch(`/api/hotspots/${encodeURIComponent(hs.locId)}/species?lang=${lang}&mode=${mode}${monthParam()}`);
-      if (!res.ok) { setHotspotStatus(t("browse.error", { status: res.status })); return; }
+      const res = await fetch(`/api/places/${encodeKey(area.key)}/species?lang=${lang}&mode=${mode}${monthParam()}`);
+      if (!res.ok) { setAreaStatus(t("browse.error", { status: res.status })); return; }
       species = await res.json();
     } catch (e) {
-      setHotspotStatus(t("browse.error", { status: "?" }));
+      setAreaStatus(t("browse.error", { status: "?" }));
       return;
     }
     state.species = species;
@@ -1028,23 +1311,23 @@ async function loadSpecies() {
     groups.appendChild(grid);
     for (const sp of species) grid.appendChild(speciesCard(sp));
     const key = mode === "popularity" ? "browse.loadedPopularity" : "browse.loadedAlphabetical";
-    setHotspotStatus(species.length === 0 && state.month ? noneInMonthText(hs.locName) : tn(key, species.length, { name: hs.locName }));
+    setAreaStatus(species.length === 0 && state.month ? noneInMonthText(name) : tn(key, species.length, { name }));
     return;
   }
 
   if (mode === "seasonality") {
-    setHotspotStatus(t("browse.loading", { name: hs.locName }));
+    setAreaStatus(t("browse.loading", { name }));
     try {
-      const res = await fetch(`/api/hotspots/${encodeURIComponent(hs.locId)}/species?lang=${lang}&mode=seasonality`);
-      if (!res.ok) { setHotspotStatus(t("browse.error", { status: res.status })); return; }
+      const res = await fetch(`/api/places/${encodeKey(area.key)}/species?lang=${lang}&mode=seasonality`);
+      if (!res.ok) { setAreaStatus(t("browse.error", { status: res.status })); return; }
       species = await res.json();
     } catch (e) {
-      setHotspotStatus(t("browse.error", { status: "?" }));
+      setAreaStatus(t("browse.error", { status: "?" }));
       return;
     }
     state.species = species;
     // Species arrive grouped (year-round, seasonal, occasional); a heading
-    // goes up whenever the group changes. A hotspot with too little data
+    // goes up whenever the group changes. An area with too little data
     // comes back without groups, as one plain list.
     let current = null;
     let grid = null;
@@ -1063,17 +1346,17 @@ async function loadSpecies() {
       }
       grid.appendChild(speciesCard(sp));
     }
-    setHotspotStatus(tn("browse.loadedSeasonality", species.length, { name: hs.locName }));
+    setAreaStatus(tn("browse.loadedSeasonality", species.length, { name }));
     return;
   }
 
-  setHotspotStatus(t("browse.loadingCategory", { name: hs.locName }));
+  setAreaStatus(t("browse.loadingCategory", { name }));
   try {
-    const res = await fetch(`/api/hotspots/${encodeURIComponent(hs.locId)}/species?lang=${lang}&mode=category${monthParam()}`);
-    if (!res.ok) { setHotspotStatus(t("browse.error", { status: res.status })); return; }
+    const res = await fetch(`/api/places/${encodeKey(area.key)}/species?lang=${lang}&mode=category${monthParam()}`);
+    if (!res.ok) { setAreaStatus(t("browse.error", { status: res.status })); return; }
     species = await res.json();
   } catch (e) {
-    setHotspotStatus(t("browse.error", { status: "?" }));
+    setAreaStatus(t("browse.error", { status: "?" }));
     return;
   }
   state.species = species;
@@ -1096,7 +1379,7 @@ async function loadSpecies() {
     }
     currentGrid.appendChild(speciesCard(sp));
   }
-  setHotspotStatus(species.length === 0 && state.month ? noneInMonthText(hs.locName) : tn("browse.loadedCategory", species.length, { name: hs.locName }));
+  setAreaStatus(species.length === 0 && state.month ? noneInMonthText(name) : tn("browse.loadedCategory", species.length, { name }));
 }
 
 // ---- Settings -------------------------------------------------------------
@@ -1164,7 +1447,7 @@ async function onPrimaryLanguageChange() {
   applyI18n();
   buildLanguageSelects();
   if (currentRoute.name === "home") await renderHome();
-  else if (currentRoute.name === "hotspot") await loadSpecies();
+  else if (currentRoute.name === "area") await loadSpecies();
   else if (currentRoute.name === "settings") await renderSettings();
 }
 
@@ -1186,7 +1469,7 @@ async function onSecondaryLanguageChange() {
     guestStore(GUEST_SECONDARY_KEY, lang);
   }
   state.secondaryLanguage = lang;
-  if (currentRoute.name === "hotspot") await loadSpecies();
+  if (currentRoute.name === "area") await loadSpecies();
 }
 
 async function onLogout() {
@@ -1216,8 +1499,8 @@ async function shareLink(title, text, url) {
 }
 
 function shareBird(item) {
-  const place = item.locName || (state.hotspot ? state.hotspot.locName : "");
-  return shareLink(item.comName, t("learn.shareText", { name: item.comName, place }), location.origin + location.pathname + birdHash(item.locId || learn.locId, item.speciesCode));
+  const place = item.areaName || (state.area ? areaTitle(state.area) : "");
+  return shareLink(item.comName, t("learn.shareText", { name: item.comName, place }), location.origin + location.pathname + birdHash(item.areaKey || learn.areaKey, item.speciesCode));
 }
 
 async function copyText(text) {
@@ -1261,13 +1544,13 @@ function learnLoadSlide(imgEl, url, maxAttempts, { onLoad, onGiveUp }, attempt =
   probe.src = url;
 }
 
-// learn drives the full-screen card deck: cards is the hotspot's species in
+// learn drives the full-screen card deck: cards is the area's species in
 // popularity order (see startLearn), and index just moves through it — no
 // scoring, no server round-trip per card. namesVisible is a per-session
 // display toggle, not account data, so it isn't persisted anywhere.
 const learn = {
   active: false,
-  locId: "",
+  areaKey: "",
   cards: [],
   index: 0,
   done: false,
@@ -1275,13 +1558,13 @@ const learn = {
   keyHandler: null,
 
   // quiet decks (started from Compare) leave the address bar alone: their
-  // cards come from two hotspots, so no single bird URL describes them.
+  // cards come from two areas, so no single bird URL describes them.
   quiet: false,
 
-  start(cards, locId, index = 0, opts = {}) {
+  start(cards, areaKey, index = 0, opts = {}) {
     this.quiet = !!opts.quiet;
     this.cards = cards.slice();
-    this.locId = locId;
+    this.areaKey = areaKey;
     this.index = index;
     this.done = false;
     this.active = true;
@@ -1295,12 +1578,12 @@ const learn = {
     this.active = false;
     $("learnOverlay").hidden = true;
     // Closing a shared-bird view drops the bird from the URL so a reload (or
-    // re-sharing the page) lands on the plain hotspot. replaceState doesn't
+    // re-sharing the page) lands on the plain area. replaceState doesn't
     // fire hashchange; the check skips the case where finish() runs because
     // the user already navigated somewhere else.
     const route = parseRoute();
-    if (!this.quiet && route.name === "hotspot" && route.locId === this.locId && route.speciesCode) {
-      history.replaceState(null, "", hotspotHash(this.locId));
+    if (!this.quiet && route.name === "area" && route.key === this.areaKey && route.speciesCode) {
+      history.replaceState(null, "", areaHash(this.areaKey));
       currentRoute = Object.assign({}, route, { speciesCode: "" });
     }
     if (this.keyHandler) document.removeEventListener("keydown", this.keyHandler);
@@ -1346,12 +1629,12 @@ const learn = {
   },
 
   // syncURL keeps the address bar on the bird being shown (or the plain
-  // hotspot on the final screen) so it can always be copied. replaceState, so
+  // area on the final screen) so it can always be copied. replaceState, so
   // swiping through birds adds no history entries and fires no hashchange.
   syncURL() {
     if (this.quiet) return;
     const code = this.done ? "" : this.cards[this.index].speciesCode;
-    const hash = code ? birdHash(this.locId, code) : hotspotHash(this.locId);
+    const hash = code ? birdHash(this.areaKey, code) : areaHash(this.areaKey);
     if (location.hash !== hash) history.replaceState(null, "", hash);
     currentRoute = Object.assign({}, currentRoute, { speciesCode: code });
   },
@@ -1362,6 +1645,7 @@ const learn = {
     body.innerHTML = "";
 
     $("learnCreditsLink").hidden = this.done;
+    $("learnRangeLink").hidden = this.done;
     if (this.done) {
       $("learnProgress").textContent = "";
       const wrap = document.createElement("div");
@@ -1379,7 +1663,8 @@ const learn = {
     }
 
     const item = this.cards[this.index];
-    $("learnCreditsLink").href = creditsHash(item.locId || this.locId, item.speciesCode);
+    $("learnRangeLink").href = rangeHash(item.speciesCode, effectiveMonth());
+    $("learnCreditsLink").href = creditsHash(item.areaKey || this.areaKey, item.speciesCode);
     $("learnProgress").textContent = t("learn.progress", { i: this.index + 1, n: this.cards.length });
 
     const card = document.createElement("div");
@@ -1538,7 +1823,7 @@ const learn = {
 };
 
 async function startLearn() {
-  if (!state.hotspot) return;
+  if (!state.area) return;
   trackEvent("learn-start");
   const btn = $("learnStart");
   btn.disabled = true;
@@ -1550,59 +1835,53 @@ async function startLearn() {
 }
 
 async function loadAndStartLearn(speciesCode) {
-  setHotspotStatus(t("learn.building"));
+  setAreaStatus(t("learn.building"));
   let species;
   try {
-    const res = await fetch(`/api/hotspots/${encodeURIComponent(state.hotspot.locId)}/species?lang=${encodeURIComponent(state.language)}&mode=popularity${monthParam()}`);
-    if (!res.ok) { setHotspotStatus(t("learn.error", { status: res.status })); return; }
+    const res = await fetch(`/api/places/${encodeKey(state.area.key)}/species?lang=${encodeURIComponent(state.language)}&mode=popularity${monthParam()}`);
+    if (!res.ok) { setAreaStatus(t("learn.error", { status: res.status })); return; }
     species = await res.json();
   } catch (e) {
-    setHotspotStatus(t("learn.error", { status: "?" }));
+    setAreaStatus(t("learn.error", { status: "?" }));
     return;
   }
   if (!species || species.length === 0) {
-    setHotspotStatus(effectiveMonth() ? noneInMonthText(state.hotspot.locName) : t("learn.none"));
+    setAreaStatus(effectiveMonth() ? noneInMonthText(areaTitle(state.area)) : t("learn.none"));
     return;
   }
   let index = 0;
   if (speciesCode) {
     index = species.findIndex((sp) => sp.speciesCode === speciesCode);
     if (index < 0) {
-      setHotspotStatus(t("learn.birdNotFound"));
-      history.replaceState(null, "", hotspotHash(state.hotspot.locId));
+      setAreaStatus(t("learn.birdNotFound"));
+      history.replaceState(null, "", areaHash(state.area.key));
       currentRoute = Object.assign({}, currentRoute, { speciesCode: "" });
       return;
     }
   }
-  await loadSecondaryNames(state.hotspot.locId);
-  setHotspotStatus("");
-  learn.start(species, state.hotspot.locId, index);
+  await loadSecondaryNames(state.area.key);
+  setAreaStatus("");
+  learn.start(species, state.area.key, index);
 }
 
 // ---- Wiring ---------------------------------------------------------------
 
 function wireEvents() {
   wirePlaceSearch();
+  wireSpeciesSearch();
   wireSortMenu();
   $("homeEditToggle").addEventListener("click", () => {
     homeEditing = !homeEditing;
     renderHomeFavorites();
-  });
-  $("searchHere").addEventListener("click", () => {
-    const center = map.getCenter();
-    $("lat").value = center.lat.toFixed(6);
-    $("lng").value = center.lng.toFixed(6);
-    findHotspots();
   });
   $("useLocation").addEventListener("click", () => {
     if (!navigator.geolocation) { setStatus(t("search.geoUnsupported")); return; }
     setStatus(t("search.geoRequesting"));
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        $("lat").value = pos.coords.latitude.toFixed(6);
-        $("lng").value = pos.coords.longitude.toFixed(6);
-        map.setView([pos.coords.latitude, pos.coords.longitude], 13);
-        findHotspots();
+        setStatus("");
+        leaveStage();
+        setCustomCentre(pos.coords.latitude, pos.coords.longitude, true);
       },
       (err) => {
         setStatus(t("search.geoError", { message: err.message }));
@@ -1611,30 +1890,83 @@ function wireEvents() {
     );
   });
 
-  $("shareHotspotBtn").addEventListener("click", async () => {
-    if (!state.hotspot) return;
-    const h = state.hotspot;
-    const name = h.locName || h.locId;
-    const copied = await shareLink(name, t("hotspot.shareText", { place: name }), location.origin + location.pathname + hotspotHash(h.locId));
-    if (copied) setHotspotStatus(t("share.linkCopied"));
-    trackEvent("share-hotspot");
+  $("customRadius").value = kmToSlider(DEFAULT_RADIUS_KM);
+  showCustomRadius();
+  $("customRadius").addEventListener("input", () => {
+    if (stage) stage.resized = true;
+    showCustomRadius();
+    drawCustomArea(false);
+  });
+  $("customRadius").addEventListener("change", () => drawCustomArea(true));
+  $("customForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const key = stageTarget();
+    if (key) navigate("#/area/" + encodeKey(key));
   });
 
-  $("bookmarkBtn").addEventListener("click", async () => {
-    if (!state.hotspot) return;
+  $("useCircle").addEventListener("click", useCircle);
+
+  $("stageSave").addEventListener("click", async () => {
+    const key = stageTarget();
+    if (!key) return;
     if (!state.signedIn) {
       window.location = "/login?next=" + encodeURIComponent("/" + location.hash);
       return;
     }
-    const saved = state.favorites.some((f) => f.locId === state.hotspot.locId);
+    const btn = $("stageSave");
+    btn.disabled = true;
+    try {
+      if (state.favorites.some((f) => f.key === key)) {
+        await deleteFavorite(key);
+      } else {
+        const res = await fetch(`/api/places/${encodeKey(key)}`);
+        if (!res.ok) throw new Error(String(res.status));
+        await putFavorite(await res.json());
+        trackEvent("bookmark");
+        // A resized town keeps its name rather than becoming "Near <town>".
+        if (stage && stage.area.kind && stage.area.name && key !== stage.area.key && !stage.moved) {
+          await putFavoriteName(key, stage.area.name);
+        }
+      }
+    } catch (e) {
+      setStatus(t("search.bookmarkError"));
+    } finally {
+      renderStage();
+    }
+  });
+
+  $("shareAreaBtn").addEventListener("click", async () => {
+    if (!state.area) return;
+    const name = areaTitle(state.area);
+    const copied = await shareLink(name, t("area.shareText", { place: name }), location.origin + location.pathname + areaHash(state.area.key));
+    if (copied) setAreaStatus(t("share.linkCopied"));
+    trackEvent("share-area");
+  });
+
+  $("renameAreaBtn").addEventListener("click", async () => {
+    if (!state.area) return;
+    try {
+      if (await renameFavorite(state.area.key)) renderAreaHead();
+    } catch (e) {
+      setAreaStatus(t("area.bookmarkError"));
+    }
+  });
+
+  $("bookmarkBtn").addEventListener("click", async () => {
+    if (!state.area) return;
+    if (!state.signedIn) {
+      window.location = "/login?next=" + encodeURIComponent("/" + location.hash);
+      return;
+    }
+    const saved = state.favorites.some((f) => f.key === state.area.key);
     const btn = $("bookmarkBtn");
     btn.disabled = true;
     try {
-      if (saved) await deleteFavorite(state.hotspot.locId);
-      else { await putFavorite(state.hotspot); trackEvent("bookmark"); }
+      if (saved) await deleteFavorite(state.area.key);
+      else { await putFavorite(state.area); trackEvent("bookmark"); }
       updateBookmarkButton();
     } catch (e) {
-      setHotspotStatus(t("hotspot.bookmarkError"));
+      setAreaStatus(t("area.bookmarkError"));
     } finally {
       btn.disabled = false;
     }
@@ -1642,16 +1974,16 @@ function wireEvents() {
 
   for (const radio of document.querySelectorAll('input[name="mode"]')) {
     radio.addEventListener("change", () => {
-      if (parseRoute().name === "hotspot") history.replaceState(null, "", location.hash.split("?")[0] + routeQuery());
-      if (state.hotspot) loadSpecies();
+      if (parseRoute().name === "area") history.replaceState(null, "", location.hash.split("?")[0] + routeQuery());
+      if (state.area) loadSpecies();
     });
   }
 
   $("monthSelect").addEventListener("change", (e) => {
     state.monthIsCurrent = e.target.value === "now";
     state.month = state.monthIsCurrent ? currentMonth() : Number(e.target.value);
-    if (parseRoute().name === "hotspot") history.replaceState(null, "", location.hash.split("?")[0] + routeQuery());
-    if (state.hotspot) loadSpecies();
+    if (parseRoute().name === "area") history.replaceState(null, "", location.hash.split("?")[0] + routeQuery());
+    if (state.area) loadSpecies();
   });
 
   $("learnStart").addEventListener("click", startLearn);
@@ -1681,9 +2013,8 @@ async function init() {
   await initAccount();
   initAnalytics();
 
-  // The pre-existing deep link /?locId=…&lang=…&mode=… keeps working: lang
-  // overrides the account preference for this load, mode picks the browse
-  // ordering, and locId lands on that hotspot's view.
+  // ?lang=… overrides the account preference for this load and ?mode=… picks
+  // the browse ordering.
   const params = new URLSearchParams(location.search);
   const qLang = params.get("lang");
   if (VALID_LANGS.includes(qLang)) state.language = qLang;
@@ -1697,16 +2028,10 @@ async function init() {
   initMap();
   wireEvents();
 
-  const locId = params.get("locId");
-  if (locId && /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(locId)) {
-    history.replaceState(null, "", "#/hotspot/" + encodeURIComponent(locId));
-  } else if (!location.hash) {
-    history.replaceState(null, "", "#/home");
-  }
+  if (!location.hash) history.replaceState(null, "", "#/home");
 
   window.addEventListener("hashchange", () => { updateAccountChrome(); onHashChange(); });
   await renderRoute();
-  setStatus(t("search.status.initial"));
 }
 
 init();

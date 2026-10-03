@@ -11,12 +11,12 @@ import (
 // complements the global limiters in ratelimit.go: those cap our total
 // outbound rate to each upstream API across every client combined; this caps
 // how much of that shared budget a single key can burn through. A script
-// hammering hundreds of never-before-seen hotspots gets throttled here long
+// hammering hundreds of never-before-seen areas gets throttled here long
 // before it can monopolize the global budget (and starve everyone else) or
 // force a meaningful amount of fresh upstream traffic.
 //
-// Keys are account ids for signed-in visitors on the hotspot endpoints (see
-// hotspotRateLimitKey and auth.go) and source IPs for everyone else: guests,
+// Keys are account ids for signed-in visitors on the area endpoints (see
+// areaRateLimitKey and auth.go) and source IPs for everyone else: guests,
 // open mode, and the pre-login OAuth endpoints, where no account exists yet.
 //
 // Deliberately not one goroutine-per-key like rateLimiter in ratelimit.go —
@@ -118,12 +118,12 @@ func accountKey(r *http.Request) string {
 	return userIDFromContext(r)
 }
 
-// hotspotRateLimitKey returns the keyFn for the hotspot endpoints. A signed-in
+// areaRateLimitKey returns the keyFn for the area endpoints. A signed-in
 // visitor is keyed by account id; a guest — anyone without a session, and
 // everyone in open mode — by client IP, the same keying the pre-login /auth/*
 // endpoints use. Keying on the fixed development account instead would
 // collapse every open-mode client into one bucket.
-func hotspotRateLimitKey(openMode bool) func(*http.Request) string {
+func areaRateLimitKey(openMode bool) func(*http.Request) string {
 	return func(r *http.Request) string {
 		if !openMode {
 			if id := userIDFromContext(r); id != "" {

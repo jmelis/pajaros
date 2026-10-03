@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"syscall"
@@ -18,6 +17,7 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
+	"github.com/jmelis/pajaros/server/internal/areas"
 	"github.com/jmelis/pajaros/server/internal/seasonal"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -31,40 +31,30 @@ import (
 var embeddedStatic embed.FS
 
 type Server struct {
-	hotspots *HotspotStore
-	places   *PlaceStore
-	species  hotspotSpeciesSource
-	cache    *ImageCache
-	users    *UserStore
-	contact  *contactMailer // nil when the contact form isn't configured
+	areas   *AreaResolver
+	places  *PlaceStore
+	species areaSpeciesSource
+	cache   *ImageCache
+	users   *UserStore
+	contact *contactMailer // nil when the contact form isn't configured
+	ranges  *RangeMapper   // nil when species range maps aren't wired (tests)
 }
-
-// validLocID matches a hotspot ID — "lat,lng" (see hotspots_data.go's Hotspot type),
-// e.g. "41.486977,-71.0376". It gates every use of the {locId} path value
-// before it's looked up in the hotspot store.
-var validLocID = regexp.MustCompile(`^-?\d+(\.\d+)?,-?\d+(\.\d+)?$`).MatchString
 
 // defaultLang is the bird-name language used when neither the request nor the
 // account's stored preference selects one. Kept next to validLang so the
 // species endpoint and the store agree on what an unset preference means.
 const defaultLang = "en"
 
-// maxNearbyDistKm caps /api/hotspots' dist query param (see
-// handleNearbyHotspots) — the frontend only ever omits it (using the
-// 25km default) or sets it from a place search, never anything close to
-// this. It exists purely so a request straight against the API can't force
-// an unbounded haversine scan/response.
-const maxNearbyDistKm = 100.0
-
 // Environment variables
 // =====================
 //
-// Hotspot, species and taxonomy data are entirely offline at request time —
-// taxonomy is go:embed'd at build time (taxonomy_data.go); hotspot/species
-// data is read lazily from a bbolt file at HOTSPOTS_DATA_DIR, built by
-// cmd/gensnapshot (see ARCHITECTURE.md and hotspots_data.go/species_store.go).
+// Place, species and taxonomy data are entirely offline at request time —
+// taxonomy is go:embed'd at build time (taxonomy_data.go); the species counts
+// are read lazily from seasonal_cells.bolt at DATA_DIR, built by
+// cmd/gensnapshot (see ARCHITECTURE.md and area.go/species_store.go).
 // Place-name search reads a second, much smaller bbolt file in the same
-// directory, places.bolt, built from a GeoNames dump (places_data.go). So
+// directory, places.bolt, built from OpenStreetMap and Natural Earth
+// (places_data.go). So
 // there is no eBird or GBIF API key or rate limit to configure here —
 // Wikimedia (card images) is the only upstream call left at request time.
 //
@@ -78,8 +68,8 @@ const maxNearbyDistKm = 100.0
 //   UMAMI_SCRIPT_URL, UMAMI_WEBSITE_ID  self-hosted Umami tracker script and
 //                  site id; analytics load only when both are set.
 //   PORT, HOST  listen address (default "8080" / "0.0.0.0").
-//   HOTSPOTS_DATA_DIR  directory holding hotspots_seasonal.bolt and places.bolt
-//                      (default "./data").
+//   DATA_DIR  directory holding seasonal_cells.bolt and places.bolt
+//             (default "./data").
 //   WIKIMEDIA_RPS  Wikimedia rate limit (default 8/s). Per process: with N
 //                  replicas the combined rate is N times this.
 //   SHUTDOWN_DELAY    on SIGTERM, how long to keep serving before closing the
@@ -138,13 +128,13 @@ type SpeciesCard struct {
 	Order     string   `json:"order"`
 	Family    string   `json:"family"`
 	// NearbyCount is set only in "popularity" mode: this species' observation
-	// count at the hotspot (see hotspotSpeciesSource.PopularityCounts). nil
+	// count in the area (see areaSpeciesSource.PopularityCounts). nil
 	// means unmatched/no data, not zero.
 	NearbyCount *int `json:"nearbyCount,omitempty"`
 	// Season and SeasonBars are set only in "seasonality" mode: one of
 	// yearround/seasonal/occasional, and 12 bar heights (0..100, January
 	// first) for the species' reporting rate by month. Absent when the
-	// hotspot has too little data.
+	// area has too little data.
 	Season     string `json:"season,omitempty"`
 	SeasonBars []int  `json:"seasonBars,omitempty"` // []uint8 would marshal as base64
 	// ImageMissing is true once a Wikimedia lookup has already confirmed no
@@ -189,27 +179,19 @@ func main() {
 		log.Printf("image policy migration: %v (continuing — old photos stay until the next restart)", err)
 	}
 
-	// GBIF-derived hotspot/species data — low single-digit GB, rebuilt
-	// yearly by cmd/gensnapshot, scp'd to this host rather than go:embed'd
-	// or committed to git. See ARCHITECTURE.md. bbolt is
-	// mmap-backed, so opening it doesn't load the worldwide dataset into
-	// memory — one handle is shared by both HotspotStore and SpeciesStore,
-	// which read different buckets of the same file.
-	dataDir := os.Getenv("HOTSPOTS_DATA_DIR")
+	// GBIF-derived seasonal species counts on a grid — about a gigabyte,
+	// rebuilt yearly by cmd/gensnapshot, scp'd to this host rather than
+	// go:embed'd or committed to git. See ARCHITECTURE.md. bbolt is
+	// mmap-backed, so opening it doesn't load the dataset into memory.
+	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
 		dataDir = "./data"
 	}
-	loadStart := time.Now()
-	hotspotsDB, err := bolt.Open(filepath.Join(dataDir, seasonal.FileName), 0o444, &bolt.Options{ReadOnly: true})
+	cellsStore, err := areas.Open(filepath.Join(dataDir, areas.FileName))
 	if err != nil {
-		log.Fatalf("open %s: %v", seasonal.FileName, err)
+		log.Fatalf("open %s: %v", areas.FileName, err)
 	}
-	defer hotspotsDB.Close()
-	hotspots, err := openHotspotStore(hotspotsDB)
-	if err != nil {
-		log.Fatalf("hotspot store: %v", err)
-	}
-	log.Printf("opened %d hotspots in %s", hotspots.Len(), time.Since(loadStart).Round(time.Millisecond))
+	defer cellsStore.Close()
 
 	placesDB, err := bolt.Open(filepath.Join(dataDir, "places.bolt"), 0o444, &bolt.Options{ReadOnly: true})
 	if err != nil {
@@ -220,7 +202,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("place store: %v", err)
 	}
-	log.Printf("opened %d places", places.Len())
+	log.Printf("opened %d place names", places.Len())
+	areaResolver := NewAreaResolver(cellsStore, places)
 
 	taxonomy, err := loadTaxonomyStore()
 	if err != nil {
@@ -230,11 +213,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("geoip snapshot: %v", err)
 	}
-	speciesStore, err := openSpeciesStore(hotspotsDB, taxonomy)
-	if err != nil {
-		log.Fatalf("species store: %v", err)
-	}
-	species := NewSpeciesResolver(taxonomy, speciesStore)
+	species := NewSpeciesResolver(taxonomy, newSpeciesStore(areaResolver, taxonomy))
 
 	// Persistence for user identity and preferences. The SQLite database is
 	// created, schema included, on first startup; see USER_DB_PATH above.
@@ -249,15 +228,16 @@ func main() {
 	defer users.Close()
 
 	srv := &Server{
-		hotspots: hotspots,
-		places:   places,
-		species:  species,
-		cache:    cache,
-		users:    users,
-		contact:  newContactMailerFromEnv(),
+		areas:   areaResolver,
+		places:  places,
+		species: species,
+		cache:   cache,
+		users:   users,
+		contact: newContactMailerFromEnv(),
+		ranges:  newRangeMapper(func(fn func(i, j int32, es []seasonal.Entry)) error { return cellsStore.ForEachCell(2, fn) }, taxonomy),
 	}
 
-	prometheus.MustRegister(&dbGaugeCollector{users: users, hotspots: hotspots, places: places})
+	prometheus.MustRegister(&dbGaugeCollector{users: users, places: places})
 
 	staticFS, err := fs.Sub(embeddedStatic, "static")
 	if err != nil {
@@ -289,32 +269,33 @@ func main() {
 	// these cap how much of that shared budget one account can burn through.
 	// Detail views (species) are the ones that can fan out to Wikimedia (one
 	// image lookup per species) on a cache miss, so they get the tighter
-	// limit; the hotspot search is a single local bbolt lookup regardless of
-	// how many hotspots come back, so it gets a looser one.
+	// limit; the place search is a single local bbolt lookup, so it gets a
+	// looser one.
 	//
 	// The key is the account id for a signed-in visitor. Guests (and everyone
 	// in open mode) are keyed by client IP instead; the fixed development
 	// account would rate-limit everyone collectively.
-	hotspotDetailLimiter := newKeyedRateLimiter("hotspot_detail", 20, 10) // burst 20, 10/min sustained
-	hotspotSearchLimiter := newKeyedRateLimiter("hotspot_search", 20, 20) // burst 20, 20/min sustained
-	hotspotKey := hotspotRateLimitKey(auth.openMode())
+	areaDetailLimiter := newKeyedRateLimiter("area_detail", 20, 10)   // burst 20, 10/min sustained
+	placeSearchLimiter := newKeyedRateLimiter("place_search", 20, 20) // burst 20, 20/min sustained
+	limitKey := areaRateLimitKey(auth.openMode())
 
 	// The login/callback endpoints run before an account exists, so they keep
 	// an IP-keyed limit of their own.
 	authLimiter := newIPRateLimiter("auth", 30, 30)
 
 	appMux := http.NewServeMux()
-	appMux.HandleFunc("GET /api/hotspots", instrumentHTTP("/api/hotspots", hotspotSearchLimiter.middleware(hotspotKey, srv.handleNearbyHotspots)))
-	// Place-name search: same class of endpoint as the hotspot search
-	// above (a single local bbolt lookup, no upstream fan-out), so it
-	// shares that limiter rather than needing one of its own.
-	appMux.HandleFunc("GET /api/places", instrumentHTTP("/api/places", hotspotSearchLimiter.middleware(hotspotKey, srv.handlePlaceSearch)))
-	appMux.HandleFunc("GET /api/hotspots/{locId}", instrumentHTTP("/api/hotspots/{locId}", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotInfo)))
-	appMux.HandleFunc("GET /api/hotspots/{locId}/species", instrumentHTTP("/api/hotspots/{locId}/species", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotSpecies)))
-	appMux.HandleFunc("GET /api/hotspots/{locId}/credits", instrumentHTTP("/api/hotspots/{locId}/credits", hotspotDetailLimiter.middleware(hotspotKey, srv.handleHotspotCredits)))
-	// Compare reads only local stores (no image fetching), but loads two
-	// species lists per call, so it shares the detail limiter.
-	appMux.HandleFunc("GET /api/compare", instrumentHTTP("/api/compare", hotspotDetailLimiter.middleware(hotspotKey, srv.handleCompare)))
+	// Place-name search: a single local bbolt lookup, no upstream fan-out.
+	appMux.HandleFunc("GET /api/places", instrumentHTTP("/api/places", placeSearchLimiter.middleware(limitKey, srv.handlePlaceSearch)))
+	appMux.HandleFunc("GET /api/species", instrumentHTTP("/api/species", placeSearchLimiter.middleware(limitKey, srv.handleSpeciesSearch)))
+	// A range map scans every 1-degree cell once, then is cached.
+	appMux.HandleFunc("GET /api/species/{code}/range", instrumentHTTP("/api/species/{code}/range", areaDetailLimiter.middleware(limitKey, srv.handleSpeciesRange)))
+	appMux.HandleFunc("GET /api/places/{key}", instrumentHTTP("/api/places/{key}", areaDetailLimiter.middleware(limitKey, srv.handleAreaInfo)))
+	appMux.HandleFunc("GET /api/places/{key}/outline", instrumentHTTP("/api/places/{key}/outline", areaDetailLimiter.middleware(limitKey, srv.handleAreaOutline)))
+	appMux.HandleFunc("GET /api/places/{key}/species", instrumentHTTP("/api/places/{key}/species", areaDetailLimiter.middleware(limitKey, srv.handleAreaSpecies)))
+	appMux.HandleFunc("GET /api/places/{key}/credits", instrumentHTTP("/api/places/{key}/credits", areaDetailLimiter.middleware(limitKey, srv.handleAreaCredits)))
+	// Compare reads only local stores (no image fetching), but pools two
+	// areas per call, so it shares the detail limiter.
+	appMux.HandleFunc("GET /api/compare", instrumentHTTP("/api/compare", areaDetailLimiter.middleware(limitKey, srv.handleCompare)))
 
 	// Contact: the form is signed-in only, and capped per account so one
 	// account can't flood the owner's inbox or burn the Resend quota.
@@ -323,17 +304,18 @@ func main() {
 	appMux.HandleFunc("POST /api/contact", instrumentHTTP("/api/contact", auth.requireFunc(contactLimiter.middleware(accountKey, srv.handleSendContact))))
 	appMux.HandleFunc("GET /api/analytics", instrumentHTTP("/api/analytics", srv.handleAnalytics))
 
-	// Per-account preferences and saved hotspots: the only routes that need a
+	// Per-account preferences and saved areas: the only routes that need a
 	// sign-in (guests get a 401). They touch only the local database, so unlike
-	// the hotspot routes they need no upstream-keyed rate limit.
+	// the area routes they need no upstream-keyed rate limit.
 	appMux.HandleFunc("GET /api/me", instrumentHTTP("/api/me", auth.requireFunc(srv.handleGetProfile)))
 	appMux.HandleFunc("GET /api/me/language", instrumentHTTP("/api/me/language", auth.requireFunc(srv.handleGetLanguage)))
 	appMux.HandleFunc("PUT /api/me/language", instrumentHTTP("/api/me/language", auth.requireFunc(srv.handleSetLanguage)))
 	appMux.HandleFunc("GET /api/me/secondary-language", instrumentHTTP("/api/me/secondary-language", auth.requireFunc(srv.handleGetSecondaryLanguage)))
 	appMux.HandleFunc("PUT /api/me/secondary-language", instrumentHTTP("/api/me/secondary-language", auth.requireFunc(srv.handleSetSecondaryLanguage)))
 	appMux.HandleFunc("GET /api/me/favorites", instrumentHTTP("/api/me/favorites", auth.requireFunc(srv.handleListFavorites)))
-	appMux.HandleFunc("PUT /api/me/favorites/{locId}", instrumentHTTP("/api/me/favorites/{locId}", auth.requireFunc(srv.handleAddFavorite)))
-	appMux.HandleFunc("DELETE /api/me/favorites/{locId}", instrumentHTTP("/api/me/favorites/{locId}", auth.requireFunc(srv.handleRemoveFavorite)))
+	appMux.HandleFunc("PUT /api/me/favorites/{key}", instrumentHTTP("/api/me/favorites/{key}", auth.requireFunc(srv.handleAddFavorite)))
+	appMux.HandleFunc("PUT /api/me/favorites/{key}/name", instrumentHTTP("/api/me/favorites/{key}/name", auth.requireFunc(srv.handleRenameFavorite)))
+	appMux.HandleFunc("DELETE /api/me/favorites/{key}", instrumentHTTP("/api/me/favorites/{key}", auth.requireFunc(srv.handleRemoveFavorite)))
 
 	appMux.Handle("GET /images/", instrumentHTTP("/images/", http.StripPrefix("/images/", http.FileServer(http.Dir(cacheDir))).ServeHTTP))
 	appMux.Handle("GET /", instrumentHTTP("/", http.FileServerFS(staticFS).ServeHTTP))
@@ -417,61 +399,32 @@ func buildRootMux(auth *Auth, appMux http.Handler, authLimiter *keyedRateLimiter
 	return mux
 }
 
-func (s *Server) handleNearbyHotspots(w http.ResponseWriter, r *http.Request) {
-	lat, err1 := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
-	lng, err2 := strconv.ParseFloat(r.URL.Query().Get("lng"), 64)
-	if err1 != nil || err2 != nil {
-		http.Error(w, "lat and lng query params are required floats", http.StatusBadRequest)
-		return
-	}
-	distKm := 25.0
-	if v := r.URL.Query().Get("dist"); v != "" {
-		if d, err := strconv.ParseFloat(v, 64); err == nil {
-			distKm = d
-		}
-	}
-	// dist is unbounded input straight into a haversine scan over ~20
-	// million worldwide points: an unclamped large value (e.g. a
-	// hand-crafted request bypassing the frontend, which never sends this
-	// param) returns a giant slice, allocating well over a GB to marshal
-	// it as one JSON response. Clamped here rather than validated/rejected
-	// since nothing about a too-large radius is actually invalid, just
-	// resource-unsafe -- clamping degrades gracefully instead of erroring.
-	if distKm > maxNearbyDistKm {
-		distKm = maxNearbyDistKm
-	}
-
-	hotspots := s.hotspots.Nearby(lat, lng, distKm)
-	writeJSON(w, hotspots)
-}
-
 // handlePlaceSearch answers "type a place name" search — a prefix match
-// against places.bolt's GeoNames-derived index, most-populous match first.
-// This is a separate concept from a hotspot: it's a town/region to center a
-// subsequent /api/hotspots search on, not a birding site itself.
+// against places.bolt, most-populous match first. Each result's id names the
+// area (key "p<id>"); a custom circle needs no search.
 func (s *Server) handlePlaceSearch(w http.ResponseWriter, r *http.Request) {
 	places := s.places.Search(r.URL.Query().Get("q"), 8)
 	writeJSON(w, places)
 }
 
-func (s *Server) handleHotspotInfo(w http.ResponseWriter, r *http.Request) {
-	locID := r.PathValue("locId")
-	if !validLocID(locID) {
-		http.Error(w, "invalid locId", http.StatusBadRequest)
+func (s *Server) handleAreaInfo(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	if !validAreaKey(key) {
+		http.Error(w, "invalid area key", http.StatusBadRequest)
 		return
 	}
-	hotspot, ok := s.hotspots.Info(locID)
-	if !ok {
-		http.Error(w, "hotspot not found", http.StatusNotFound)
+	info, err := s.areas.Info(key)
+	if err != nil {
+		http.Error(w, "place not found", http.StatusNotFound)
 		return
 	}
-	writeJSON(w, hotspot)
+	writeJSON(w, info)
 }
 
-func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
-	locID := r.PathValue("locId")
-	if !validLocID(locID) {
-		http.Error(w, "invalid locId", http.StatusBadRequest)
+func (s *Server) handleAreaSpecies(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	if !validAreaKey(key) {
+		http.Error(w, "invalid area key", http.StatusBadRequest)
 		return
 	}
 	lang, ok := s.resolveLang(w, r)
@@ -490,10 +443,10 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 	if mode == "seasonality" {
 		month = 0 // the seasonal view always looks at the whole year
 	}
-	codes, taxa, err := s.species.Species(locID, lang, month)
+	codes, taxa, err := s.species.Species(key, lang, month)
 	if err != nil {
-		log.Printf("Species(%s, %s, month %d): %v", locID, lang, month, err)
-		http.Error(w, "failed to look up hotspot species", http.StatusNotFound)
+		log.Printf("Species(%s, %s, month %d): %v", key, lang, month, err)
+		http.Error(w, "failed to look up species", http.StatusNotFound)
 		return
 	}
 
@@ -523,11 +476,11 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 
 	switch mode {
 	case "popularity":
-		nearbyCounts, err := s.species.PopularityCounts(locID, month)
+		nearbyCounts, err := s.species.PopularityCounts(key, month)
 		if err != nil {
 			// Popularity data is a nice-to-have — fall back to category
 			// order rather than fail the whole request.
-			log.Printf("PopularityCounts(%s, month %d): %v — falling back to category order", locID, month, err)
+			log.Printf("PopularityCounts(%s, month %d): %v — falling back to category order", key, month, err)
 		} else {
 			for i := range cards {
 				if count, ok := nearbyCounts[cards[i].SciName]; ok {
@@ -551,8 +504,8 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 
 	// Every card carries its monthly bar chart, whatever the order; the
 	// seasonality order also groups and sorts by season.
-	if seasons, err := s.species.Seasonality(locID); err != nil {
-		log.Printf("Seasonality(%s): %v — no season data", locID, err)
+	if seasons, err := s.species.Seasonality(key); err != nil {
+		log.Printf("Seasonality(%s): %v — no season data", key, err)
 	} else {
 		labelSeasons(cards, seasons)
 		if mode == "seasonality" {
@@ -560,7 +513,7 @@ func (s *Server) handleHotspotSpecies(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	hotspotSpeciesCount.WithLabelValues(mode).Observe(float64(len(cards)))
+	areaSpeciesCount.WithLabelValues(mode).Observe(float64(len(cards)))
 	writeJSON(w, cards)
 }
 

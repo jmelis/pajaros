@@ -22,7 +22,7 @@ import (
 // Apple stays two distinct accounts, and the same Google account keeps the
 // same ID across logins.
 //
-// Preferences (preferred language, favorite hotspots) live in their own
+// Preferences (preferred language, favorite areas) live in their own
 // tables alongside this one; see UserStore and Profile.
 type User struct {
 	ID          string    `json:"id"`
@@ -50,18 +50,22 @@ type Profile struct {
 	Favorites         []Favorite `json:"favorites"`
 }
 
-// Favorite is a bookmarked hotspot. LocName and the coordinates are captured
-// when the bookmark is added (the client already has them from the hotspot it
-// is viewing or from a search result), so the home list can render a name and
-// place the hotspot on a map without a live eBird call per favorite. Lat/Lng
-// are 0 when unknown (e.g. a favorite migrated from the id-only rows the
-// store used to keep). LocName may be "" when it could not be resolved; the
-// frontend then falls back to the location id.
+// Favorite is a bookmarked area: a place from places.bolt (Key "p<id>") or a
+// custom circle (Key "c<lat>,<lng>,<km>"). The name, kind and country are
+// captured when the bookmark is added, so the home list renders without a
+// places lookup per favorite; Name is the place's own name and may be empty
+// for a custom circle. CustomName is the label the user gave the favorite and,
+// when set, is what the UI shows instead.
 type Favorite struct {
-	LocID   string  `json:"locId"`
-	LocName string  `json:"locName"`
-	Lat     float64 `json:"lat"`
-	Lng     float64 `json:"lng"`
+	Key        string  `json:"key"`
+	Name       string  `json:"name"`
+	CustomName string  `json:"customName,omitempty"`
+	Kind       string  `json:"kind,omitempty"`
+	Region     string  `json:"region,omitempty"` // custom circles only; described on read, not stored
+	Country    string  `json:"country,omitempty"`
+	Lat        float64 `json:"lat"`
+	Lng        float64 `json:"lng"`
+	RadiusKm   float64 `json:"radiusKm"`
 }
 
 // schemaColumn is one column this code expects a table to have. def is the
@@ -117,15 +121,19 @@ var schemaTables = []schemaTable{
 		},
 	},
 	{
-		name: "favorite_hotspots",
+		name: "favorite_areas",
 		columns: []schemaColumn{
 			{"user_id", "TEXT NOT NULL"},
-			{"loc_id", "TEXT NOT NULL"},
-			{"loc_name", "TEXT NOT NULL DEFAULT ''"},
+			{"area_key", "TEXT NOT NULL"},
+			{"name", "TEXT NOT NULL DEFAULT ''"},
+			{"kind", "TEXT NOT NULL DEFAULT ''"},
+			{"country", "TEXT NOT NULL DEFAULT ''"},
 			{"lat", "REAL NOT NULL DEFAULT 0"},
 			{"lng", "REAL NOT NULL DEFAULT 0"},
+			{"radius_km", "REAL NOT NULL DEFAULT 0"},
+			{"custom_name", "TEXT NOT NULL DEFAULT ''"},
 		},
-		primaryKey: "PRIMARY KEY (user_id, loc_id)",
+		primaryKey: "PRIMARY KEY (user_id, area_key)",
 	},
 }
 
@@ -145,6 +153,11 @@ func createTableSQL(t schemaTable) string {
 // missing table and adds any column an existing table is missing, leaving all
 // existing data alone.
 func applySchema(db *sql.DB) error {
+	// Favorites were once hotspots keyed by coordinates; areas replaced them
+	// and the old rows have no equivalent, so the table is dropped.
+	if _, err := db.Exec(`DROP TABLE IF EXISTS favorite_hotspots`); err != nil {
+		return fmt.Errorf("drop favorite_hotspots: %w", err)
+	}
 	for _, t := range schemaTables {
 		if _, err := db.Exec(createTableSQL(t)); err != nil {
 			return fmt.Errorf("create table %s: %w", t.name, err)
@@ -382,33 +395,32 @@ func (s *UserStore) SetLanguage(id, lang string) error {
 	return err
 }
 
-// maxFavorites bounds how many hotspots one account can bookmark, keeping
-// both the home list and the favorite_hotspots table finite.
+// maxFavorites bounds how many areas one account can bookmark, keeping both
+// the home list and the favorite_areas table finite.
 const maxFavorites = 100
 
 // ErrFavoritesLimit is returned by AddFavorite when the account is already at
-// maxFavorites and locID is not one of the existing favorites.
+// maxFavorites and the key is not one of the existing favorites.
 var ErrFavoritesLimit = errors.New("favorites limit reached")
 
 // AddFavorite records fav as a favorite of the account. Adding one that is
-// already favorited succeeds and refreshes its stored name/coordinates when
-// the caller supplied them, so an older id-only favorite can be backfilled
-// without duplicating the row. Adding a new one when the account is already
-// at maxFavorites returns ErrFavoritesLimit.
+// already favorited succeeds and replaces its stored details, without
+// duplicating the row. Adding a new one when the account is already at
+// maxFavorites returns ErrFavoritesLimit.
 func (s *UserStore) AddFavorite(id string, fav Favorite) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var existing int
 	if err := s.db.QueryRow(
-		`SELECT COUNT(*) FROM favorite_hotspots WHERE user_id = ? AND loc_id = ?`, id, fav.LocID,
+		`SELECT COUNT(*) FROM favorite_areas WHERE user_id = ? AND area_key = ?`, id, fav.Key,
 	).Scan(&existing); err != nil {
 		return err
 	}
 	if existing == 0 {
 		var count int
 		if err := s.db.QueryRow(
-			`SELECT COUNT(*) FROM favorite_hotspots WHERE user_id = ?`, id,
+			`SELECT COUNT(*) FROM favorite_areas WHERE user_id = ?`, id,
 		).Scan(&count); err != nil {
 			return err
 		}
@@ -417,19 +429,29 @@ func (s *UserStore) AddFavorite(id string, fav Favorite) error {
 		}
 	}
 
-	// Empty/zero fields are treated as "leave what's there": a re-add with no
-	// body stays the no-op it always was, and an id-only legacy row keeps its
-	// values unless a caller supplies better ones.
 	_, err := s.db.Exec(
-		`INSERT INTO favorite_hotspots (user_id, loc_id, loc_name, lat, lng)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(user_id, loc_id) DO UPDATE SET
-			loc_name = CASE WHEN excluded.loc_name <> '' THEN excluded.loc_name ELSE favorite_hotspots.loc_name END,
-			lat      = CASE WHEN excluded.lat <> 0 OR excluded.lng <> 0 THEN excluded.lat ELSE favorite_hotspots.lat END,
-			lng      = CASE WHEN excluded.lat <> 0 OR excluded.lng <> 0 THEN excluded.lng ELSE favorite_hotspots.lng END`,
-		id, fav.LocID, fav.LocName, fav.Lat, fav.Lng,
+		`INSERT INTO favorite_areas (user_id, area_key, name, kind, country, lat, lng, radius_km)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(user_id, area_key) DO UPDATE SET
+			name = excluded.name, kind = excluded.kind, country = excluded.country,
+			lat = excluded.lat, lng = excluded.lng, radius_km = excluded.radius_km`,
+		id, fav.Key, fav.Name, fav.Kind, fav.Country, fav.Lat, fav.Lng, fav.RadiusKm,
 	)
 	return err
+}
+
+// SetFavoriteName stores the label the user gave a favorite; "" restores the
+// place's own name. ok is false when the area is not one of the account's
+// favorites.
+func (s *UserStore) SetFavoriteName(id, key, name string) (ok bool, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	res, err := s.db.Exec(`UPDATE favorite_areas SET custom_name = ? WHERE user_id = ? AND area_key = ?`, name, id, key)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 // UserCount returns the total number of accounts. Used only for metrics
@@ -443,28 +465,28 @@ func (s *UserStore) UserCount() (int, error) {
 	return count, err
 }
 
-// FavoriteCount returns the total number of favorited hotspots across every
+// FavoriteCount returns the total number of favorited areas across every
 // account. Metrics-only, see UserCount.
 func (s *UserStore) FavoriteCount() (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var count int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM favorite_hotspots`).Scan(&count)
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM favorite_areas`).Scan(&count)
 	return count, err
 }
 
-// RemoveFavorite deletes locID from the account's favorites. Removing one that
+// RemoveFavorite deletes key from the account's favorites. Removing one that
 // isn't favorited is a no-op.
-func (s *UserStore) RemoveFavorite(id, locID string) error {
+func (s *UserStore) RemoveFavorite(id, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, err := s.db.Exec(`DELETE FROM favorite_hotspots WHERE user_id = ? AND loc_id = ?`, id, locID)
+	_, err := s.db.Exec(`DELETE FROM favorite_areas WHERE user_id = ? AND area_key = ?`, id, key)
 	return err
 }
 
 // Favorites returns the account's favorites in a stable (lexicographic by
-// location id) order. The result is never nil.
+// key) order. The result is never nil.
 func (s *UserStore) Favorites(id string) ([]Favorite, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -476,7 +498,7 @@ func (s *UserStore) Favorites(id string) ([]Favorite, error) {
 // already hold s.mu.
 func (s *UserStore) favorites(id string) ([]Favorite, error) {
 	rows, err := s.db.Query(
-		`SELECT loc_id, loc_name, lat, lng FROM favorite_hotspots WHERE user_id = ? ORDER BY loc_id`, id,
+		`SELECT area_key, name, custom_name, kind, country, lat, lng, radius_km FROM favorite_areas WHERE user_id = ? ORDER BY area_key`, id,
 	)
 	if err != nil {
 		return nil, err
@@ -486,7 +508,7 @@ func (s *UserStore) favorites(id string) ([]Favorite, error) {
 	favs := []Favorite{}
 	for rows.Next() {
 		var f Favorite
-		if err := rows.Scan(&f.LocID, &f.LocName, &f.Lat, &f.Lng); err != nil {
+		if err := rows.Scan(&f.Key, &f.Name, &f.CustomName, &f.Kind, &f.Country, &f.Lat, &f.Lng, &f.RadiusKm); err != nil {
 			return nil, err
 		}
 		favs = append(favs, f)

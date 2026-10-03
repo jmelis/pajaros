@@ -347,16 +347,16 @@ func TestHotspotRateLimitKeyUsesIPInOpenMode(t *testing.T) {
 	req.RemoteAddr = "203.0.113.9:1234"
 	req = req.WithContext(context.WithValue(req.Context(), userContextKey{}, devAccountID))
 
-	if got := hotspotRateLimitKey(true)(req); got != "203.0.113.9" {
+	if got := areaRateLimitKey(true)(req); got != "203.0.113.9" {
 		t.Errorf("open-mode key = %q, want the client IP", got)
 	}
-	if got := hotspotRateLimitKey(false)(req); got != devAccountID {
+	if got := areaRateLimitKey(false)(req); got != devAccountID {
 		t.Errorf("gated-mode key = %q, want the account id", got)
 	}
 
 	guest := httptest.NewRequest(http.MethodGet, "/api/hotspots", nil)
 	guest.RemoteAddr = "203.0.113.9:1234"
-	if got := hotspotRateLimitKey(false)(guest); got != "203.0.113.9" {
+	if got := areaRateLimitKey(false)(guest); got != "203.0.113.9" {
 		t.Errorf("guest key = %q, want the client IP", got)
 	}
 }
@@ -366,7 +366,7 @@ func TestHotspotRateLimitKeyUsesIPInOpenMode(t *testing.T) {
 // single bucket.
 func TestOpenModeRateLimiterSeparatesClientsByIP(t *testing.T) {
 	l := newKeyedRateLimiter("test", 1, 0)
-	h := l.middleware(hotspotRateLimitKey(true), func(w http.ResponseWriter, r *http.Request) {
+	h := l.middleware(areaRateLimitKey(true), func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	do := func(ip string) int {

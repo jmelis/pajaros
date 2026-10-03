@@ -7,13 +7,13 @@ import (
 	"testing"
 )
 
-func TestHandleHotspotCredits(t *testing.T) {
+func TestHandleAreaCredits(t *testing.T) {
 	cache, err := NewImageCache(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	src := newFakeSpeciesSource()
-	src.set("50.1,4.2", "en", []string{"gretit1", "eurrob1", "nophoto"}, map[string]Taxon{
+	src.set("c50.100,4.200,5.0", "en", []string{"gretit1", "eurrob1", "nophoto"}, map[string]Taxon{
 		"gretit1": {SciName: "Parus major", ComName: "Great Tit"},
 		"eurrob1": {SciName: "Erithacus rubecula", ComName: "European Robin"},
 		"nophoto": {SciName: "Certhia brachydactyla", ComName: "Short-toed Treecreeper"},
@@ -30,10 +30,10 @@ func TestHandleHotspotCredits(t *testing.T) {
 	srv := &Server{cache: cache, species: src}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/hotspots/{locId}/credits", srv.handleHotspotCredits)
+	mux.HandleFunc("GET /api/places/{key}/credits", srv.handleAreaCredits)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/hotspots/50.1,4.2/credits?lang=en", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/places/c50.100,4.200,5.0/credits?lang=en", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body)
 	}
@@ -56,7 +56,7 @@ func TestHandleHotspotCredits(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/hotspots/50.1,4.2/credits?lang=en&species="+got[0].SpeciesCode, nil))
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/places/c50.100,4.200,5.0/credits?lang=en&species="+got[0].SpeciesCode, nil))
 	var one []SpeciesCredits
 	if err := json.Unmarshal(rec.Body.Bytes(), &one); err != nil {
 		t.Fatal(err)
@@ -66,8 +66,8 @@ func TestHandleHotspotCredits(t *testing.T) {
 	}
 
 	rec = httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/hotspots/bogus/credits", nil))
+	mux.ServeHTTP(rec, httptest.NewRequest("GET", "/api/places/bogus/credits", nil))
 	if rec.Code != http.StatusBadRequest {
-		t.Errorf("invalid locId: status %d, want 400", rec.Code)
+		t.Errorf("invalid key: status %d, want 400", rec.Code)
 	}
 }

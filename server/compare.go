@@ -7,24 +7,21 @@ import (
 	"sort"
 )
 
-// compareMinReliable is the combined observation count (both hotspots
+// compareMinReliable is the combined observation count (both areas
 // together) below which a shared species' share ratio is too noisy to read
 // anything into; such species still appear in the comparison, just flagged
 // not Reliable so the page can fade them.
 const compareMinReliable = 30
 
-type compareHotspot struct {
-	LocID        string  `json:"locId"`
-	Name         string  `json:"name"`
-	Lat          float64 `json:"lat"`
-	Lng          float64 `json:"lng"`
-	Species      int     `json:"species"`
-	Observations int     `json:"observations"`
+type compareArea struct {
+	AreaInfo
+	Species      int `json:"species"`
+	Observations int `json:"observations"`
 }
 
-// compareSpecies is one species of the union of both hotspots. Counts are 0
+// compareSpecies is one species of the union of both areas. Counts are 0
 // (and ranks 0) on the side where the species was never recorded. Shares are
-// the fraction of that hotspot's total observations, which makes hotspots
+// the fraction of that area's total observations, which makes areas
 // with very different amounts of data comparable.
 type compareSpecies struct {
 	Code     string   `json:"code"`
@@ -51,8 +48,8 @@ type compareFamily struct {
 }
 
 type compareResult struct {
-	A          compareHotspot   `json:"a"`
-	B          compareHotspot   `json:"b"`
+	A          compareArea      `json:"a"`
+	B          compareArea      `json:"b"`
 	DistanceKm float64          `json:"distanceKm"`
 	Shared     int              `json:"shared"`
 	OnlyA      int              `json:"onlyA"`
@@ -61,8 +58,8 @@ type compareResult struct {
 	Families   []compareFamily  `json:"families"` // by combined share, largest first
 }
 
-// compareSide is one hotspot's species data, as returned by
-// hotspotSpeciesSource (taxa keyed by species code, counts by scientific name).
+// compareSide is one area's species data, as returned by
+// areaSpeciesSource (taxa keyed by species code, counts by scientific name).
 type compareSide struct {
 	codes  []string
 	taxa   map[string]Taxon
@@ -73,7 +70,7 @@ func (s compareSide) count(code string) int { return s.counts[s.taxa[code].SciNa
 
 // ranks returns each species code's 1-based popularity rank (count desc,
 // ties by common name — the app-wide ordering, see sortByPopularity) and the
-// hotspot's total observation count.
+// area's total observation count.
 func (s compareSide) ranks() (map[string]int, int) {
 	type item struct {
 		code, name string
@@ -97,15 +94,15 @@ func (s compareSide) ranks() (map[string]int, int) {
 	return ranks, total
 }
 
-// buildComparison merges two hotspots' species data into the compare view
-// model. Hotspot metadata (names, coordinates) is filled in by the caller.
+// buildComparison merges two areas' species data into the compare view
+// model. Area metadata (names, coordinates) is filled in by the caller.
 func buildComparison(a, b compareSide, lang string) compareResult {
 	ranksA, totalA := a.ranks()
 	ranksB, totalB := b.ranks()
 
 	var res compareResult
-	res.A = compareHotspot{Species: len(a.codes), Observations: totalA}
-	res.B = compareHotspot{Species: len(b.codes), Observations: totalB}
+	res.A = compareArea{Species: len(a.codes), Observations: totalA}
+	res.B = compareArea{Species: len(b.codes), Observations: totalB}
 
 	share := func(n, total int) float64 {
 		if total == 0 {
@@ -211,54 +208,53 @@ func buildComparison(a, b compareSide, lang string) compareResult {
 	return res
 }
 
-// handleCompare serves GET /api/compare?a=<locId>&b=<locId>[&lang=xx]. It
-// reads species, counts and taxonomy straight from the local stores and never
-// touches the image cache, so comparing two hotspots can't fan out to
-// Wikimedia the way opening a species list can.
+// handleCompare serves GET /api/compare?a=<key>&b=<key>[&lang=xx]. It reads
+// species, counts and taxonomy straight from the local stores and never
+// touches the image cache, so comparing two areas can't fan out to Wikimedia
+// the way opening a species list can.
 func (s *Server) handleCompare(w http.ResponseWriter, r *http.Request) {
-	idA, idB := r.URL.Query().Get("a"), r.URL.Query().Get("b")
-	if !validLocID(idA) || !validLocID(idB) {
-		http.Error(w, "a and b must be valid hotspot ids", http.StatusBadRequest)
+	keyA, keyB := r.URL.Query().Get("a"), r.URL.Query().Get("b")
+	if !validAreaKey(keyA) || !validAreaKey(keyB) {
+		http.Error(w, "a and b must be valid area keys", http.StatusBadRequest)
 		return
 	}
-	if idA == idB {
-		http.Error(w, "a and b must be different hotspots", http.StatusBadRequest)
+	if keyA == keyB {
+		http.Error(w, "a and b must be different areas", http.StatusBadRequest)
 		return
 	}
 	lang, ok := s.resolveLang(w, r)
 	if !ok {
 		return
 	}
-	hotA, okA := s.hotspots.Info(idA)
-	hotB, okB := s.hotspots.Info(idB)
-	if !okA || !okB {
-		http.Error(w, "hotspot not found", http.StatusNotFound)
+	infoA, errA := s.areas.Info(keyA)
+	infoB, errB := s.areas.Info(keyB)
+	if errA != nil || errB != nil {
+		http.Error(w, "place not found", http.StatusNotFound)
 		return
 	}
 
-	load := func(id string) (compareSide, bool) {
-		codes, taxa, err := s.species.Species(id, lang, 0)
+	load := func(key string) (compareSide, bool) {
+		codes, taxa, err := s.species.Species(key, lang, 0)
 		if err != nil {
-			log.Printf("compare: Species(%s, %s): %v", id, lang, err)
+			log.Printf("compare: Species(%s, %s): %v", key, lang, err)
 			return compareSide{}, false
 		}
-		counts, err := s.species.PopularityCounts(id, 0)
+		counts, err := s.species.PopularityCounts(key, 0)
 		if err != nil {
-			log.Printf("compare: PopularityCounts(%s): %v", id, err)
+			log.Printf("compare: PopularityCounts(%s): %v", key, err)
 			return compareSide{}, false
 		}
 		return compareSide{codes: codes, taxa: taxa, counts: counts}, true
 	}
-	sideA, okA := load(idA)
-	sideB, okB := load(idB)
+	sideA, okA := load(keyA)
+	sideB, okB := load(keyB)
 	if !okA || !okB {
-		http.Error(w, "failed to look up hotspot species", http.StatusNotFound)
+		http.Error(w, "failed to look up species", http.StatusNotFound)
 		return
 	}
 
 	res := buildComparison(sideA, sideB, lang)
-	res.A.LocID, res.A.Name, res.A.Lat, res.A.Lng = hotA.ID, hotA.Name, hotA.Lat, hotA.Lng
-	res.B.LocID, res.B.Name, res.B.Lat, res.B.Lng = hotB.ID, hotB.Name, hotB.Lat, hotB.Lng
-	res.DistanceKm = haversineKm(hotA.Lat, hotA.Lng, hotB.Lat, hotB.Lng)
+	res.A.AreaInfo, res.B.AreaInfo = infoA, infoB
+	res.DistanceKm = haversineKm(infoA.Lat, infoA.Lng, infoB.Lat, infoB.Lng)
 	writeJSON(w, res)
 }

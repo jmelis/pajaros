@@ -113,15 +113,15 @@ var (
 		Help:      "Explicit logouts.",
 	})
 
-	hotspotSpeciesCount = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	areaSpeciesCount = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: metricsNamespace,
-		Name:      "hotspot_species_count",
-		Help:      "Number of species returned per hotspot species request, by mode.",
+		Name:      "area_species_count",
+		Help:      "Number of species returned per area species request, by mode.",
 		Buckets:   []float64{1, 5, 10, 20, 50, 100, 200, 500},
 	}, []string{"mode"})
 
-	// bboltQueryDuration times the mmap-backed reads against hotspots_seasonal.bolt
-	// and places.bolt (see hotspots_data.go, places_data.go, species_store.go)
+	// bboltQueryDuration times the mmap-backed reads against seasonal_cells.bolt
+	// and places.bolt (see area.go, places_data.go)
 	// — fine buckets since these are point lookups/bounded scans expected to
 	// land well under a millisecond most of the time.
 	bboltQueryDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -157,7 +157,7 @@ func (r *statusRecorder) WriteHeader(code int) {
 
 // instrumentHTTP wraps next with request-count and latency metrics, labeled
 // by route rather than the request's actual path — route is always a fixed
-// template (e.g. "/api/hotspots/{locId}"), so this can't blow up cardinality
+// template (e.g. "/api/places/{key}"), so this can't blow up cardinality
 // the way the raw, id-carrying path would.
 func instrumentHTTP(route string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -188,24 +188,21 @@ func statusClass(code int) string {
 }
 
 // dbGaugeCollector reports gauges backed by live store state — user/favorite
-// counts from SQLite, hotspot/place counts from bbolt — computed fresh on
+// counts from SQLite, place counts from bbolt — computed fresh on
 // every scrape rather than polled on a timer, so they're never stale between
 // scrapes and cost nothing when nobody's scraping. Every underlying lookup is
 // O(1) or a single indexed COUNT(*) (see UserStore.UserCount/FavoriteCount
-// and HotspotStore/PlaceStore.Len), so doing this per scrape is cheap.
+// and PlaceStore.Len), so doing this per scrape is cheap.
 type dbGaugeCollector struct {
-	users    *UserStore
-	hotspots *HotspotStore
-	places   *PlaceStore
+	users  *UserStore
+	places *PlaceStore
 }
 
 var (
 	usersTotalDesc = prometheus.NewDesc(
 		metricsNamespace+"_users_total", "Total registered accounts.", nil, nil)
 	favoritesTotalDesc = prometheus.NewDesc(
-		metricsNamespace+"_favorites_total", "Total favorited hotspots across every account.", nil, nil)
-	hotspotsLoadedDesc = prometheus.NewDesc(
-		metricsNamespace+"_hotspots_loaded", "Hotspots available in the loaded snapshot.", nil, nil)
+		metricsNamespace+"_favorites_total", "Total favorited areas across every account.", nil, nil)
 	placesLoadedDesc = prometheus.NewDesc(
 		metricsNamespace+"_places_loaded", "Places available in the loaded snapshot.", nil, nil)
 )
@@ -213,7 +210,6 @@ var (
 func (c *dbGaugeCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- usersTotalDesc
 	ch <- favoritesTotalDesc
-	ch <- hotspotsLoadedDesc
 	ch <- placesLoadedDesc
 }
 
@@ -233,6 +229,5 @@ func (c *dbGaugeCollector) Collect(ch chan<- prometheus.Metric) {
 	if n, err := c.users.FavoriteCount(); err == nil {
 		ch <- prometheus.MustNewConstMetric(favoritesTotalDesc, prometheus.GaugeValue, float64(n))
 	}
-	ch <- prometheus.MustNewConstMetric(hotspotsLoadedDesc, prometheus.GaugeValue, float64(c.hotspots.Len()))
 	ch <- prometheus.MustNewConstMetric(placesLoadedDesc, prometheus.GaugeValue, float64(c.places.Len()))
 }

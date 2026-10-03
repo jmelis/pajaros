@@ -107,18 +107,18 @@ func TestSortBySeason(t *testing.T) {
 
 func TestSpeciesSeasonsFromStore(t *testing.T) {
 	s := newTestSpeciesStore(t)
-	got, err := s.Seasons("3.5,4.5")
+	got, err := s.Seasons("c3.500,4.500,5.0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got["Strix aluco"].Kind != seasonSeasonal || got["Erithacus rubecula"].Kind != seasonYearRound {
 		t.Errorf("seasons not resolved by scientific name: %v", got)
 	}
-	if thin, err := s.Seasons("1.5,2.5"); err != nil || len(thin) != 0 {
-		t.Errorf("hotspot with records in 3 months classified: %v, %v", thin, err)
+	if thin, err := s.Seasons("c1.500,2.500,5.0"); err != nil || len(thin) != 0 {
+		t.Errorf("area with records in 3 months classified: %v, %v", thin, err)
 	}
-	if _, err := s.Seasons("0,0"); err != errUnknownHotspot {
-		t.Errorf("unknown hotspot err = %v", err)
+	if _, err := s.Seasons("c0.000,0.000,5.0"); err != errUnknownArea {
+		t.Errorf("unknown area err = %v", err)
 	}
 }
 

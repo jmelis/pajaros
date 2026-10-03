@@ -23,7 +23,7 @@ func newPrefsTestApp(t *testing.T) (http.Handler, *Server, *UserStore, *Auth) {
 	if err != nil {
 		t.Fatalf("NewImageCache: %v", err)
 	}
-	srv := &Server{users: store, cache: imgCache, species: newFakeSpeciesSource()}
+	srv := &Server{users: store, cache: imgCache, species: newFakeSpeciesSource(), areas: &AreaResolver{places: buildTestPlaceStore(t, nil)}}
 
 	signer, err := newCookieSigner("test-secret")
 	if err != nil {
@@ -36,9 +36,10 @@ func newPrefsTestApp(t *testing.T) (http.Handler, *Server, *UserStore, *Auth) {
 	app.HandleFunc("GET /api/me/language", srv.handleGetLanguage)
 	app.HandleFunc("PUT /api/me/language", srv.handleSetLanguage)
 	app.HandleFunc("GET /api/me/favorites", srv.handleListFavorites)
-	app.HandleFunc("PUT /api/me/favorites/{locId}", srv.handleAddFavorite)
-	app.HandleFunc("DELETE /api/me/favorites/{locId}", srv.handleRemoveFavorite)
-	app.HandleFunc("GET /api/hotspots/{locId}/species", srv.handleHotspotSpecies)
+	app.HandleFunc("PUT /api/me/favorites/{key}", srv.handleAddFavorite)
+	app.HandleFunc("PUT /api/me/favorites/{key}/name", srv.handleRenameFavorite)
+	app.HandleFunc("DELETE /api/me/favorites/{key}", srv.handleRemoveFavorite)
+	app.HandleFunc("GET /api/places/{key}/species", srv.handleAreaSpecies)
 
 	root := http.NewServeMux()
 	root.Handle("/", auth.require(app))
@@ -144,29 +145,29 @@ func TestFavoriteLifecycle(t *testing.T) {
 	}
 	const id = "google:fav"
 
-	// Malformed locId is rejected with the same validation as the hotspot routes.
+	// Malformed key is rejected with the same validation as the area routes.
 	rr := httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/notaloc", nil))
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/notakey", nil))
 	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("malformed locId = %d, want 400", rr.Code)
+		t.Fatalf("malformed key = %d, want 400", rr.Code)
 	}
 
 	// Add twice: the second is a no-op, not an error or a duplicate.
 	for i := 0; i < 2; i++ {
 		rr = httptest.NewRecorder()
-		app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/50.85,4.35", nil))
+		app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/c50.850,4.350,5.0", nil))
 		if rr.Code != http.StatusNoContent {
 			t.Fatalf("add favorite (attempt %d) = %d, want 204", i+1, rr.Code)
 		}
 	}
 
 	favs := getFavorites(t, app, auth, id)
-	if len(favs) != 1 || favs[0].LocID != "50.85,4.35" {
-		t.Fatalf("favorites after add = %v, want [50.85,4.35]", favs)
+	if len(favs) != 1 || favs[0].Key != "c50.850,4.350,5.0" {
+		t.Fatalf("favorites after add = %v, want [c50.850,4.350,5.0]", favs)
 	}
 
 	rr = httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodDelete, "/api/me/favorites/50.85,4.35", nil))
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodDelete, "/api/me/favorites/c50.850,4.350,5.0", nil))
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("remove favorite = %d, want 204", rr.Code)
 	}
@@ -182,53 +183,52 @@ func TestFavoriteCarriesDisplayNameAndEnforcesCap(t *testing.T) {
 	}
 	const id = "google:favmeta"
 
-	// Add with a resolvable display name and coordinates: they come back.
+	// Add a custom circle: the circle comes back, and a client-sent label is ignored.
 	rr := httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/50.85,4.35",
-		body(`{"locName":"Parc de Bruxelles","lat":50.85,"lng":4.35}`)))
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/c50.850,4.350,5.0",
+		body(`{"name":"Parc de Bruxelles"}`)))
 	if rr.Code != http.StatusNoContent {
-		t.Fatalf("add with name = %d (%s), want 204", rr.Code, rr.Body.String())
+		t.Fatalf("add = %d (%s), want 204", rr.Code, rr.Body.String())
 	}
 	favs := getFavorites(t, app, auth, id)
-	if len(favs) != 1 || favs[0].LocName != "Parc de Bruxelles" || favs[0].Lat != 50.85 || favs[0].Lng != 4.35 {
-		t.Fatalf("favorites = %+v, want the supplied name/coords", favs)
+	if len(favs) != 1 || favs[0].Name != "" || favs[0].Lat != 50.85 || favs[0].Lng != 4.35 || favs[0].RadiusKm != 5 {
+		t.Fatalf("favorites = %+v, want the circle without a client label", favs)
 	}
 
-	// A hotspot whose name cannot be resolved (empty name) is still listed,
-	// with an empty LocName rather than vanishing.
+	// A custom circle without a label is still listed, with an empty name.
 	rr = httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/40.0,-3.0", nil))
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/c40.000,-3.000,2.0", nil))
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("add without name = %d, want 204", rr.Code)
 	}
 	favs = getFavorites(t, app, auth, id)
 	var unresolved *Favorite
 	for i := range favs {
-		if favs[i].LocID == "40.0,-3.0" {
+		if favs[i].Key == "c40.000,-3.000,2.0" {
 			unresolved = &favs[i]
 		}
 	}
-	if unresolved == nil || unresolved.LocName != "" {
+	if unresolved == nil || unresolved.Name != "" {
 		t.Fatalf("unresolved favorite = %+v, want present with empty name", favs)
 	}
 
 	// Fill the account to the cap, then one more is rejected with 409.
 	for i := len(favs); i < maxFavorites; i++ {
 		rr = httptest.NewRecorder()
-		app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, fmt.Sprintf("/api/me/favorites/10.%d,20.%d", i, i), nil))
+		app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, fmt.Sprintf("/api/me/favorites/c10.%03d,20.000,1.0", i), nil))
 		if rr.Code != http.StatusNoContent {
 			t.Fatalf("fill favorite %d = %d, want 204", i, rr.Code)
 		}
 	}
 	rr = httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/99.0,99.0", nil))
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/c80.000,20.000,1.0", nil))
 	if rr.Code != http.StatusConflict {
 		t.Fatalf("add past cap = %d, want 409", rr.Code)
 	}
 
 	// Re-adding one that is already favorited still succeeds at the cap.
 	rr = httptest.NewRecorder()
-	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/50.85,4.35", nil))
+	app.ServeHTTP(rr, authedRequest(t, auth, id, http.MethodPut, "/api/me/favorites/c50.850,4.350,5.0", nil))
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("re-add at cap = %d, want 204", rr.Code)
 	}
@@ -243,12 +243,12 @@ func TestSpeciesFallsBackToStoredLanguage(t *testing.T) {
 
 	// Seed the species cache for the default (es), preferred (fr), and an
 	// explicit (en) language so the handler never reaches for eBird.
-	seedSpeciesCache(t, srv, "41.5,-70.5", "es", "Nombre en español")
-	seedSpeciesCache(t, srv, "41.5,-70.5", "fr", "Nom en français")
-	seedSpeciesCache(t, srv, "41.5,-70.5", "en", "English name")
+	seedSpeciesCache(t, srv, "c41.500,-70.500,5.0", "es", "Nombre en español")
+	seedSpeciesCache(t, srv, "c41.500,-70.500,5.0", "fr", "Nom en français")
+	seedSpeciesCache(t, srv, "c41.500,-70.500,5.0", "en", "English name")
 
 	// No preference yet: falls back to the hardcoded default.
-	if got := firstComName(t, app, auth, id, "/api/hotspots/41.5,-70.5/species"); got != "English name" {
+	if got := firstComName(t, app, auth, id, "/api/places/c41.500,-70.500,5.0/species"); got != "English name" {
 		t.Errorf("no preference: comName = %q, want the English default", got)
 	}
 
@@ -258,12 +258,12 @@ func TestSpeciesFallsBackToStoredLanguage(t *testing.T) {
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("set language = %d, want 204", rr.Code)
 	}
-	if got := firstComName(t, app, auth, id, "/api/hotspots/41.5,-70.5/species"); got != "Nom en français" {
+	if got := firstComName(t, app, auth, id, "/api/places/c41.500,-70.500,5.0/species"); got != "Nom en français" {
 		t.Errorf("preference fr: comName = %q, want the French name", got)
 	}
 
 	// An explicit lang param still wins over the stored preference.
-	if got := firstComName(t, app, auth, id, "/api/hotspots/41.5,-70.5/species?lang=en"); got != "English name" {
+	if got := firstComName(t, app, auth, id, "/api/places/c41.500,-70.500,5.0/species?lang=en"); got != "English name" {
 		t.Errorf("explicit lang=en: comName = %q, want the English name", got)
 	}
 }

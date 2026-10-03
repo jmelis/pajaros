@@ -28,12 +28,12 @@
       <div class="actions"><a class="btn btn-primary" href="#/search" data-i18n="home.find"></a></div>
     </div>
 
-    <section id="homeHotspotsPanel">
+    <section id="homeAreasPanel">
       <div class="section-head">
-        <h2 class="panel-title" data-i18n="home.hotspots"></h2>
+        <h2 class="panel-title" data-i18n="home.areas"></h2>
         <button id="homeEditToggle" class="edit-link" type="button" hidden></button>
       </div>
-      <ul id="homeFavorites" class="hotspot-list"></ul>
+      <ul id="homeFavorites" class="area-list"></ul>
       <p id="homeNoFavorites" class="hint" data-i18n="home.noFavorites" hidden></p>
     </section>
 
@@ -51,25 +51,74 @@
       <div class="actions">
         <button id="useLocation" class="btn btn-secondary" type="button" data-i18n="search.useLocation"></button>
       </div>
-      <input id="lat" type="hidden" value="50.8503">
-      <input id="lng" type="hidden" value="4.3517">
       <p class="hint" data-i18n="search.hint"></p>
     </section>
     <section class="panel map-panel">
-      <div class="map-toolbar">
-        <button id="searchHere" class="btn btn-secondary btn-sm" type="button" data-i18n="search.here"></button>
+      <div id="stageHead" class="stage-head" hidden>
+        <h3 id="stageName" class="stage-name"></h3>
+        <p id="stageSub" class="area-subtitle"></p>
       </div>
+      <p id="mapHint" class="hint map-hint" data-i18n="search.customHint"></p>
+      <p id="polygonHint" class="hint map-hint" data-i18n="search.polygonHint" hidden></p>
       <div id="map" data-i18n-aria="search.mapAria"></div>
+      <form id="customForm" class="custom-form">
+        <label id="customRadiusLabel" class="custom-radius"><span data-i18n="search.radius"></span>
+          <input id="customRadius" type="range" min="0" max="1000" step="1">
+          <output id="customRadiusValue" class="custom-radius-value"></output>
+        </label>
+        <button id="useCircle" class="btn btn-secondary btn-sm" type="button" data-i18n="search.useCircle" hidden></button>
+        <button id="stageSave" class="star-btn" type="button" aria-pressed="false" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 2.9 6.26L21.5 9l-5 4.87L17.8 21 12 17.6 6.2 21l1.3-7.13-5-4.87 6.6-.74Z"/></svg>
+        </button>
+        <button id="customGo" class="btn btn-primary btn-sm" type="submit" data-i18n="search.customGo" disabled></button>
+      </form>
     </section>
     <p id="status" class="status"></p>
   </section>
 
-  <!-- Hotspot -->
-  <section id="view-hotspot" class="view" hidden>
+  <!-- Species range -->
+  <section id="view-range" class="view" hidden>
+    <h2 class="view-title" data-i18n="range.title"></h2>
+    <section class="panel">
+      <div class="place-search">
+        <input id="speciesQuery" type="search" autocomplete="off" data-i18n-placeholder="range.placeholder">
+        <ul id="speciesSuggestions" class="place-suggestions" hidden></ul>
+      </div>
+    </section>
+    <section class="panel map-panel">
+      <div id="rangeHead" class="stage-head" hidden>
+        <h3 id="rangeName" class="stage-name"></h3>
+        <p id="rangeSci" class="area-subtitle"></p>
+      </div>
+      <p id="rangeHint" class="hint map-hint" data-i18n="range.hint"></p>
+      <div id="rangeMap" data-i18n-aria="range.mapAria"></div>
+      <div class="range-controls">
+        <select id="rangeMonth" class="month-select" data-i18n-aria="browse.monthAria" disabled></select>
+        <div id="rangeLegend" class="range-legend" hidden>
+          <span data-i18n="range.less"></span>
+          <span class="range-ramp" aria-hidden="true"></span>
+          <span data-i18n="range.more"></span>
+        </div>
+      </div>
+    </section>
+    <p id="rangeStatus" class="status"></p>
+  </section>
+
+  <!-- Area -->
+  <section id="view-area" class="view" hidden>
     <div class="view-head">
-      <h2 id="hotspotName" class="view-title"></h2>
+      <div>
+        <h2 id="areaName" class="view-title"></h2>
+        <p id="areaSub" class="area-subtitle"></p>
+      </div>
       <div class="view-head-actions">
-        <button id="shareHotspotBtn" class="star-btn" type="button" data-i18n-aria="hotspot.share">
+        <button id="renameAreaBtn" class="star-btn" type="button" data-i18n-aria="area.rename" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>
+        <a id="areaMapLink" class="star-btn" href="#/search" data-i18n-aria="area.editOnMap">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        </a>
+        <button id="shareAreaBtn" class="star-btn" type="button" data-i18n-aria="area.share">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h14"/><path d="M21 12v7"/></svg>
         </button>
         <button id="bookmarkBtn" class="star-btn" type="button" aria-pressed="false">
@@ -77,11 +126,11 @@
         </button>
       </div>
     </div>
-    <p id="hotspotStatus" class="status"></p>
-    <a id="hotspotCompareLink" class="hotspot-compare" href="#/compare" data-i18n="hotspot.compare" hidden></a>
+    <p id="areaStatus" class="status"></p>
+    <a id="areaCompareLink" class="area-compare" href="#/compare" data-i18n="area.compare" hidden></a>
     <div id="browseControls">
       <div class="sort-row">
-        <button id="learnStart" class="btn btn-primary btn-sm" type="button" data-i18n="hotspot.learn"></button>
+        <button id="learnStart" class="btn btn-primary btn-sm" type="button" data-i18n="area.learn"></button>
         <div class="sort-controls">
         <select id="monthSelect" class="month-select" data-i18n-aria="browse.monthAria"></select>
         <div class="sort-control">
@@ -108,7 +157,7 @@
     </div>
   </section>
 
-  <!-- Compare two hotspots -->
+  <!-- Compare two areas -->
   <section id="view-compare" class="view" hidden>
     <a id="compareBack" class="back-link" href="#/home" data-i18n="compare.back"></a>
     <h2 class="view-title" data-i18n="compare.title"></h2>
@@ -144,7 +193,7 @@
       <li><a href="https://ebird.org/science/use-ebird-data/the-ebird-taxonomy" target="_blank" rel="noopener">eBird / Clements taxonomy</a> <span data-i18n="about.src.tax"></span></li>
       <li><a href="https://www.worldbirdnames.org/" target="_blank" rel="noopener">IOC World Bird List</a> <span data-i18n="about.src.ioc"></span></li>
       <li><a href="https://www.gbif.org/species/search" target="_blank" rel="noopener">GBIF species API</a> <span data-i18n="about.src.gbif"></span></li>
-      <li><a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> <span data-i18n="about.src.geo"></span></li>
+      <li><a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> <span data-i18n="about.src.ne"></span></li>
       <li><a href="https://db-ip.com/db/download/ip-to-country-lite" target="_blank" rel="noopener">DB-IP IP to Country Lite</a> <span data-i18n="about.src.dbip"></span></li>
       <li><a href="https://commons.wikimedia.org/" target="_blank" rel="noopener">Wikimedia Commons</a> <span data-i18n="about.src.wm"></span></li>
       <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> <span data-i18n="about.src.osm"></span></li>
@@ -193,6 +242,10 @@
     <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
     <span data-i18n="nav.search"></span>
   </a>
+  <a href="#/range" data-nav="range">
+    <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/></svg>
+    <span data-i18n="nav.range"></span>
+  </a>
   <a href="#/settings" data-nav="settings">
     <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
     <span data-i18n="nav.settings"></span>
@@ -217,6 +270,7 @@
   </div>
   <div id="learnBody" class="learn-body"></div>
   <footer class="learn-footer">
+    <a id="learnRangeLink" href="#/range" data-i18n="learn.range"></a>
     <a id="learnCreditsLink" href="#/home" data-i18n="credits.link"></a>
   </footer>
 </div>

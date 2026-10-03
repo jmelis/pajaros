@@ -1,9 +1,9 @@
 # birdsnearby
 
-A family bird-learning web app: search hotspots worldwide, browse the
-species seen at one, learn them in a full-screen swipeable card deck. Go
-server, SQLite for accounts, offline GBIF-derived data for
-hotspots/species. See `ARCHITECTURE.md` for how it's built.
+A family bird-learning web app: search any place worldwide (or draw a
+circle on the map), browse the species seen there, learn them in a
+full-screen swipeable card deck. Go server, SQLite for accounts, offline
+GBIF-derived data for species and OpenStreetMap-derived data for places. See `ARCHITECTURE.md` for how it's built.
 
 ## Run locally
 
@@ -12,8 +12,8 @@ make server-open   # http://localhost:8080 — no login required
 make server         # same, but honors GOOGLE_AUTH_ENABLED/APPLE_AUTH_ENABLED
 ```
 
-Needs Go and `server/data/hotspots_seasonal.bolt` and `server/data/places.bolt`
-present (see below) — everything else is a plain file on disk, no other
+Needs Go and `server/data/seasonal_cells.bolt` and `server/data/places.bolt`
+present (see below; `DATA_DIR` points elsewhere) — everything else is a plain file on disk, no other
 services required. Full env var list is documented at the top of
 `server/main.go`.
 
@@ -54,8 +54,9 @@ request time by the deployed server:
 | eBird taxonomy API | which species exist, classification (no names) | yes |
 | Multilingual IOC World Bird List | species common names, ~23 languages (CC BY 3.0) | yes — download the .xlsx |
 | GBIF (species API) | species names IOC lacks, family names | yes |
-| GBIF (EOD dataset) | which birds occur where, how often | no — `scp`'d |
-| GeoNames (cities500) | place names for search, worldwide | no — `scp`'d |
+| GBIF (EOD dataset) | which birds occur where, how often | no — `scp`'d as `seasonal_cells.bolt` |
+| OpenStreetMap (Geofabrik extracts) | place names and outlines for search: cities, towns, boundaries, parks, reserves, islands, deserts (ODbL) | no — `scp`'d as `places.bolt` |
+| Natural Earth (admin-0, geography regions) | country outlines and big natural regions (public domain) | no — folded into `places.bolt` |
 | db-ip (IP to Country Lite) | default UI language for a new account | yes |
 
 ### Taxonomy and common names (a few minutes)
@@ -74,7 +75,7 @@ Prints each language's common-name coverage to stderr as it runs — see
 why only species names (not family names) are gated by a coverage
 threshold.
 
-### Hotspot/species data (GBIF, ~20 min once downloaded)
+### Species data (GBIF, ~1 h once downloaded)
 
 ```bash
 curl -X POST -H "Content-Type: application/json" \
@@ -94,14 +95,15 @@ Poll `https://api.gbif.org/v1/occurrence/download/<KEY>` until `status` is
 ```
 curl -sL -o gbif_download.zip "<downloadLink>"
 cd server
-go run ./cmd/gensnapshot hotspots gbif_download.zip   # ~20 min, writes data/hotspots_seasonal.bolt
-scp data/hotspots_seasonal.bolt <server-host>:<data-dir>
+go run ./cmd/gensnapshot hotspots gbif_download.zip   # ~20 min, writes data/hotspots_seasonal.bolt (an intermediate)
+go run ./cmd/gensnapshot areas                        # regroups it into data/seasonal_cells.bolt (~1.2 GB)
+scp data/seasonal_cells.bolt <server-host>:<data-dir>
 ```
 
-Rollout order: `scp` the new file first (the running server doesn't read it),
-then deploy the server build that reads `hotspots_seasonal.bolt`, then delete
-the old file (`hotspots.bolt`) from the data directory. `server/.gitignore`
-already excludes the file — don't `git add` it.
+Only `seasonal_cells.bolt` goes to the server; `hotspots_seasonal.bolt` is just
+the input of the `areas` step. `scp` the new file before deploying a server
+build that needs it. `server/.gitignore` already excludes both — don't `git add`
+them.
 
 **Gotchas:**
 - GBIF account needs a **username** (not email); free signup at
@@ -111,33 +113,39 @@ already excludes the file — don't `git add` it.
   tool depends on sorted input and fails loudly (`"input not sorted by
   point"`) if it isn't.
 - The `month` column is required: the build keeps per-month counts per
-  species per hotspot (the species list's month selector reads them). The
+  species per location (the species list's month selector reads them). The
   download is roughly 10 GB zipped; the build streams it from the zip
   without unpacking.
 - The file carries a species-format label, and the server refuses to start
-  on one it can't decode. The file name changes whenever the encoding does
-  (`seasonal.FileName`), which is what makes the copy-first rollout above safe.
+  on one it can't decode.
 - `year` is a reserved word in GBIF's SQL dialect; needs double-quoting
   (`"year"`) if a query ever needs to filter by it.
 
 See `ARCHITECTURE.md` for why the pipeline is shaped this way (GBIF vs.
 live eBird, the `bbolt` schema, the build algorithm).
 
-### Place-search data (GeoNames, a couple of minutes)
+### Place-search data (OpenStreetMap + Natural Earth, a few hours)
 
 ```bash
-curl -sL -o cities500.zip http://download.geonames.org/export/dump/cities500.zip
 cd server
-go run ./cmd/gensnapshot places cities500.zip   # writes data/places.bolt (tens of MB)
+scripts/places_osm.sh ~/work/places   # writes data/places.bolt
 scp data/places.bolt <server-host>:<data-dir>
 ```
 
-Same directory, same restart-or-let-it-pick-up-the-file story as
-`hotspots_seasonal.bolt` above; `server/.gitignore` excludes `places.bolt` too. No
-account or key needed — GeoNames' dumps are a plain public download.
-`cities500.zip` (every place with population > 500 or that's a seat of
-local government, ~185K rows) is the right file, not `allCountries.zip`
-(~12M rows, mostly geographic features no one searches for by name).
+The script downloads Geofabrik's regional extracts one at a time, keeps only the
+named places in each (`osmium tags-filter`, then `gensnapshot osm`), deletes the
+extract, fetches Natural Earth's country and region outlines, and finally merges
+everything with `gensnapshot places`. It needs `osmium-tool`, `curl` and
+`python3`, about 15 GB of free disk, and downloads about 95 GB in total. The
+per-extract candidate files stay in the work directory, so an interrupted run
+resumes where it stopped and the final merge can be rerun on its own:
+
+```
+go run ./cmd/gensnapshot places data/places.bolt ~/work/places/cand/*.jsonl
+```
+
+`server/.gitignore` excludes `places.bolt` too. See "Place search" in
+`ARCHITECTURE.md` for what is kept and how places are labeled and ranked.
 
 ### Default-language geoip table (db-ip, seconds)
 

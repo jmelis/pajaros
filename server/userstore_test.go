@@ -162,23 +162,23 @@ func TestUserStoreFavoritesLifecyclePersists(t *testing.T) {
 	}
 
 	for _, locID := range []string{"L2", "L1", "L1"} { // L1 twice: duplicate is a no-op
-		if err := store.AddFavorite(id, Favorite{LocID: locID}); err != nil {
+		if err := store.AddFavorite(id, Favorite{Key: locID}); err != nil {
 			t.Fatalf("AddFavorite(%s): %v", locID, err)
 		}
 	}
 	// Re-adding L1 with details backfills them rather than failing or
 	// duplicating the row.
-	if err := store.AddFavorite(id, Favorite{LocID: "L1", LocName: "Pond", Lat: 50.1, Lng: 4.2}); err != nil {
+	if err := store.AddFavorite(id, Favorite{Key: "L1", Name: "Pond", Lat: 50.1, Lng: 4.2}); err != nil {
 		t.Fatalf("AddFavorite(L1 with details): %v", err)
 	}
 	favs, err := store.Favorites(id)
 	if err != nil {
 		t.Fatalf("Favorites: %v", err)
 	}
-	if len(favs) != 2 || favs[0].LocID != "L1" || favs[1].LocID != "L2" {
+	if len(favs) != 2 || favs[0].Key != "L1" || favs[1].Key != "L2" {
 		t.Fatalf("Favorites = %v, want L1 then L2 (duplicate must not create a second entry)", favs)
 	}
-	if favs[0].LocName != "Pond" || favs[0].Lat != 50.1 || favs[0].Lng != 4.2 {
+	if favs[0].Name != "Pond" || favs[0].Lat != 50.1 || favs[0].Lng != 4.2 {
 		t.Errorf("L1 details = %+v, want backfilled Pond/50.1/4.2", favs[0])
 	}
 
@@ -192,7 +192,7 @@ func TestUserStoreFavoritesLifecyclePersists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Favorites after remove: %v", err)
 	}
-	if len(favs) != 1 || favs[0].LocID != "L2" {
+	if len(favs) != 1 || favs[0].Key != "L2" {
 		t.Fatalf("Favorites after remove = %v, want [L2]", favs)
 	}
 
@@ -208,7 +208,7 @@ func TestUserStoreFavoritesLifecyclePersists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Favorites after reopen: %v", err)
 	}
-	if len(favs) != 1 || favs[0].LocID != "L2" {
+	if len(favs) != 1 || favs[0].Key != "L2" {
 		t.Fatalf("Favorites after reopen = %v, want [L2]", favs)
 	}
 }
@@ -237,7 +237,7 @@ func TestUserStoreProfileDefaultsThenReflectsPreferences(t *testing.T) {
 	if err := store.SetLanguage(id, "en"); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.AddFavorite(id, Favorite{LocID: "L42", LocName: "Forty-two"}); err != nil {
+	if err := store.AddFavorite(id, Favorite{Key: "L42", Name: "Forty-two"}); err != nil {
 		t.Fatal(err)
 	}
 	p, ok, err = store.Profile(id)
@@ -247,7 +247,7 @@ func TestUserStoreProfileDefaultsThenReflectsPreferences(t *testing.T) {
 	if p.Language != "en" {
 		t.Errorf("Language = %q, want en", p.Language)
 	}
-	if len(p.Favorites) != 1 || p.Favorites[0].LocID != "L42" || p.Favorites[0].LocName != "Forty-two" {
+	if len(p.Favorites) != 1 || p.Favorites[0].Key != "L42" || p.Favorites[0].Name != "Forty-two" {
 		t.Errorf("Favorites = %v, want [L42 named Forty-two]", p.Favorites)
 	}
 
@@ -306,6 +306,15 @@ func TestUserStoreReconcilesLegacyPreferenceSchema(t *testing.T) {
 		t.Fatalf("NewUserStore on legacy database: %v", err)
 	}
 	defer store.Close()
+
+	// Hotspot favorites are dropped by the migration; the new table is empty.
+	if favs, err := store.Favorites("google:legacy"); err != nil || len(favs) != 0 {
+		t.Fatalf("Favorites after migration = (%v, %v), want empty", favs, err)
+	}
+	var legacy int
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name = 'favorite_hotspots'`).Scan(&legacy); err != nil || legacy != 0 {
+		t.Fatalf("favorite_hotspots still present (count %d, err %v)", legacy, err)
+	}
 
 	// The pre-existing language value survives the reconciliation.
 	if lang, ok, err := store.PreferredLanguage("google:legacy"); err != nil || !ok || lang != "fr" {

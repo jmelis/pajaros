@@ -9,18 +9,14 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/jmelis/pajaros/server/internal/seasonal"
+	"github.com/jmelis/pajaros/server/internal/areas"
 )
 
 // runWarmCache pre-populates the image cache with a high-value subset of
 // species, rather than the full ~11K-species taxonomy: for each country
-// (from places.bolt), the busiest hotspot within maxNearbyDistKm of that
-// country's most populous place, and every species recorded there. That's
-// an approximation of "the busiest hotspot in the country" — the true
-// answer would need a full scan of hotspots_seasonal.bolt reverse-geocoded against
-// places.bolt, which isn't worth the cost here — but it's a close one:
-// top birding sites are rarely far from a country's biggest population
-// centers.
+// (from places.bolt), a circle of the default radius around that country's
+// most populous city, and every species recorded there. Top birding sites
+// are rarely far from a country's biggest population centres.
 //
 // This is a separate mode of the server binary (not cmd/gensnapshot)
 // because ImageCache, the taxonomy loader and the Wikimedia rate limiter
@@ -32,7 +28,7 @@ import (
 // server's hostPath (see README.md) — it never needs to run inside the
 // cluster.
 func runWarmCache() error {
-	// WIKIMEDIA_RPS's default (8) favors live per-hotspot lookups (see
+	// WIKIMEDIA_RPS's default (8) favors live per-area lookups (see
 	// ratelimit.go) -- wrong pace for a one-off bulk job hitting thousands
 	// of species in a row. warmcache gets its own, deliberately polite
 	// default instead, independent of whatever WIKIMEDIA_RPS is set to for
@@ -41,7 +37,7 @@ func runWarmCache() error {
 	wikimediaLimiter = newRateLimiter("wikimedia", rpsFromEnv("WARMCACHE_RPS", 1))
 	log.Printf("warmcache: rate limit %.1f req/s (override with WARMCACHE_RPS)", rpsFromEnv("WARMCACHE_RPS", 1))
 
-	dataDir := os.Getenv("HOTSPOTS_DATA_DIR")
+	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
 		dataDir = "./data"
 	}
@@ -50,15 +46,11 @@ func runWarmCache() error {
 		cacheDir = "./cache"
 	}
 
-	hotspotsDB, err := bolt.Open(filepath.Join(dataDir, seasonal.FileName), 0o444, &bolt.Options{ReadOnly: true})
+	cellsStore, err := areas.Open(filepath.Join(dataDir, areas.FileName))
 	if err != nil {
-		return fmt.Errorf("open %s: %w", seasonal.FileName, err)
+		return fmt.Errorf("open %s: %w", areas.FileName, err)
 	}
-	defer hotspotsDB.Close()
-	hotspots, err := openHotspotStore(hotspotsDB)
-	if err != nil {
-		return fmt.Errorf("hotspot store: %w", err)
-	}
+	defer cellsStore.Close()
 
 	placesDB, err := bolt.Open(filepath.Join(dataDir, "places.bolt"), 0o444, &bolt.Options{ReadOnly: true})
 	if err != nil {
@@ -74,11 +66,8 @@ func runWarmCache() error {
 	if err != nil {
 		return fmt.Errorf("taxonomy: %w", err)
 	}
-	speciesStore, err := openSpeciesStore(hotspotsDB, taxonomy)
-	if err != nil {
-		return fmt.Errorf("species store: %w", err)
-	}
-	species := NewSpeciesResolver(taxonomy, speciesStore)
+	resolver := NewAreaResolver(cellsStore, places)
+	species := NewSpeciesResolver(taxonomy, newSpeciesStore(resolver, taxonomy))
 
 	cache, err := NewImageCache(cacheDir)
 	if err != nil {
@@ -92,14 +81,13 @@ func runWarmCache() error {
 
 	hit := 0
 	for cc, place := range topPlaces {
-		nearby := hotspots.Nearby(place.Lat, place.Lng, maxNearbyDistKm)
-		if len(nearby) == 0 {
+		key := fmt.Sprintf("p%d", place.ID)
+		codes, taxa, err := species.Species(key, defaultLang, 0)
+		if err != nil {
+			log.Printf("warmcache: %s: species at %q: %v", cc, place.Name, err)
 			continue
 		}
-		top := nearby[0] // Nearby sorts most-active first
-		codes, taxa, err := species.Species(top.ID, defaultLang, 0)
-		if err != nil {
-			log.Printf("warmcache: %s: species at %q: %v", cc, top.Name, err)
+		if len(codes) == 0 {
 			continue
 		}
 		hit++
@@ -111,8 +99,8 @@ func runWarmCache() error {
 			toWarm[t.SciName] = true
 		}
 	}
-	log.Printf("warmcache: %d/%d countries had a hotspot within %.0fkm; %d distinct species to warm",
-		hit, len(topPlaces), maxNearbyDistKm, len(toWarm))
+	log.Printf("warmcache: %d/%d countries had species data; %d distinct species to warm",
+		hit, len(topPlaces), len(toWarm))
 
 	start := time.Now()
 	i := 0

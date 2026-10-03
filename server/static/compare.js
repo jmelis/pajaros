@@ -1,6 +1,6 @@
 "use strict";
 
-// Compare view: two hotspots side by side (#/compare/<a>/<b>). The server
+// Compare view: two areas side by side (#/compare/<a>/<b>). The server
 // (GET /api/compare) sends the union of both species lists with counts,
 // ranks and shares; everything shown here is derived from that. Loaded before
 // app.js and relies on its globals ($, t, tn, state, learn, ...) only at call
@@ -8,25 +8,23 @@
 
 const CMP_LOW_SAMPLE = 45; // combined records below which a ratio is only a hint
 const CMP_RANK_SHIFT = 5; // rank move that earns a ▲/▼ chip
-const CMP_REGULAR = 10; // records that make a one-hotspot species "regular"
+const CMP_REGULAR = 10; // records that make a one-area species "regular"
 const CMP_DIFF_EACH = 6; // differences shown per side
 const CMP_RANK_ROWS = 12;
 const CMP_ONLY_ROWS = 8;
 const CMP_FAMILY_ROWS = 7;
 const CMP_DOMAIN_LOG2 = 2; // difference bars span equal .. ×4
-const CMP_NEARBY_KM = 10;
-const CMP_NEARBY_MAX = 15;
 
 const cmp = { data: null };
 
 function compareHash(a, b) {
-  return "#/compare" + (a ? "/" + encodeURIComponent(a) : "") + (b ? "/" + encodeURIComponent(b) : "");
+  return "#/compare" + (a ? "/" + encodeKey(a) : "") + (b ? "/" + encodeKey(b) : "");
 }
 
 function cmpPct(x) { return (x * 100).toFixed(1); }
 function cmpNum(n) { return Number(n).toLocaleString(); }
 
-function cmpOptions(candidates, extra, selected, placeholder) {
+function cmpOptions(areas, selected, placeholder) {
   const sel = document.createElement("select");
   if (placeholder) {
     const o = document.createElement("option");
@@ -36,26 +34,12 @@ function cmpOptions(candidates, extra, selected, placeholder) {
     o.selected = !selected;
     sel.appendChild(o);
   }
-  const seen = new Set();
-  const groups = { saved: [], nearby: [] };
-  for (const c of extra.concat(candidates)) {
-    if (seen.has(c.locId)) continue;
-    seen.add(c.locId);
-    groups[c.group].push(c);
-  }
-  const add = (parent, c) => {
+  for (const a of areas) {
     const o = document.createElement("option");
-    o.value = c.locId;
-    o.textContent = c.name || c.locId;
-    o.selected = c.locId === selected;
-    parent.appendChild(o);
-  };
-  for (const key of ["saved", "nearby"]) {
-    if (groups[key].length === 0) continue;
-    const g = document.createElement("optgroup");
-    g.label = t("compare." + key);
-    for (const c of groups[key]) add(g, c);
-    sel.appendChild(g);
+    o.value = a.key;
+    o.textContent = areaTitle(a);
+    o.selected = a.key === selected;
+    sel.appendChild(o);
   }
   return sel;
 }
@@ -79,32 +63,41 @@ function cmpSpot(cls, labelKey, sel, meta) {
   return box;
 }
 
-// renderComparePicker draws the two hotspot selectors. Either side may be
-// null while the user is still choosing the second hotspot.
-function renderComparePicker(a, b, candidates) {
+// cmpChoices lists what can be picked: the two areas in play, then the
+// account's saved ones.
+function cmpChoices(a, b) {
+  const out = [];
+  const seen = new Set();
+  for (const x of [a, b].concat(state.favorites)) {
+    if (!x || seen.has(x.key)) continue;
+    seen.add(x.key);
+    out.push(x);
+  }
+  return out;
+}
+
+// renderComparePicker draws the two area selectors. Either side may be null
+// while the user is still choosing the second area.
+function renderComparePicker(a, b) {
   const picker = $("comparePicker");
   picker.innerHTML = "";
-  const extra = [a, b].filter(Boolean).map((h) => ({ locId: h.locId, name: h.name, group: "saved" }));
-  // The two in play are listed first under "Saved" only if actually saved.
-  const savedIds = new Set(state.favorites.map((f) => f.locId));
-  for (const e of extra) e.group = savedIds.has(e.locId) ? "saved" : "nearby";
-
-  const selA = cmpOptions(candidates, extra, a && a.locId, a ? "" : t("compare.choose"));
-  const selB = cmpOptions(candidates, extra, b && b.locId, b ? "" : t("compare.choose"));
-  selA.setAttribute("aria-label", t("compare.hotspotA"));
-  selB.setAttribute("aria-label", t("compare.hotspotB"));
-  const meta = (h) => (h && h.species != null
-    ? t("compare.meta", { species: cmpNum(h.species), obs: cmpNum(h.observations) })
+  const choices = cmpChoices(a, b);
+  const selA = cmpOptions(choices, a && a.key, a ? "" : t("compare.choose"));
+  const selB = cmpOptions(choices, b && b.key, b ? "" : t("compare.choose"));
+  selA.setAttribute("aria-label", t("compare.areaA"));
+  selB.setAttribute("aria-label", t("compare.areaB"));
+  const meta = (x) => (x && x.species != null
+    ? t("compare.meta", { species: cmpNum(x.species), obs: cmpNum(x.observations) })
     : "");
 
   const go = (na, nb) => navigate(compareHash(na, nb));
   selA.addEventListener("change", () => {
     const v = selA.value;
-    go(v, b && b.locId === v ? a.locId : (b ? b.locId : ""));
+    go(v, b && b.key === v ? a.key : (b ? b.key : ""));
   });
   selB.addEventListener("change", () => {
     const v = selB.value;
-    go(a && a.locId === v ? b && b.locId : (a ? a.locId : ""), v);
+    go(a && a.key === v ? b && b.key : (a ? a.key : ""), v);
   });
 
   const swap = document.createElement("button");
@@ -113,66 +106,45 @@ function renderComparePicker(a, b, candidates) {
   swap.textContent = "⇄";
   swap.setAttribute("aria-label", t("compare.swap"));
   swap.disabled = !(a && b);
-  swap.addEventListener("click", () => go(b.locId, a.locId));
+  swap.addEventListener("click", () => go(b.key, a.key));
 
-  picker.append(cmpSpot("a", "compare.hotspotA", selA, meta(a)), swap, cmpSpot("b", "compare.hotspotB", selB, meta(b)));
+  picker.append(cmpSpot("a", "compare.areaA", selA, meta(a)), swap, cmpSpot("b", "compare.areaB", selB, meta(b)));
 }
 
-async function cmpFetchHotspot(locId) {
+async function cmpFetchArea(key) {
   try {
-    const res = await fetch(`/api/hotspots/${encodeURIComponent(locId)}`);
-    if (!res.ok) return null;
-    const h = await res.json();
-    return { locId, name: h.locName || locId, lat: h.lat, lng: h.lng };
+    const res = await fetch(`/api/places/${encodeKey(key)}`);
+    return res.ok ? await res.json() : null;
   } catch (e) {
     return null;
   }
 }
 
-// cmpCandidates lists what can be picked: the account's saved hotspots plus
-// the busiest ones near the first hotspot.
-async function cmpCandidates(origin) {
-  const out = state.favorites.map((f) => ({ locId: f.locId, name: f.locName || f.locId, group: "saved" }));
-  if (origin && (origin.lat || origin.lng)) {
-    try {
-      const res = await fetch(`/api/hotspots?lat=${origin.lat}&lng=${origin.lng}&dist=${CMP_NEARBY_KM}`);
-      if (res.ok) {
-        const near = (await res.json()).slice(0, CMP_NEARBY_MAX);
-        for (const h of near) out.push({ locId: h.locId, name: h.locName || h.locId, group: "nearby" });
-      }
-    } catch (e) {
-      // Nearby suggestions are optional.
-    }
-  }
-  return out;
-}
-
 async function openCompare(a, b) {
-  const stale = () => currentRoute.name !== "compare" || currentRoute.locId !== a || currentRoute.locIdB !== b;
+  const stale = () => currentRoute.name !== "compare" || currentRoute.key !== a || currentRoute.keyB !== b;
   window.scrollTo(0, 0);
   $("compareBody").innerHTML = "";
   $("comparePicker").innerHTML = "";
   $("compareDist").textContent = "";
   $("compareStatus").textContent = "";
-  $("compareBack").href = a && LOC_ID_RE.test(a) ? "#/hotspot/" + encodeURIComponent(a) : "#/home";
+  $("compareBack").href = a && AREA_KEY_RE.test(a) ? "#/area/" + encodeKey(a) : "#/home";
   cmp.data = null;
 
-  if (!LOC_ID_RE.test(a || "")) { navigate("#/home"); return; }
+  if (!AREA_KEY_RE.test(a || "")) { navigate("#/home"); return; }
 
-  if (!b || !LOC_ID_RE.test(b) || a === b) {
-    const origin = await cmpFetchHotspot(a);
+  if (!b || !AREA_KEY_RE.test(b) || a === b) {
+    const origin = await cmpFetchArea(a);
     if (stale()) return;
-    if (!origin) { $("compareStatus").textContent = t("hotspot.error"); return; }
-    renderComparePicker(origin, null, await cmpCandidates(origin));
-    if (stale()) return;
-    $("compareStatus").textContent = t("compare.pickPrompt", { name: origin.name });
+    if (!origin) { $("compareStatus").textContent = t("area.error"); return; }
+    renderComparePicker(origin, null);
+    $("compareStatus").textContent = t("compare.pickPrompt", { name: areaTitle(origin) });
     return;
   }
 
   $("compareStatus").textContent = t("compare.loading");
   let data;
   try {
-    const res = await fetch(`/api/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}&lang=${encodeURIComponent(state.language)}`);
+    const res = await fetch(`/api/compare?a=${encodeKey(a)}&b=${encodeKey(b)}&lang=${encodeURIComponent(state.language)}`);
     if (!res.ok) throw new Error(String(res.status));
     data = await res.json();
   } catch (e) {
@@ -180,15 +152,14 @@ async function openCompare(a, b) {
     return;
   }
   if (stale()) return;
+  // Custom circles have no name; label both sides for the sections below.
+  for (const side of [data.a, data.b]) side.name = areaTitle(side);
   cmp.data = data;
   $("compareStatus").textContent = "";
 
-  renderComparePicker(data.a, data.b, state.favorites.map((f) => ({ locId: f.locId, name: f.locName || f.locId, group: "saved" })));
+  renderComparePicker(data.a, data.b);
   $("compareDist").textContent = t("compare.apart", { km: data.distanceKm.toFixed(1) });
   renderCompareBody(data);
-
-  const candidates = await cmpCandidates(data.a);
-  if (!stale()) renderComparePicker(data.a, data.b, candidates);
 }
 
 // ---- Derived views --------------------------------------------------------
@@ -317,12 +288,12 @@ function cmpRankSection(data) {
 }
 
 function cmpOnlySection(data) {
-  const column = (side, hotspot, list) => {
+  const column = (side, area, list) => {
     const key = side === "a" ? "countA" : "countB";
     const items = list.slice(0, CMP_ONLY_ROWS).map((s) => `
       <li><span>${escapeHtml(s.comName)}${s[key] >= CMP_REGULAR ? `<span class="cmp-chip reg">${escapeHtml(t("compare.only.regular"))}</span>` : ""}</span><span class="fam">${escapeHtml(s.family)}</span><span class="n">${cmpNum(s[key])}</span></li>`).join("");
     return `<div>
-      <h3><span>${cmpSw(side)}${escapeHtml(t("compare.only.name", { name: hotspot.name }))}</span><span>${escapeHtml(tn("compare.only.species", list.length))}</span></h3>
+      <h3><span>${cmpSw(side)}${escapeHtml(t("compare.only.name", { name: area.name }))}</span><span>${escapeHtml(tn("compare.only.species", list.length))}</span></h3>
       ${items ? `<ul>${items}</ul>` : `<p class="cmp-sub">${escapeHtml(t("compare.only.none"))}</p>`}
     </div>`;
   };
@@ -389,15 +360,15 @@ function renderCompareBody(data) {
 }
 
 // cmpLearn opens Learn on the given species codes, in that order, taking each
-// card (photos, names) from the first listed hotspot that has the species.
-async function cmpLearn(codes, hotspots) {
+// card (photos, names) from the first listed area that has the species.
+async function cmpLearn(codes, areas) {
   const byCode = new Map();
   try {
-    for (const h of hotspots) {
-      const res = await fetch(`/api/hotspots/${encodeURIComponent(h.locId)}/species?lang=${encodeURIComponent(state.language)}&mode=popularity`);
+    for (const h of areas) {
+      const res = await fetch(`/api/places/${encodeKey(h.key)}/species?lang=${encodeURIComponent(state.language)}&mode=popularity`);
       if (!res.ok) throw new Error(String(res.status));
       for (const sp of await res.json()) {
-        if (!byCode.has(sp.speciesCode)) byCode.set(sp.speciesCode, Object.assign({ locId: h.locId, locName: h.name }, sp));
+        if (!byCode.has(sp.speciesCode)) byCode.set(sp.speciesCode, Object.assign({ areaKey: h.key, areaName: h.name }, sp));
       }
     }
   } catch (e) {
@@ -411,5 +382,5 @@ async function cmpLearn(codes, hotspots) {
   }
   $("compareStatus").textContent = "";
   state.secondaryNames = {};
-  learn.start(cards, hotspots[0].locId, 0, { quiet: true });
+  learn.start(cards, areas[0].key, 0, { quiet: true });
 }

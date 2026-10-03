@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"log"
 	"net/http"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Account preferences API. Every route here is mounted behind Auth.require
@@ -113,9 +115,8 @@ func (s *Server) handleSetSecondaryLanguage(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleListFavorites returns the account's favorites, each with the display
-// name and coordinates captured when it was bookmarked. It reads only local
-// data — no upstream call per favorite.
+// handleListFavorites returns the account's favorites, each with the name and
+// details captured when it was bookmarked. It reads only local data.
 func (s *Server) handleListFavorites(w http.ResponseWriter, r *http.Request) {
 	id := userIDFromContext(r)
 	favs, err := s.users.Favorites(id)
@@ -124,67 +125,103 @@ func (s *Server) handleListFavorites(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load favorites", http.StatusInternalServerError)
 		return
 	}
+	// A custom circle is described from the current places data, so favorites
+	// saved before the labels existed get them too.
+	for i, f := range favs {
+		if !strings.HasPrefix(f.Key, "c") {
+			continue
+		}
+		if info, err := s.areas.Info(f.Key); err == nil {
+			favs[i].Name, favs[i].Region, favs[i].Country = info.Name, info.Region, info.Country
+		}
+	}
 	writeJSON(w, favs)
 }
 
-// favoriteBody is what a client may send when bookmarking: the hotspot's name
-// and coordinates, both optional. locId comes from the path and is not part
-// of the body.
-type favoriteBody struct {
-	LocName string  `json:"locName"`
-	Lat     float64 `json:"lat"`
-	Lng     float64 `json:"lng"`
-}
-
-// handleAddFavorite adds locId to the account's favorites, recording the
-// supplied name/coordinates so the home list can render it later. Re-adding
-// an existing favorite is a success (a no-op unless it supplies missing
-// details). locId must match the same pattern the hotspot endpoints accept.
-// The per-account cap returns 409 Conflict rather than growing without limit.
+// handleAddFavorite adds an area to the account's favorites. The key must name
+// a real place or a valid custom circle; the stored details come from the
+// server. Re-adding an existing favorite
+// refreshes it. The per-account cap returns 409 Conflict rather than growing
+// without limit.
 func (s *Server) handleAddFavorite(w http.ResponseWriter, r *http.Request) {
-	locID := r.PathValue("locId")
-	if !validLocID(locID) {
-		http.Error(w, "invalid locId", http.StatusBadRequest)
+	key := r.PathValue("key")
+	if !validAreaKey(key) {
+		http.Error(w, "invalid area key", http.StatusBadRequest)
+		return
+	}
+	info, err := s.areas.Info(key)
+	if err != nil {
+		http.Error(w, "place not found", http.StatusNotFound)
 		return
 	}
 
-	// An absent body is fine: the client may be re-adding purely idempotently.
-	var body favoriteBody
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<12)).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
+	fav := Favorite{
+		Key: info.Key, Name: info.Name, Kind: info.Kind, Country: info.Country,
+		Lat: info.Lat, Lng: info.Lng, RadiusKm: info.RadiusKm,
 	}
 
 	id := userIDFromContext(r)
-	err := s.users.AddFavorite(id, Favorite{
-		LocID:   locID,
-		LocName: body.LocName,
-		Lat:     body.Lat,
-		Lng:     body.Lng,
-	})
+	err = s.users.AddFavorite(id, fav)
 	if errors.Is(err, ErrFavoritesLimit) {
 		http.Error(w, "favorites limit reached", http.StatusConflict)
 		return
 	}
 	if err != nil {
-		log.Printf("add favorite %s %s: %v", id, locID, err)
+		log.Printf("add favorite %s %s: %v", id, key, err)
 		http.Error(w, "failed to add favorite", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleRemoveFavorite removes locId from the account's favorites. Removing
-// one that isn't favorited is a success (no-op).
-func (s *Server) handleRemoveFavorite(w http.ResponseWriter, r *http.Request) {
-	locID := r.PathValue("locId")
-	if !validLocID(locID) {
-		http.Error(w, "invalid locId", http.StatusBadRequest)
+// maxFavoriteNameRunes bounds the label a user can give a favorite.
+const maxFavoriteNameRunes = 80
+
+// handleRenameFavorite sets the label of one of the account's favorites; an
+// empty name restores the place's own.
+func (s *Server) handleRenameFavorite(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	if !validAreaKey(key) {
+		http.Error(w, "invalid area key", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<12)).Decode(&body); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	name := strings.Join(strings.Fields(body.Name), " ")
+	if utf8.RuneCountInString(name) > maxFavoriteNameRunes || strings.ContainsFunc(name, unicode.IsControl) {
+		http.Error(w, "invalid name", http.StatusBadRequest)
 		return
 	}
 	id := userIDFromContext(r)
-	if err := s.users.RemoveFavorite(id, locID); err != nil {
-		log.Printf("remove favorite %s %s: %v", id, locID, err)
+	ok, err := s.users.SetFavoriteName(id, key, name)
+	if err != nil {
+		log.Printf("rename favorite %s %s: %v", id, key, err)
+		http.Error(w, "failed to rename favorite", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		http.Error(w, "not a favorite", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleRemoveFavorite removes an area from the account's favorites. Removing
+// one that isn't favorited is a success (no-op).
+func (s *Server) handleRemoveFavorite(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	if !validAreaKey(key) {
+		http.Error(w, "invalid area key", http.StatusBadRequest)
+		return
+	}
+	id := userIDFromContext(r)
+	if err := s.users.RemoveFavorite(id, key); err != nil {
+		log.Printf("remove favorite %s %s: %v", id, key, err)
 		http.Error(w, "failed to remove favorite", http.StatusInternalServerError)
 		return
 	}
