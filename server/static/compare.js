@@ -15,7 +15,7 @@ const CMP_ONLY_ROWS = 8;
 const CMP_FAMILY_ROWS = 7;
 const CMP_DOMAIN_LOG2 = 2; // difference bars span equal .. ×4
 
-const cmp = { data: null };
+const cmp = { data: null, onlySide: "a" };
 
 function compareHash(a, b) {
   return "#/compare" + (a ? "/" + encodeKey(a) : "") + (b ? "/" + encodeKey(b) : "");
@@ -129,6 +129,7 @@ async function openCompare(a, b) {
   $("compareStatus").textContent = "";
   $("compareBack").href = a && AREA_KEY_RE.test(a) ? "#/area/" + encodeKey(a) : "#/home";
   cmp.data = null;
+  cmp.onlySide = "a";
 
   if (!AREA_KEY_RE.test(a || "")) { navigate("#/home"); return; }
 
@@ -194,6 +195,12 @@ function cmpVerdict(data, diffs) {
 
 function cmpSw(cls) { return `<i class="cmp-sw ${cls}"></i>`; }
 
+// cmpBird renders a species name that opens Learn on that bird; list says which
+// section's ordering the deck follows.
+function cmpBird(list, s) {
+  return `<button type="button" class="cmp-bird" data-cmp-list="${list}" data-code="${escapeHtml(s.code)}">${escapeHtml(s.comName)}</button>`;
+}
+
 function cmpSummary(data, diffs) {
   const union = data.shared + data.onlyA + data.onlyB;
   const pct = union ? Math.round((data.shared / union) * 100) : 0;
@@ -242,7 +249,7 @@ function cmpDifferencesSection(data, diffs) {
         : `${side === "a" ? "right" : "left"}:calc(50% + ${w}% + 6px)`;
       return `
       <li class="cmp-drow">
-        <div class="cmp-nm"><span>${escapeHtml(s.comName)}</span><span class="cmp-cnt">${cmpSw("a")}${cmpNum(s.countA)} vs ${cmpSw("b")}${cmpNum(s.countB)}</span></div>
+        <div class="cmp-nm"><span>${cmpBird("diff", s)}</span><span class="cmp-cnt">${cmpSw("a")}${cmpNum(s.countA)} vs ${cmpSw("b")}${cmpNum(s.countB)}</span></div>
         <div class="cmp-track"><span class="cmp-bar ${side}${faint}" style="width:${w.toFixed(1)}%"></span><span class="cmp-mult" style="${multStyle}">${mult}</span></div>
       </li>`;
     }).join("");
@@ -256,14 +263,19 @@ function cmpDifferencesSection(data, diffs) {
     <div><h2>${escapeHtml(t("compare.diff.title"))}</h2><p class="cmp-sub">${escapeHtml(t("compare.diff.intro") + volume)}</p></div>
     <div class="cmp-sidecap"><span>${cmpSw("a")}${escapeHtml(t("compare.diff.more", { name: data.a.name }))}</span><span>${escapeHtml(t("compare.diff.more", { name: data.b.name }))}${cmpSw("b")}</span></div>
     ${rows}
+    ${diffs.ordered.length ? `<button type="button" class="btn btn-primary" data-cmp-learn="diff">${escapeHtml(t("compare.learn.diff", { n: diffs.ordered.length }))}</button>` : ""}
   </section>`;
 }
 
-function cmpRankSection(data) {
-  const both = data.species
+function cmpRankList(data) {
+  return data.species
     .filter((s) => s.rankA > 0 && s.rankB > 0)
     .sort((x, y) => (y.shareA + y.shareB) - (x.shareA + x.shareB))
     .slice(0, CMP_RANK_ROWS);
+}
+
+function cmpRankSection(data) {
+  const both = cmpRankList(data);
   if (both.length === 0) return "";
   const maxShare = Math.max(...both.map((s) => Math.max(s.shareA, s.shareB)), 0.0001);
   const rows = both.map((s) => {
@@ -275,7 +287,7 @@ function cmpRankSection(data) {
     const half = (side, share, rank, name) => `<span class="cmp-half ${side === "a" ? "l" : "r"}" title="${escapeHtml(t("compare.rank.share", { pct: cmpPct(share), name }))}"><span class="cmp-bar ${side}" style="width:${(share / maxShare * 100).toFixed(1)}%"></span><span class="cmp-pc">${cmpPct(share)}%</span></span>`;
     return `
     <li class="cmp-rrow">
-      <div class="cmp-nm"><span>${escapeHtml(s.comName)}</span>${chip}</div>
+      <div class="cmp-nm"><span>${cmpBird("rank", s)}</span>${chip}</div>
       <div class="cmp-rbars"><span class="cmp-rk">#${s.rankA}</span>${half("a", s.shareA, s.rankA, data.a.name)}${half("b", s.shareB, s.rankB, data.b.name)}<span class="cmp-rk">#${s.rankB}</span></div>
     </li>`;
   }).join("");
@@ -288,19 +300,20 @@ function cmpRankSection(data) {
 }
 
 function cmpOnlySection(data) {
-  const column = (side, area, list) => {
-    const key = side === "a" ? "countA" : "countB";
-    const items = list.slice(0, CMP_ONLY_ROWS).map((s) => `
-      <li><span>${escapeHtml(s.comName)}${s[key] >= CMP_REGULAR ? `<span class="cmp-chip reg">${escapeHtml(t("compare.only.regular"))}</span>` : ""}</span><span class="fam">${escapeHtml(s.family)}</span><span class="n">${cmpNum(s[key])}</span></li>`).join("");
-    return `<div>
-      <h3><span>${cmpSw(side)}${escapeHtml(t("compare.only.name", { name: area.name }))}</span><span>${escapeHtml(tn("compare.only.species", list.length))}</span></h3>
-      ${items ? `<ul>${items}</ul>` : `<p class="cmp-sub">${escapeHtml(t("compare.only.none"))}</p>`}
-    </div>`;
-  };
+  const side = cmp.onlySide;
+  const area = side === "a" ? data.a : data.b;
+  const list = cmpOnly(data, side);
+  const key = side === "a" ? "countA" : "countB";
+  const items = list.slice(0, CMP_ONLY_ROWS).map((s) => `
+      <li><span>${cmpBird("only", s)}${s[key] >= CMP_REGULAR ? `<span class="cmp-chip reg">${escapeHtml(t("compare.only.regular"))}</span>` : ""}</span><span class="fam">${escapeHtml(s.family)}</span><span class="n">${cmpNum(s[key])}</span></li>`).join("");
+  const seg = (sd, a) => `<button type="button" class="cmp-seg ${sd}" data-cmp-side="${sd}" aria-pressed="${sd === side}">${cmpSw(sd)}${escapeHtml(a.name)}</button>`;
   return `
-  <section class="cmp-card cmp-only">
+  <section class="cmp-card cmp-only" id="cmpOnly">
     <div><h2>${escapeHtml(t("compare.only.title"))}</h2><p class="cmp-sub">${escapeHtml(t("compare.only.intro", { n: CMP_REGULAR }))}</p></div>
-    <div class="cmp-two">${column("a", data.a, cmpOnly(data, "a"))}${column("b", data.b, cmpOnly(data, "b"))}</div>
+    <div class="cmp-segs" role="group">${seg("a", data.a)}${seg("b", data.b)}</div>
+    <h3><span>${escapeHtml(t("compare.only.name", { name: area.name }))}</span><span>${escapeHtml(tn("compare.only.species", list.length))}</span></h3>
+    ${items ? `<ul>${items}</ul>` : `<p class="cmp-sub">${escapeHtml(t("compare.only.none"))}</p>`}
+    ${list.length ? `<button type="button" class="btn btn-secondary" data-cmp-learn="only">${escapeHtml(t("compare.learn.only", { n: list.length, name: area.name }))}</button>` : ""}
   </section>`;
 }
 
@@ -322,46 +335,47 @@ function cmpFamilySection(data) {
 function renderCompareBody(data) {
   const diffs = cmpDifferences(data);
   const body = $("compareBody");
-  const onlyA = cmpOnly(data, "a");
-  const onlyB = cmpOnly(data, "b");
   body.innerHTML =
     cmpSummary(data, diffs) +
     cmpDifferencesSection(data, diffs) +
     cmpRankSection(data) +
     cmpOnlySection(data) +
     cmpFamilySection(data) +
-    `<div class="cmp-ctas" id="compareCtas"></div>
-     <p class="cmp-foot">${escapeHtml(t("compare.foot"))}</p>`;
+    `<p class="cmp-foot">${escapeHtml(t("compare.foot"))}</p>`;
 
-  const ctas = $("compareCtas");
-  const addCta = (cls, label, run) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn " + cls;
-    btn.textContent = label;
-    btn.addEventListener("click", async () => {
-      btn.disabled = true;
-      try { await run(); } finally { btn.disabled = false; }
-    });
-    ctas.appendChild(btn);
+  const lists = {
+    diff: { codes: diffs.ordered.map((s) => s.code), areas: [data.a, data.b] },
+    rank: { codes: cmpRankList(data).map((s) => s.code), areas: [data.a, data.b] },
   };
-  if (diffs.ordered.length > 0) {
-    addCta("btn-primary", t("compare.learn.diff", { n: diffs.ordered.length }),
-      () => cmpLearn(diffs.ordered.map((s) => s.code), [data.a, data.b]));
-  }
-  if (onlyA.length > 0) {
-    addCta("btn-secondary", t("compare.learn.only", { n: onlyA.length, name: data.a.name }),
-      () => cmpLearn(onlyA.map((s) => s.code), [data.a]));
-  }
-  if (onlyB.length > 0) {
-    addCta("btn-secondary", t("compare.learn.only", { n: onlyB.length, name: data.b.name }),
-      () => cmpLearn(onlyB.map((s) => s.code), [data.b]));
-  }
+  const onlyDeck = () => {
+    const area = cmp.onlySide === "a" ? data.a : data.b;
+    return { codes: cmpOnly(data, cmp.onlySide).map((s) => s.code), areas: [area] };
+  };
+  body.onclick = async (e) => {
+    const seg = e.target.closest("[data-cmp-side]");
+    if (seg) {
+      cmp.onlySide = seg.dataset.cmpSide;
+      $("cmpOnly").outerHTML = cmpOnlySection(data);
+      return;
+    }
+    const bird = e.target.closest("[data-cmp-list]");
+    if (bird) {
+      const deck = bird.dataset.cmpList === "only" ? onlyDeck() : lists[bird.dataset.cmpList];
+      await cmpLearn(deck.codes, deck.areas, deck.codes.indexOf(bird.dataset.code));
+      return;
+    }
+    const go = e.target.closest("[data-cmp-learn]");
+    if (go) {
+      const deck = go.dataset.cmpLearn === "only" ? onlyDeck() : lists.diff;
+      go.disabled = true;
+      try { await cmpLearn(deck.codes, deck.areas, 0); } finally { go.disabled = false; }
+    }
+  };
 }
 
 // cmpLearn opens Learn on the given species codes, in that order, taking each
 // card (photos, names) from the first listed area that has the species.
-async function cmpLearn(codes, areas) {
+async function cmpLearn(codes, areas, index = 0) {
   const byCode = new Map();
   try {
     for (const h of areas) {
@@ -382,5 +396,5 @@ async function cmpLearn(codes, areas) {
   }
   $("compareStatus").textContent = "";
   state.secondaryNames = {};
-  learn.start(cards, areas[0].key, 0, { quiet: true });
+  learn.start(cards, areas[0].key, Math.max(0, cards.findIndex((c) => c.speciesCode === codes[index])), { quiet: true });
 }

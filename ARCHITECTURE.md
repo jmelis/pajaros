@@ -142,11 +142,37 @@ change (the default sort is left out), so shared links open on the same view
 and Learn links on the same month's birds. Navigation is a bottom tab bar (`<nav class="app-nav tab-bar">` in
 `index.html`), the canonical iOS primary-navigation placement.
 
-Views: **Home** (saved places, a search shortcut — a welcome screen for a
-fresh account), **Search** (place-name search, geolocation, and a map for
+**Mobile layout.** The layout is designed phone-first with one breakpoint at
+600px. The header scrolls away on narrow screens; the signed-in email lives in
+Settings. Both map views (Search and Atlas) fill the viewport above the tab
+bar (`body.map-screen`, `dvh` units, `viewport-fit=cover` with safe-area
+insets) and never scroll the page: the Search view has a docked bottom panel
+(place name, radius chips and slider, save star, "Browse birds"), a floating
+"use my location" button and a one-line hint overlay that disappears after
+the first tap; Atlas puts its month select and legend in a compact bar over
+the bottom of the map. Tappable controls are at least 44px, form fields at
+least 16px (no iOS focus zoom) and hover styles sit behind
+`@media (hover: hover)`. Leaflet maps are created on first visit and
+`invalidateSize()` runs when they are shown, resized or the device rotates.
+Place and species autocompletes (`wireAutocomplete`) have a clear button,
+44px rows, a dropdown sized to `visualViewport` and drop focus after a pick.
+
+Secondary actions share one `<dialog id="sheet">` bottom sheet: opening it
+pushes a history entry, so the Back gesture, the backdrop and Esc all close it.
+A row's ⋯ on Home (Rename, Remove with an undo toast), the area's ⋯ (Rename,
+Open on map, Share, Compare) and the rename form itself all render into it.
+Sharing uses `navigator.share` where available and otherwise copies the link
+and shows a toast.
+
+Views: **Home** (saved places, each with a ⋯ menu; a welcome panel with the Find
+places button stands in for the list when nothing is saved, and a "Birds near
+me" button opens the area around the visitor), **Search** (place-name search, geolocation, and a map for
 drawing a custom circle — see "Place search" below), **Area** (the place's name
-with its kind and country, save toggle, explore — by popularity/category/alphabetical/seasons — or Learn's
-full-screen card deck, see "Learn mode and species images" below),
+with its kind and country, a save star and the ⋯ menu; one sticky row with the
+month selector, a native sort select — popularity/category/alphabetical/seasons —
+and the Learn button; a two-column photo grid whose category and season
+sections have sticky headings with species counts; Learn's full-screen card
+deck, see "Learn mode and species images" below),
 **Atlas** (a species' frequency over the whole world — see "Species range
 map" below), **Settings** (language, secondary language, sign out), and a small
 **About** page, linked only from Settings: a contact form (see "Contact
@@ -180,7 +206,7 @@ says so.
 
 Guests (`state.signedIn === false`, set when `/api/me` answers 401) get the
 same views with three differences: the header shows a "Sign in" link instead
-of the email, Home shows only the Find button (no saved places; features behind sign-in prompt for it when used),
+of the email, Home shows only the welcome panel (no saved places; features behind sign-in prompt for it when used),
 and the language choices are stored in `localStorage` (falling back to the
 browser language, then English) rather than on an account.
 
@@ -400,7 +426,7 @@ shows its shape. Choosing a species frames the map on its range (the 2nd to
 98th percentile of cell latitudes and longitudes, so stray vagrant records are
 ignored; a range spanning most of the globe keeps the world view), while
 changing the month keeps the current view. Species search matches normalized names by prefix or word
-start in the interface language, English and Latin. Learn's card footer links
+start in the interface language, English and Latin. Learn's action row links
 to a species' map ("Where else?") on the month the place is being browsed.
 
 ### Area keys
@@ -570,27 +596,31 @@ browsing, no scoring or spaced repetition. The frontend fetches
 `GET /api/places/{key}/species?mode=popularity` (the same endpoint and
 ordering Browse's popularity mode uses, including the month selector's
 `month=` value) and drives its own card, dot-index,
-and drag/arrow-key/top-bar-button navigation client-side (`static/app.js`'s
+and drag/arrow-key/button navigation client-side (`static/app.js`'s
 `learn` object) — there's no separate session endpoint or server-side state
-for it. It's started by the Learn button on the area view. Horizontal
-drag and the top-bar arrows move between birds; a bird's own photos are
-cycled only by the next-photo button in the image's bottom-right corner (no
-timer, no swipe), so the drag gesture is never ambiguous. Only photos that
-have actually loaded join that cycle; the button and dots stay hidden until a
-second photo is ready.
+for it. It's started by the Learn button on the area view. The card fits the
+dynamic viewport with no scrolling (the page behind is locked) and has a top
+bar with only × and a names toggle (👁), and ‹, "i / n" and › at the bottom
+within thumb reach. Horizontal drag moves between birds (pointer capture
+starts only once a move is clearly horizontal, so taps still reach the card);
+a bird's own photos are cycled only by tapping the photo (no timer, no swipe),
+so the drag gesture is never ambiguous. Only photos that have actually
+loaded join that cycle; the dots stay hidden until a second photo is ready.
+With names hidden, tapping the names area reveals them for that card only.
+The next card's first photo is preloaded.
 
 Learn is deep-linkable: `#/area/<key>/bird/<speciesCode>` opens the
 area's Learn deck on that bird, in the month's popularity order when the
 link carries `?month=` (an unknown code falls back to the plain
-area with a notice). While Learn is open the address bar always holds that
-bird's link — `learn.syncURL()` rewrites it with `history.replaceState` on
-every card change, so swiping adds no history entries — and closing Learn
-restores the plain area URL. Tapping a bird in the area's species grid
+area with a notice). Opening the deck pushes one history entry and moving
+between cards only replaces it (`learn.syncURL()` uses `history.replaceState`),
+so the address bar always holds the current bird's link and Back (or ×)
+closes the deck over the area at the same scroll position. Closing restores
+the plain area URL. Tapping a bird in the area's species grid
 opens Learn at that bird (the grid cards are real links to the same URL, so
-middle-click/copy-link still work). Each card has a share button (Web Share
-API, falling back to copying the link) and an "eBird" pill linking to the
-species' eBird page in a new tab; the area header has its own share button
-for the area link.
+middle-click/copy-link still work). One action row under the names holds
+"Where else?", an "eBird" link to the species' eBird page in a new tab, Share
+(Web Share API, falling back to copying the link) and "Photo credits".
 
 Each card shows up to `maxImagesPerSpecies` (4) images, all from Wikimedia
 (`server/wikimedia.go`) and cached to disk. Only two human-curated sources
@@ -679,7 +709,7 @@ pure local disk I/O, finishes in well under a second even for thousands of
 species, and logs to `migration.log`.
 
 **Photo credits.** Commons photos are CC BY / CC BY-SA, which require showing
-the author, license and source. The Learn overlay's footer has an "Image credits"
+the author, license and source. The Learn overlay's action row has a "Photo credits"
 link, which follows the current card, to
 `#/area/<key>/bird/<speciesCode>/credits`, a text-only page (no images)
 listing that species' photos with each one's title, author, license link and

@@ -85,13 +85,12 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     el.setAttribute("placeholder", t(el.dataset.i18nPlaceholder));
   });
-  updateSortLabel();
   updateMonthOptions();
   updateRangeMonthOptions();
 }
 
-function monthName(m) {
-  const name = new Intl.DateTimeFormat(state.language, { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2000, m - 1, 1)));
+function monthName(m, style = "long") {
+  const name = new Intl.DateTimeFormat(state.language, { month: style, timeZone: "UTC" }).format(new Date(Date.UTC(2000, m - 1, 1)));
   return name.charAt(0).toLocaleUpperCase(state.language) + name.slice(1);
 }
 
@@ -132,8 +131,8 @@ function updateMonthOptions() {
     sel.appendChild(opt);
   };
   add("0", t("browse.allYear"));
-  add("now", t("browse.thisMonth", { month: monthName(currentMonth()) }));
-  for (let m = 1; m <= 12; m++) add(String(m), monthName(m));
+  add("now", t("browse.thisMonth", { month: monthName(currentMonth(), "short") }));
+  for (let m = 1; m <= 12; m++) add(String(m), monthName(m, "short"));
   sel.value = state.monthIsCurrent ? "now" : String(state.month);
 }
 
@@ -214,12 +213,264 @@ function secondaryNameFor(speciesCode) {
 
 // ---- Status lines ---------------------------------------------------------
 
+// Status lines are empty elements unless there is something to say (CSS hides
+// an empty one), so these only ever set text.
 function setStatus(msg) { $("status").textContent = msg; }
 function setAreaStatus(msg) { $("areaStatus").textContent = msg; }
 function showSettingsHint(msg) {
   const hint = $("settingsHint");
   hint.textContent = msg;
   hint.hidden = false;
+}
+
+// ---- Shared UI: bottom sheet, toast, sharing -------------------------------
+
+// One <dialog> serves every secondary menu. Opening it pushes a history entry
+// so the system Back gesture closes it; closing it any other way (backdrop,
+// Esc, a menu item) pops that entry again. An action that navigates runs
+// after the pop, so it lands on top of the page the sheet was opened from.
+let sheetPushed = false;
+let sheetAfter = null;
+
+function openSheet(title, fill) {
+  const dlg = $("sheet");
+  $("sheetTitle").textContent = title;
+  const body = $("sheetBody");
+  body.innerHTML = "";
+  fill(body);
+  if (dlg.open) return;
+  dlg.showModal();
+  history.pushState({ sheet: 1 }, "");
+  sheetPushed = true;
+}
+
+function closeSheet(after) {
+  sheetAfter = after || null;
+  if (sheetPushed) history.back();
+  else finishSheet();
+}
+
+function finishSheet() {
+  const dlg = $("sheet");
+  const after = sheetAfter;
+  sheetAfter = null;
+  sheetPushed = false;
+  if (dlg.open) dlg.close();
+  if (after) after();
+}
+
+function wireSheet() {
+  const dlg = $("sheet");
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) closeSheet(); });
+  // Esc closes the dialog natively; the history entry still has to go.
+  dlg.addEventListener("close", () => {
+    if (!sheetPushed) return;
+    sheetAfter = null;
+    history.back();
+  });
+}
+
+function sheetItem(label, onClick, danger) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "sheet-item" + (danger ? " danger" : "");
+  b.textContent = label;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+// openRenameSheet edits a saved area's label in the sheet. An empty name
+// restores the place's own.
+function openRenameSheet(key, onDone) {
+  const fav = state.favorites.find((f) => f.key === key);
+  if (!fav) return;
+  openSheet(t("sheet.rename"), (body) => {
+    const form = document.createElement("form");
+    form.className = "sheet-form";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = areaTitle(fav);
+    input.maxLength = 80;
+    input.autocomplete = "off";
+    input.enterKeyHint = "done";
+    input.setAttribute("aria-label", t("sheet.rename"));
+    const buttons = document.createElement("div");
+    buttons.className = "sheet-buttons";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "btn btn-secondary";
+    cancel.textContent = t("sheet.cancel");
+    cancel.addEventListener("click", () => closeSheet());
+    const save = document.createElement("button");
+    save.type = "submit";
+    save.className = "btn btn-primary";
+    save.textContent = t("sheet.save");
+    buttons.append(cancel, save);
+    form.append(input, buttons);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = input.value.trim().replace(/\s+/g, " ");
+      closeSheet();
+      try {
+        await putFavoriteName(key, name === defaultTitle(fav) ? "" : name);
+        if (onDone) onDone();
+      } catch (err) {
+        showToast(t("area.bookmarkError"));
+      }
+    });
+    body.appendChild(form);
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+  });
+}
+
+let toastTimer = null;
+
+function hideToast() {
+  clearTimeout(toastTimer);
+  $("toast").hidden = true;
+}
+
+// showToast shows a transient message, optionally with one action
+// ({label, run}) such as Undo.
+function showToast(text, action) {
+  $("toastText").textContent = text;
+  const btn = $("toastAction");
+  btn.hidden = !action;
+  btn.onclick = null;
+  if (action) {
+    btn.textContent = action.label;
+    btn.onclick = () => { hideToast(); action.run(); };
+  }
+  $("toast").hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, action ? 6000 : 2200);
+}
+
+// shareLink offers a link through the native share sheet where there is one,
+// otherwise copies it and says so. The share sheet is its own confirmation.
+async function shareLink(title, text, url) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url });
+      return;
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+    }
+  }
+  if (await copyText(url)) showToast(t("share.linkCopied"));
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    // navigator.clipboard is unavailable outside HTTPS/localhost; fall back to
+    // the legacy selection-based copy, which works on a user gesture anywhere.
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+    ta.remove();
+    return ok;
+  }
+}
+
+// ---- Maps and autocomplete --------------------------------------------------
+
+// watchMapSize keeps a Leaflet map's size in step with its container (which
+// changes when the dock appears, the keyboard opens or the phone rotates).
+function watchMapSize(m, el) {
+  const fix = () => m.invalidateSize();
+  if (window.ResizeObserver) new ResizeObserver(fix).observe(el);
+  window.addEventListener("orientationchange", () => setTimeout(fix, 250));
+  fix();
+}
+
+// sizeSuggestions caps a dropdown at the visible area, so the on-screen
+// keyboard never hides its last rows.
+function sizeSuggestions(list) {
+  if (list.hidden) return;
+  const vv = window.visualViewport;
+  const height = vv ? vv.height : window.innerHeight;
+  const top = list.getBoundingClientRect().top - (vv ? vv.offsetTop : 0);
+  list.style.maxHeight = Math.max(120, Math.min(320, height - top - 12)) + "px";
+}
+
+// wireAutocomplete drives a search box with a dropdown. search(q) resolves to
+// the matches (or null on failure); rows come from rowHtml; pick(item) runs on
+// a tap or Enter. The input loses focus after a pick so the keyboard closes.
+function wireAutocomplete({ input, list, delay, search, rowHtml, emptyText, pick }) {
+  const clear = document.querySelector(`.clear-btn[data-clear="${input.id}"]`);
+  let timer = null;
+  let results = [];
+  let latest = 0;
+
+  const syncClear = () => { if (clear) clear.hidden = input.value === ""; };
+  const hide = () => { list.hidden = true; list.innerHTML = ""; list.style.maxHeight = ""; };
+  const show = (items) => {
+    results = items;
+    list.innerHTML = items.length === 0
+      ? `<li class="place-suggestion-empty">${escapeHtml(emptyText())}</li>`
+      : items.map((it, i) => `<li class="place-suggestion" data-index="${i}">${rowHtml(it)}</li>`).join("");
+    list.hidden = false;
+    sizeSuggestions(list);
+  };
+  const run = async (q) => {
+    const id = ++latest;
+    const items = await search(q);
+    if (id !== latest || input.value.trim() !== q) return null;
+    if (items === null) { hide(); return null; }
+    show(items);
+    return items;
+  };
+  const choose = (item) => {
+    input.value = "";
+    syncClear();
+    hide();
+    input.blur();
+    pick(item);
+  };
+
+  input.addEventListener("input", () => {
+    syncClear();
+    const q = input.value.trim();
+    clearTimeout(timer);
+    if (q.length < 2) { latest++; hide(); return; }
+    timer = setTimeout(() => run(q), delay);
+  });
+  input.addEventListener("keydown", async (e) => {
+    if (e.key === "Escape") { hide(); return; }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const q = input.value.trim();
+    if (q.length < 2) return;
+    clearTimeout(timer);
+    const items = !list.hidden && results.length > 0 ? results : await run(q);
+    if (items && items.length > 0) choose(items[0]);
+  });
+  list.addEventListener("click", (e) => {
+    const li = e.target.closest(".place-suggestion");
+    const item = li && results[Number(li.dataset.index)];
+    if (item) choose(item);
+  });
+  if (clear) {
+    clear.addEventListener("click", () => {
+      input.value = "";
+      latest++;
+      syncClear();
+      hide();
+      input.focus();
+    });
+  }
+  document.addEventListener("click", (e) => {
+    if (!input.closest(".place-search").contains(e.target)) hide();
+  });
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", () => sizeSuggestions(list));
 }
 
 // ---- Analytics ------------------------------------------------------------
@@ -329,12 +580,10 @@ async function renderRoute() {
     state.monthIsCurrent = false;
     updateMonthOptions();
   }
-  if (route.sort && route.sort !== currentBrowseMode()) {
-    document.querySelector(`input[name="mode"][value="${route.sort}"]`).checked = true;
-    updateSortLabel();
-  }
+  if (route.sort && route.sort !== currentBrowseMode()) $("sortSelect").value = route.sort;
   trackPage();
   for (const name of VIEW_NAMES) $("view-" + name).hidden = name !== route.name;
+  document.body.classList.toggle("map-screen", route.name === "search" || route.name === "range");
   updateNav(route.name === "compare" ? "home" : route.name === "about" ? "settings" : route.name);
 
   if (route.name === "home") await renderHome();
@@ -348,6 +597,7 @@ async function renderRoute() {
 }
 
 async function onHashChange() {
+  if (suppressHashRender) return;
   const next = parseRoute();
   if (learn.active && !(next.name === "area" && next.key === learn.areaKey && next.speciesCode)) {
     learn.finish();
@@ -362,7 +612,6 @@ function syncProfile(p) {
   state.secondaryLanguage = VALID_LANGS.includes(p.secondaryLanguage) ? p.secondaryLanguage : "";
   state.favorites = Array.isArray(p.favorites) ? p.favorites : [];
   state.email = p.email || "";
-  $("userEmail").textContent = state.email;
 }
 
 const GUEST_LANG_KEY = "birdquiz.language";
@@ -393,9 +642,12 @@ function applyGuestProfile() {
   state.email = "";
 }
 
-// updateAccountChrome shows the signed-in email, or a Sign in link for guests.
+// updateAccountChrome shows a Sign in link for guests and the signed-in email
+// in Settings.
 function updateAccountChrome() {
-  $("userEmail").textContent = state.email;
+  const email = $("settingsEmail");
+  email.textContent = state.email;
+  email.hidden = !state.email;
   $("signInLink").hidden = state.signedIn;
   const next = "/" + location.hash;
   const href = "/login?next=" + encodeURIComponent(next);
@@ -420,17 +672,14 @@ async function initAccount() {
 
 // ---- Home -----------------------------------------------------------------
 
-// homeEditing toggles whether homeFavorites renders remove controls (iOS
-// Reminders/Notes-style "Edit" mode) instead of a permanent remove button
-// next to every single row.
-let homeEditing = false;
+const MENU_DOTS = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>`;
 
 function renderHomeFavorites() {
   const list = $("homeFavorites");
   list.innerHTML = "";
   for (const f of state.favorites) {
     const li = document.createElement("li");
-    li.className = "area-item" + (homeEditing ? " editing" : "");
+    li.className = "area-item";
     const a = document.createElement("a");
     a.className = "area-link";
     a.href = "#/area/" + encodeKey(f.key);
@@ -440,77 +689,90 @@ function renderHomeFavorites() {
     sub.className = "area-sub";
     sub.textContent = areaSubtitle(f);
     a.append(title, sub);
-    li.appendChild(a);
-    if (homeEditing) {
-      const rename = document.createElement("button");
-      rename.className = "rename-btn";
-      rename.type = "button";
-      rename.setAttribute("aria-label", t("home.rename"));
-      rename.textContent = "✎";
-      rename.addEventListener("click", async () => {
-        try {
-          if (await renameFavorite(f.key)) renderHomeFavorites();
-        } catch (e) {
-          showSettingsHint(t("search.bookmarkError"));
-        }
-      });
-      li.appendChild(rename);
-      const remove = document.createElement("button");
-      remove.className = "remove-btn";
-      remove.type = "button";
-      remove.setAttribute("aria-label", t("home.unbookmark"));
-      remove.textContent = "−";
-      remove.addEventListener("click", async () => {
-        try {
-          await deleteFavorite(f.key);
-        } catch (e) {
-          showSettingsHint(t("search.bookmarkError"));
-          return;
-        }
-        renderHomeFavorites();
-      });
-      li.appendChild(remove);
-    } else {
-      const chev = document.createElement("span");
-      chev.className = "chev";
-      chev.setAttribute("aria-hidden", "true");
-      chev.textContent = "›";
-      li.appendChild(chev);
-    }
+    const menu = document.createElement("button");
+    menu.type = "button";
+    menu.className = "row-menu-btn";
+    menu.setAttribute("aria-label", t("sheet.more"));
+    menu.setAttribute("aria-haspopup", "dialog");
+    menu.innerHTML = MENU_DOTS;
+    menu.addEventListener("click", () => openFavoriteMenu(f));
+    li.append(a, menu);
     list.appendChild(li);
   }
-  $("homeNoFavorites").hidden = state.favorites.length > 0;
-  const editToggle = $("homeEditToggle");
-  editToggle.hidden = state.favorites.length === 0;
-  editToggle.textContent = homeEditing ? t("home.editDone") : t("home.edit");
+}
+
+function openFavoriteMenu(f) {
+  openSheet(areaTitle(f), (body) => {
+    body.append(
+      sheetItem(t("sheet.rename"), () => openRenameSheet(f.key, renderHomeFavorites)),
+      sheetItem(t("sheet.remove"), () => closeSheet(() => removeFavoriteWithUndo(f)), true),
+    );
+  });
+}
+
+async function removeFavoriteWithUndo(f) {
+  const snapshot = { ...f };
+  try {
+    await deleteFavorite(snapshot.key);
+  } catch (e) {
+    showToast(t("search.bookmarkError"));
+    return;
+  }
+  renderHomeFavorites();
+  syncHomePanels();
+  showToast(t("home.removed"), {
+    label: t("toast.undo"),
+    run: async () => {
+      try {
+        await putFavorite(snapshot);
+        if (snapshot.customName) await putFavoriteName(snapshot.key, snapshot.customName);
+      } catch (e) {
+        showToast(t("search.bookmarkError"));
+      }
+      if (currentRoute.name === "home") { renderHomeFavorites(); syncHomePanels(); }
+    },
+  });
+}
+
+// The welcome panel (with the Find places button) stands in for the list while
+// there is nothing saved, for visitors who aren't signed in as well.
+function syncHomePanels() {
+  const empty = state.favorites.length === 0;
+  $("homeFirstRun").hidden = !empty;
+  $("homeAreasPanel").hidden = empty;
 }
 
 async function renderHome() {
-  homeEditing = false;
-  if (!state.signedIn) {
-    $("homeFirstRun").hidden = true;
-    $("homeAreasPanel").hidden = true;
-    return;
+  if (state.signedIn) {
+    try {
+      const res = await fetch("/api/me");
+      if (res.ok) syncProfile(await res.json());
+    } catch (e) {
+      // Fall back to the favorites already loaded.
+    }
   }
-  let profile;
-  try {
-    const res = await fetch("/api/me");
-    if (!res.ok) throw new Error("load");
-    profile = await res.json();
-  } catch (e) {
-    $("homeFirstRun").hidden = true;
-    $("homeAreasPanel").hidden = false;
-    $("homeFavorites").innerHTML = "";
-    $("homeNoFavorites").hidden = true;
-    return;
-  }
-
-  syncProfile(profile);
-  const firstRun = state.favorites.length === 0;
-
-  $("homeFirstRun").hidden = !firstRun;
-  $("homeAreasPanel").hidden = firstRun;
   renderHomeFavorites();
+  syncHomePanels();
+}
+
+// birdsNearMe opens the area around the visitor's position at the default
+// radius.
+function birdsNearMe() {
+  if (!navigator.geolocation) { showToast(t("search.geoUnsupported")); return; }
+  const btn = $("homeNearMe");
+  btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      btn.disabled = false;
+      const lng = ((pos.coords.longitude + 540) % 360) - 180;
+      navigate("#/area/" + encodeKey(customKey(pos.coords.latitude, lng, DEFAULT_RADIUS_KM)));
+    },
+    (err) => {
+      btn.disabled = false;
+      showToast(t("search.geoError", { message: err.message }));
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 }
 
 // ---- Area labels ------------------------------------------------------------
@@ -553,24 +815,48 @@ function customKey(lat, lng, km) {
 
 // The search view offers two ways in: typing a place name (a prefix search
 // against places.bolt, server/places_data.go) or choosing any centre on the
-// map and a radius, which opens a custom circle.
+// map and a radius, which opens a custom circle. The map is created on the
+// first visit.
 let map = null;
 let centreMarker = null;
 let radiusCircle = null;
 let customCentre = null;
+let mapHintDismissed = false;
 
 // Picking a place stages it on the map before anything is browsed. A place
 // with a polygon is shown by its outline and cannot be edited; any other
 // (a town, a village, a custom circle) gets a draggable centre and the radius
-// slider, and an edit turns it into a custom circle. Save and "Show birds"
+// slider, and an edit turns it into a custom circle. Save and "Browse birds"
 // both act on stageTarget().
 let outlineLayer = null;
 let stage = null; // {area, polygon, moved, resized}
 
+const RADIUS_PRESETS_KM = [1, 5, 10, 25, 50, 100];
+
+function ensureMap() {
+  if (map) return;
+  map = L.map("map").setView([40, 0], 3);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: t("search.mapAttribution"),
+  }).addTo(map);
+  map.on("click", (e) => {
+    mapHintDismissed = true;
+    if (stage && stage.polygon) { renderStage(); return; }
+    if (stage) stage.moved = true;
+    setCustomCentre(e.latlng.lat, e.latlng.lng, false);
+  });
+  map.on("dragstart", () => {
+    if (mapHintDismissed) return;
+    mapHintDismissed = true;
+    renderStage();
+  });
+  watchMapSize(map, $("map"));
+}
+
 async function showSearch(from) {
-  if (!map) return;
+  ensureMap();
   map.invalidateSize();
-  setTimeout(() => map.invalidateSize(), 0);
   if (!from) { leaveStage(); return; }
   let a = state.area && state.area.key === from ? state.area : null;
   if (!a) {
@@ -632,7 +918,7 @@ function leaveStage() {
   renderStage();
 }
 
-// stageTarget is the area key Save and "Show birds" act on: the staged place
+// stageTarget is the area key Save and "Browse birds" act on: the staged place
 // itself until it is moved or resized, then the custom circle on the map.
 function stageTarget() {
   if (stage && stage.polygon) return stage.area.key;
@@ -643,38 +929,33 @@ function stageTarget() {
 }
 
 function renderStage() {
-  const head = $("stageHead");
-  head.hidden = !stage || stage.moved;
-  if (!head.hidden) {
-    $("stageName").textContent = areaTitle(stage.area);
-    const shown = stage.resized ? { ...stage.area, radiusKm: customRadius() } : stage.area;
+  const key = stageTarget();
+  const polygon = !!stage && stage.polygon;
+  $("customForm").hidden = !key;
+
+  if (key) {
+    const named = !!stage && !stage.moved;
+    const shown = named
+      ? (stage.resized ? { ...stage.area, radiusKm: customRadius() } : stage.area)
+      : { lat: customCentre.lat, lng: customCentre.lng, radiusKm: customRadius() };
+    $("stageName").textContent = named ? areaTitle(stage.area) : defaultTitle(shown);
     $("stageSub").textContent = areaSubtitle(shown, true);
   }
-  const fixed = !!stage && stage.polygon;
-  $("customRadiusLabel").hidden = fixed;
-  $("useCircle").hidden = !fixed;
-  $("mapHint").hidden = fixed;
-  $("polygonHint").hidden = !fixed;
-  const key = stageTarget();
+
+  $("customRadiusLabel").hidden = polygon;
+  $("useCircle").hidden = !polygon;
+  for (const chip of $("radiusChips").children) {
+    chip.setAttribute("aria-pressed", String(!polygon && Number(chip.dataset.km) === customRadius()));
+  }
+
+  $("mapHint").textContent = mapHintDismissed ? "" : t(polygon ? "search.polygonHint" : key ? "search.moveHint" : "search.emptyHint");
+
   $("customGo").disabled = !key;
   const star = $("stageSave");
   const saved = !!key && state.favorites.some((f) => f.key === key);
   star.disabled = !key;
   star.setAttribute("aria-pressed", saved ? "true" : "false");
   star.setAttribute("aria-label", saved ? t("area.bookmarked") : t(state.signedIn ? "area.bookmark" : "area.bookmarkSignIn"));
-}
-
-function initMap() {
-  map = L.map("map").setView([40, 0], 3);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: t("search.mapAttribution"),
-  }).addTo(map);
-  map.on("click", (e) => {
-    if (stage && stage.polygon) return;
-    if (stage) stage.moved = true;
-    setCustomCentre(e.latlng.lat, e.latlng.lng, false);
-  });
 }
 
 // The radius slider is logarithmic (1 km to 500 km) and snaps to 0.1 km
@@ -717,75 +998,126 @@ function setCustomCentre(lat, lng, fit) {
   drawCustomArea(fit);
 }
 
-let placeSearchTimer = null;
-let placeResults = [];
+function setRadiusKm(km) {
+  $("customRadius").value = kmToSlider(km);
+  if (stage) stage.resized = true;
+  showCustomRadius();
+  if (customCentre) drawCustomArea(true);
+  else renderStage();
+}
+
+function buildRadiusChips() {
+  const box = $("radiusChips");
+  for (const km of RADIUS_PRESETS_KM) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "radius-chip";
+    chip.dataset.km = String(km);
+    chip.textContent = `${km} km`;
+    chip.setAttribute("aria-pressed", "false");
+    chip.addEventListener("click", () => setRadiusKm(km));
+    box.appendChild(chip);
+  }
+}
+
+function useMyLocation() {
+  if (!navigator.geolocation) { setStatus(t("search.geoUnsupported")); return; }
+  ensureMap();
+  setStatus(t("search.geoRequesting"));
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      setStatus("");
+      leaveStage();
+      setCustomCentre(pos.coords.latitude, pos.coords.longitude, true);
+    },
+    (err) => {
+      setStatus(t("search.geoError", { message: err.message }));
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
 
 function wirePlaceSearch() {
-  const input = $("placeQuery");
-  input.addEventListener("input", () => {
-    const q = input.value.trim();
-    clearTimeout(placeSearchTimer);
-    if (q.length < 2) { hidePlaceSuggestions(); return; }
-    placeSearchTimer = setTimeout(() => runPlaceSearch(q), 300);
-  });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { hidePlaceSuggestions(); return; }
-    if (e.key === "Enter" && placeResults.length > 0 && !$("placeSuggestions").hidden) {
-      e.preventDefault();
-      selectPlace(placeResults[0]);
-    }
-  });
-  $("placeSuggestions").addEventListener("click", (e) => {
-    const li = e.target.closest(".place-suggestion");
-    if (!li) return;
-    const p = placeResults[Number(li.dataset.index)];
-    if (p) selectPlace(p);
-  });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".place-search")) hidePlaceSuggestions();
+  wireAutocomplete({
+    input: $("placeQuery"),
+    list: $("placeSuggestions"),
+    delay: 300,
+    search: async (q) => {
+      try {
+        const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`);
+        return res.ok ? (await res.json()) || [] : null;
+      } catch (e) {
+        return null;
+      }
+    },
+    rowHtml: (p) => `<span>${escapeHtml(p.name)}</span><span class="place-suggestion-country">${escapeHtml([t("kind." + p.kind), p.country].filter(Boolean).join(" · "))}</span>`,
+    emptyText: () => t("search.placeNoResults"),
+    pick: (p) => navigate("#/search?from=p" + p.id),
   });
 }
 
-async function runPlaceSearch(q) {
-  let results;
+// ---- Saving from the map and as a guest ----------------------------------------
+
+// A visitor who isn't signed in is sent to sign in and brought back to the
+// same URL; a marker in localStorage tells the page which place to save once
+// they are back.
+const PENDING_SAVE_KEY = "birdquiz.pendingSave";
+const PENDING_SAVE_MAX_AGE_MS = 30 * 60 * 1000;
+
+function signInToSave(key) {
+  try { localStorage.setItem(PENDING_SAVE_KEY, key + "|" + Date.now()); } catch (e) { /* the save just isn't resumed */ }
+  window.location = "/login?next=" + encodeURIComponent("/" + location.hash);
+}
+
+async function completePendingSave() {
+  let raw = "";
   try {
-    const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`);
-    if (!res.ok) { hidePlaceSuggestions(); return; }
-    results = await res.json();
+    raw = localStorage.getItem(PENDING_SAVE_KEY) || "";
+    localStorage.removeItem(PENDING_SAVE_KEY);
+  } catch (e) { /* nothing to resume */ }
+  if (!raw || !state.signedIn) return;
+  const [key, stamp] = raw.split("|");
+  if (!AREA_KEY_RE.test(key) || Date.now() - Number(stamp) > PENDING_SAVE_MAX_AGE_MS) return;
+  if (state.favorites.some((f) => f.key === key)) return;
+  try {
+    const res = await fetch(`/api/places/${encodeKey(key)}`);
+    if (!res.ok) throw new Error(String(res.status));
+    await putFavorite(await res.json());
+    trackEvent("bookmark");
+    showToast(t("area.bookmarked"));
   } catch (e) {
-    hidePlaceSuggestions();
+    showToast(t("search.bookmarkError"));
     return;
   }
-  if ($("placeQuery").value.trim() !== q) return;
-  renderPlaceSuggestions(results || []);
+  if (currentRoute.name === "area") updateBookmarkButton();
+  else if (currentRoute.name === "search") renderStage();
+  else if (currentRoute.name === "home") { renderHomeFavorites(); syncHomePanels(); }
 }
 
-function renderPlaceSuggestions(results) {
-  placeResults = results;
-  const list = $("placeSuggestions");
-  if (results.length === 0) {
-    list.innerHTML = `<li class="place-suggestion-empty">${escapeHtml(t("search.placeNoResults"))}</li>`;
-    list.hidden = false;
-    return;
+async function toggleStageSave() {
+  const key = stageTarget();
+  if (!key) return;
+  if (!state.signedIn) { signInToSave(key); return; }
+  const btn = $("stageSave");
+  btn.disabled = true;
+  try {
+    if (state.favorites.some((f) => f.key === key)) {
+      await deleteFavorite(key);
+    } else {
+      const res = await fetch(`/api/places/${encodeKey(key)}`);
+      if (!res.ok) throw new Error(String(res.status));
+      await putFavorite(await res.json());
+      trackEvent("bookmark");
+      // A resized town keeps its name rather than becoming "Near <town>".
+      if (stage && stage.area.kind && stage.area.name && key !== stage.area.key && !stage.moved) {
+        await putFavoriteName(key, stage.area.name);
+      }
+    }
+  } catch (e) {
+    showToast(t("search.bookmarkError"));
+  } finally {
+    renderStage();
   }
-  list.innerHTML = results.map((p, i) => `
-    <li class="place-suggestion" data-index="${i}">
-      <span>${escapeHtml(p.name)}</span>
-      <span class="place-suggestion-country">${escapeHtml([t("kind." + p.kind), p.country].filter(Boolean).join(" · "))}</span>
-    </li>`).join("");
-  list.hidden = false;
-}
-
-function hidePlaceSuggestions() {
-  const list = $("placeSuggestions");
-  list.hidden = true;
-  list.innerHTML = "";
-}
-
-function selectPlace(p) {
-  $("placeQuery").value = "";
-  hidePlaceSuggestions();
-  navigate("#/search?from=p" + p.id);
 }
 
 // ---- Species range map ----------------------------------------------------
@@ -797,8 +1129,6 @@ let rangeLayer = null;
 let rangeRequest = 0;
 let rangeMonth = 0;
 let rangeFitted = "";
-let speciesSearchTimer = null;
-let speciesResults = [];
 const RANGE_COLOR = "#d7263d";
 
 function initRangeMap() {
@@ -809,6 +1139,7 @@ function initRangeMap() {
     attribution: t("search.mapAttribution"),
   }).addTo(rangeMap);
   rangeLayer = L.layerGroup().addTo(rangeMap);
+  watchMapSize(rangeMap, $("rangeMap"));
 }
 
 function updateRangeMonthOptions() {
@@ -834,7 +1165,7 @@ function clearRange() {
   rangeRequest++;
   rangeFitted = "";
   if (rangeLayer) rangeLayer.clearLayers();
-  $("rangeHead").hidden = true;
+  $("rangeBar").hidden = true;
   $("rangeLegend").hidden = true;
   $("rangeHint").hidden = false;
   $("rangeMonth").disabled = true;
@@ -844,7 +1175,6 @@ function clearRange() {
 async function showRange(code, month) {
   initRangeMap();
   rangeMap.invalidateSize();
-  setTimeout(() => rangeMap.invalidateSize(), 0);
   rangeMonth = month;
   updateRangeMonthOptions();
   if (!code) { clearRange(); return; }
@@ -864,7 +1194,7 @@ async function showRange(code, month) {
   if (req !== rangeRequest) return;
   $("rangeName").textContent = data.comName;
   $("rangeSci").textContent = data.sciName;
-  $("rangeHead").hidden = false;
+  $("rangeBar").hidden = false;
   rangeLayer.clearLayers();
   const renderer = L.canvas({ padding: 0.5 });
   for (const [lat, lng, pct] of data.cells) {
@@ -897,51 +1227,21 @@ function fitRange(cells) {
 }
 
 function wireSpeciesSearch() {
-  const input = $("speciesQuery");
-  const list = $("speciesSuggestions");
-  const hide = () => { list.hidden = true; list.innerHTML = ""; };
-  const pick = (sp) => {
-    input.value = "";
-    hide();
-    navigate(rangeHash(sp.speciesCode, rangeMonth));
-  };
-  input.addEventListener("input", () => {
-    const q = input.value.trim();
-    clearTimeout(speciesSearchTimer);
-    if (q.length < 2) { hide(); return; }
-    speciesSearchTimer = setTimeout(async () => {
-      let results;
+  wireAutocomplete({
+    input: $("speciesQuery"),
+    list: $("speciesSuggestions"),
+    delay: 250,
+    search: async (q) => {
       try {
         const res = await fetch(`/api/species?q=${encodeURIComponent(q)}&lang=${state.language}`);
-        if (!res.ok) { hide(); return; }
-        results = await res.json();
-      } catch (e) { hide(); return; }
-      if (input.value.trim() !== q) return;
-      speciesResults = results || [];
-      list.innerHTML = speciesResults.length === 0
-        ? `<li class="place-suggestion-empty">${escapeHtml(t("range.noMatches"))}</li>`
-        : speciesResults.map((sp, i) => `
-          <li class="place-suggestion" data-index="${i}">
-            <span>${escapeHtml(sp.comName)}</span>
-            <span class="place-suggestion-country">${escapeHtml(sp.sciName)}</span>
-          </li>`).join("");
-      list.hidden = false;
-    }, 250);
-  });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") hide();
-    if (e.key === "Enter" && speciesResults.length > 0 && !list.hidden) {
-      e.preventDefault();
-      pick(speciesResults[0]);
-    }
-  });
-  list.addEventListener("click", (e) => {
-    const li = e.target.closest(".place-suggestion");
-    const sp = li && speciesResults[Number(li.dataset.index)];
-    if (sp) pick(sp);
-  });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest("#view-range .place-search")) hide();
+        return res.ok ? (await res.json()) || [] : null;
+      } catch (e) {
+        return null;
+      }
+    },
+    rowHtml: (sp) => `<span>${escapeHtml(sp.comName)}</span><span class="place-suggestion-country">${escapeHtml(sp.sciName)}</span>`,
+    emptyText: () => t("range.noMatches"),
+    pick: (sp) => navigate(rangeHash(sp.speciesCode, rangeMonth)),
   });
   $("rangeMonth").addEventListener("change", (e) => {
     const code = parseRoute().speciesCode;
@@ -961,18 +1261,6 @@ async function putFavorite(area) {
       kind: area.kind || "", region: area.region || "", country: area.country || "", lat: area.lat, lng: area.lng, radiusKm: area.radiusKm,
     });
   }
-}
-
-// renameFavorite asks for a new label for a saved area and stores it; an empty
-// answer restores the place's own name. Returns whether anything changed.
-async function renameFavorite(key) {
-  const fav = state.favorites.find((f) => f.key === key);
-  if (!fav) return false;
-  const answer = window.prompt(t("area.renamePrompt"), areaTitle(fav));
-  if (answer === null) return false;
-  const name = answer.trim().replace(/\s+/g, " ");
-  await putFavoriteName(key, name === defaultTitle(fav) ? "" : name);
-  return true;
 }
 
 async function putFavoriteName(key, name) {
@@ -995,75 +1283,61 @@ async function deleteFavorite(key) {
 // ---- Area + species browsing ------------------------------------------
 
 function currentBrowseMode() {
-  const r = document.querySelector('input[name="mode"]:checked');
-  return r ? r.value : "category";
-}
-
-// The sort menu (#sortBtn/#sortMenu) is the visible control; the original
-// #modeToggle radios (now hidden) stay the actual source of truth so every
-// existing consumer of currentBrowseMode()/the radios' change event and the
-// ?mode= deep-link keeps working unchanged.
-function updateSortLabel() {
-  const label = $("sortBtnLabel");
-  if (!label) return;
-  const mode = currentBrowseMode();
-  label.textContent = t("browse." + mode);
-  for (const li of document.querySelectorAll("#sortMenu li[data-value]")) {
-    li.setAttribute("aria-selected", String(li.dataset.value === mode));
-  }
-}
-
-function wireSortMenu() {
-  const btn = $("sortBtn");
-  const menu = $("sortMenu");
-  const close = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
-  btn.addEventListener("click", () => {
-    const opening = menu.hidden;
-    menu.hidden = !opening;
-    btn.setAttribute("aria-expanded", String(opening));
-  });
-  menu.addEventListener("click", (e) => {
-    const li = e.target.closest("li[data-value]");
-    if (!li) return;
-    const radio = document.querySelector(`input[name="mode"][value="${li.dataset.value}"]`);
-    if (radio && !radio.checked) {
-      radio.checked = true;
-      radio.dispatchEvent(new Event("change"));
-    }
-    updateSortLabel();
-    close();
-  });
-  document.addEventListener("click", (e) => {
-    if (!menu.hidden && !e.target.closest(".sort-control")) close();
-  });
-  updateSortLabel();
-}
-
-// The compare link only appears when this area has a saved one to be
-// compared with.
-function updateCompareLink() {
-  if (!state.area) return;
-  const link = $("areaCompareLink");
-  link.hidden = !state.favorites.some((f) => f.key !== state.area.key);
-  link.href = compareHash(state.area.key, "");
+  return $("sortSelect").value || DEFAULT_BROWSE_MODE;
 }
 
 function updateBookmarkButton() {
   if (!state.area) return;
-  updateCompareLink();
   const saved = state.favorites.some((f) => f.key === state.area.key);
   const btn = $("bookmarkBtn");
   // Icon-only: filled star when saved (via [aria-pressed], see style.css),
   // outline otherwise. aria-label carries the same info textContent used to.
   btn.setAttribute("aria-pressed", saved ? "true" : "false");
-  $("renameAreaBtn").hidden = !saved;
   btn.setAttribute("aria-label", saved ? t("area.bookmarked") : t(state.signedIn ? "area.bookmark" : "area.bookmarkSignIn"));
 }
 
 function renderAreaHead() {
   $("areaName").textContent = areaTitle(state.area);
   $("areaSub").textContent = areaSubtitle(state.area, true);
-  $("areaMapLink").href = "#/search?from=" + encodeKey(state.area.key);
+}
+
+// The ⋯ button: everything about the area that isn't the star.
+function openAreaMenu() {
+  const area = state.area;
+  if (!area) return;
+  const key = area.key;
+  const saved = state.favorites.some((f) => f.key === key);
+  openSheet(areaTitle(area), (body) => {
+    if (saved) {
+      body.appendChild(sheetItem(t("sheet.rename"), () => openRenameSheet(key, renderAreaHead)));
+    }
+    body.appendChild(sheetItem(t("sheet.openMap"), () => closeSheet(() => navigate("#/search?from=" + encodeKey(key)))));
+    body.appendChild(sheetItem(t("sheet.share"), () => closeSheet(() => {
+      const name = areaTitle(area);
+      shareLink(name, t("area.shareText", { place: name }), location.origin + location.pathname + areaHash(key));
+      trackEvent("share-area");
+    })));
+    if (state.favorites.some((f) => f.key !== key)) {
+      body.appendChild(sheetItem(t("sheet.compare"), () => closeSheet(() => navigate(compareHash(key, "")))));
+    }
+  });
+}
+
+async function toggleAreaBookmark() {
+  if (!state.area) return;
+  if (!state.signedIn) { signInToSave(state.area.key); return; }
+  const saved = state.favorites.some((f) => f.key === state.area.key);
+  const btn = $("bookmarkBtn");
+  btn.disabled = true;
+  try {
+    if (saved) await deleteFavorite(state.area.key);
+    else { await putFavorite(state.area); trackEvent("bookmark"); }
+    updateBookmarkButton();
+  } catch (e) {
+    showToast(t("area.bookmarkError"));
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ensureArea makes state.area describe key, fetching its details unless it's
@@ -1278,108 +1552,88 @@ function speciesCard(sp) {
   return card;
 }
 
+// renderGroups lays the species out as sections, each with a sticky heading
+// and its species count. A group without a title (a flat list) has no heading.
+// groups is [{title, species}].
+function renderGroups(groups) {
+  const root = $("groups");
+  root.innerHTML = "";
+  for (const g of groups) {
+    const section = document.createElement("section");
+    section.className = "group";
+    if (g.title) {
+      const heading = document.createElement("h3");
+      heading.className = "family-heading";
+      heading.append(g.title);
+      const count = document.createElement("span");
+      count.className = "family-count";
+      count.textContent = String(g.species.length);
+      heading.append(" ", count);
+      section.appendChild(heading);
+    }
+    const grid = document.createElement("div");
+    grid.className = "family-grid";
+    for (const sp of g.species) grid.appendChild(speciesCard(sp));
+    section.appendChild(grid);
+    root.appendChild(section);
+  }
+}
+
+// groupBy splits an ordered list into runs sharing titleOf(sp); a run with an
+// empty title is rendered without a heading.
+function groupBy(species, titleOf) {
+  const groups = [];
+  for (const sp of species) {
+    const title = titleOf(sp);
+    const last = groups[groups.length - 1];
+    if (last && last.title === title) last.species.push(sp);
+    else groups.push({ title, species: [sp] });
+  }
+  return groups;
+}
+
 async function loadSpecies() {
   const area = state.area;
   if (!area) return;
   const name = areaTitle(area);
   const lang = state.language;
   const mode = currentBrowseMode();
-  const groups = $("groups");
-  groups.innerHTML = "";
+  $("groups").innerHTML = "";
   $("monthSelect").hidden = mode === "seasonality";
 
   // Fetch the secondary-language names first (cached after the first load) so
   // the cards below can render their subtitles immediately.
   await loadSecondaryNames(area.key);
 
+  const loadingKey = { popularity: "browse.loadingPopularity", category: "browse.loadingCategory" }[mode] || "browse.loading";
+  setAreaStatus(t(loadingKey, { name }));
+  const withMonth = mode === "seasonality" ? "" : monthParam();
   let species;
-  if (mode === "popularity" || mode === "alphabetical") {
-    setAreaStatus(mode === "popularity"
-      ? t("browse.loadingPopularity", { name })
-      : t("browse.loading", { name }));
-    try {
-      const res = await fetch(`/api/places/${encodeKey(area.key)}/species?lang=${lang}&mode=${mode}${monthParam()}`);
-      if (!res.ok) { setAreaStatus(t("browse.error", { status: res.status })); return; }
-      species = await res.json();
-    } catch (e) {
-      setAreaStatus(t("browse.error", { status: "?" }));
-      return;
-    }
-    state.species = species;
-    const grid = document.createElement("div");
-    grid.className = "family-grid";
-    groups.appendChild(grid);
-    for (const sp of species) grid.appendChild(speciesCard(sp));
-    const key = mode === "popularity" ? "browse.loadedPopularity" : "browse.loadedAlphabetical";
-    setAreaStatus(species.length === 0 && state.month ? noneInMonthText(name) : tn(key, species.length, { name }));
-    return;
-  }
-
-  if (mode === "seasonality") {
-    setAreaStatus(t("browse.loading", { name }));
-    try {
-      const res = await fetch(`/api/places/${encodeKey(area.key)}/species?lang=${lang}&mode=seasonality`);
-      if (!res.ok) { setAreaStatus(t("browse.error", { status: res.status })); return; }
-      species = await res.json();
-    } catch (e) {
-      setAreaStatus(t("browse.error", { status: "?" }));
-      return;
-    }
-    state.species = species;
-    // Species arrive grouped (year-round, seasonal, occasional); a heading
-    // goes up whenever the group changes. An area with too little data
-    // comes back without groups, as one plain list.
-    let current = null;
-    let grid = null;
-    for (const sp of species) {
-      if (!grid || sp.season !== current) {
-        current = sp.season;
-        if (current) {
-          const heading = document.createElement("h3");
-          heading.className = "family-heading";
-          heading.textContent = t("browse.season." + current);
-          groups.appendChild(heading);
-        }
-        grid = document.createElement("div");
-        grid.className = "family-grid";
-        groups.appendChild(grid);
-      }
-      grid.appendChild(speciesCard(sp));
-    }
-    setAreaStatus(tn("browse.loadedSeasonality", species.length, { name }));
-    return;
-  }
-
-  setAreaStatus(t("browse.loadingCategory", { name }));
   try {
-    const res = await fetch(`/api/places/${encodeKey(area.key)}/species?lang=${lang}&mode=category${monthParam()}`);
+    const res = await fetch(`/api/places/${encodeKey(area.key)}/species?lang=${lang}&mode=${mode}${withMonth}`);
     if (!res.ok) { setAreaStatus(t("browse.error", { status: res.status })); return; }
     species = await res.json();
   } catch (e) {
     setAreaStatus(t("browse.error", { status: "?" }));
     return;
   }
+  if (state.area !== area || currentBrowseMode() !== mode) return;
   state.species = species;
 
-  // Species arrive already grouped by family (server sends eBird's taxonomic
-  // order), so a family heading just goes up whenever it changes.
-  let currentFamily = null;
-  let currentGrid = null;
-  for (const sp of species) {
-    const family = sp.family || sp.order || t("browse.otherFamily");
-    if (family !== currentFamily) {
-      currentFamily = family;
-      const heading = document.createElement("h3");
-      heading.className = "family-heading";
-      heading.textContent = family;
-      groups.appendChild(heading);
-      currentGrid = document.createElement("div");
-      currentGrid.className = "family-grid";
-      groups.appendChild(currentGrid);
-    }
-    currentGrid.appendChild(speciesCard(sp));
+  if (mode === "seasonality") {
+    // Species arrive grouped (year-round, seasonal, occasional). An area with
+    // too little data comes back without groups, as one plain list.
+    renderGroups(groupBy(species, (sp) => (sp.season ? t("browse.season." + sp.season) : "")));
+    setAreaStatus(tn("browse.loadedSeasonality", species.length, { name }));
+  } else if (mode === "category") {
+    // Species arrive already grouped by family (eBird's taxonomic order).
+    renderGroups(groupBy(species, (sp) => sp.family || sp.order || t("browse.otherFamily")));
+    setAreaStatus(species.length === 0 && state.month ? noneInMonthText(name) : tn("browse.loadedCategory", species.length, { name }));
+  } else {
+    renderGroups([{ title: "", species }]);
+    const key = mode === "popularity" ? "browse.loadedPopularity" : "browse.loadedAlphabetical";
+    setAreaStatus(species.length === 0 && state.month ? noneInMonthText(name) : tn(key, species.length, { name }));
   }
-  setAreaStatus(species.length === 0 && state.month ? noneInMonthText(name) : tn("browse.loadedCategory", species.length, { name }));
 }
 
 // ---- Settings -------------------------------------------------------------
@@ -1483,44 +1737,9 @@ async function onLogout() {
 
 // ---- Learn ------------------------------------------------------------
 
-// shareLink offers a link through the native share sheet where there is one,
-// otherwise copies it. Resolves true only when it fell back to copying (the
-// caller confirms that itself — the share sheet is its own confirmation).
-async function shareLink(title, text, url) {
-  if (navigator.share) {
-    try {
-      await navigator.share({ title, text, url });
-      return false;
-    } catch (e) {
-      if (e && e.name === "AbortError") return false;
-    }
-  }
-  return copyText(url);
-}
-
 function shareBird(item) {
   const place = item.areaName || (state.area ? areaTitle(state.area) : "");
   return shareLink(item.comName, t("learn.shareText", { name: item.comName, place }), location.origin + location.pathname + birdHash(item.areaKey || learn.areaKey, item.speciesCode));
-}
-
-async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (e) {
-    // navigator.clipboard is unavailable outside HTTPS/localhost; fall back to
-    // the legacy selection-based copy, which works on a user gesture anywhere.
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.setAttribute("readonly", "");
-    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
-    document.body.appendChild(ta);
-    ta.select();
-    let ok = false;
-    try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
-    ta.remove();
-    return ok;
-  }
 }
 
 // A Learn card's image slides: index 0 shares imageMissing's "the server
@@ -1533,6 +1752,7 @@ const LEARN_PRIMARY_RETRIES = 40;
 const LEARN_SECONDARY_RETRIES = 5;
 const LEARN_RETRY_MS = 3000;
 const LEARN_DRAG_THRESHOLD = 80;
+const LEARN_DRAG_START = 10;
 
 function learnLoadSlide(imgEl, url, maxAttempts, { onLoad, onGiveUp }, attempt = 0) {
   const probe = new Image();
@@ -1544,10 +1764,29 @@ function learnLoadSlide(imgEl, url, maxAttempts, { onLoad, onGiveUp }, attempt =
   probe.src = url;
 }
 
+function learnPhotoUrls(item) {
+  if (item.imageMissing) return [];
+  if (item.imageUrls && item.imageUrls.length) return item.imageUrls;
+  return item.imageUrl ? [item.imageUrl] : [];
+}
+
+function learnAction(tag, label, props) {
+  const el = document.createElement(tag);
+  el.className = "learn-act";
+  el.textContent = label;
+  if (tag === "button") el.type = "button";
+  Object.assign(el, props);
+  return el;
+}
+
 // learn drives the full-screen card deck: cards is the area's species in
 // popularity order (see startLearn), and index just moves through it — no
 // scoring, no server round-trip per card. namesVisible is a per-session
 // display toggle, not account data, so it isn't persisted anywhere.
+//
+// History: starting the deck pushes one entry, moving between cards only
+// replaces it, and Back (or ×) pops it, so the deck closes over the page it
+// was opened from, scroll position intact.
 const learn = {
   active: false,
   areaKey: "",
@@ -1555,6 +1794,9 @@ const learn = {
   index: 0,
   done: false,
   namesVisible: true,
+  revealed: false,
+  pushed: false,
+  scrollY: 0,
   keyHandler: null,
 
   // quiet decks (started from Compare) leave the address bar alone: their
@@ -1567,20 +1809,35 @@ const learn = {
     this.areaKey = areaKey;
     this.index = index;
     this.done = false;
+    this.revealed = false;
     this.active = true;
+    this.scrollY = window.scrollY;
+    history.pushState({ learn: 1 }, "");
+    this.pushed = true;
+    document.body.classList.add("learn-open");
     $("learnOverlay").hidden = false;
     this.keyHandler = (e) => this.onKeyDown(e);
     document.addEventListener("keydown", this.keyHandler);
     this.render();
   },
 
+  // close is the user's way out (×, Esc, the final screen's button): it pops
+  // the history entry, and the popstate handler tears the deck down.
+  close() {
+    if (this.pushed) history.back();
+    else this.finish();
+  },
+
+  // finish tears the deck down. Closing a shared-bird view drops the bird
+  // from the URL so a reload (or re-sharing the page) lands on the plain
+  // area. replaceState doesn't fire hashchange; the check skips the case
+  // where finish() runs because the user already navigated somewhere else.
   finish() {
+    if (!this.active) return;
     this.active = false;
+    this.pushed = false;
     $("learnOverlay").hidden = true;
-    // Closing a shared-bird view drops the bird from the URL so a reload (or
-    // re-sharing the page) lands on the plain area. replaceState doesn't
-    // fire hashchange; the check skips the case where finish() runs because
-    // the user already navigated somewhere else.
+    document.body.classList.remove("learn-open");
     const route = parseRoute();
     if (!this.quiet && route.name === "area" && route.key === this.areaKey && route.speciesCode) {
       history.replaceState(null, "", areaHash(this.areaKey));
@@ -1588,12 +1845,13 @@ const learn = {
     }
     if (this.keyHandler) document.removeEventListener("keydown", this.keyHandler);
     this.keyHandler = null;
+    $("learnBody").innerHTML = "";
   },
 
   onKeyDown(e) {
     if (e.key === "ArrowRight") this.go(1);
     else if (e.key === "ArrowLeft") this.go(-1);
-    else if (e.key === "Escape") this.finish();
+    else if (e.key === "Escape") this.close();
   },
 
   // go advances (delta > 0) or goes back (delta < 0) one card. Past either
@@ -1601,11 +1859,12 @@ const learn = {
   // than wrapping — closing is always one tap away via the top bar.
   go(delta) {
     if (this.done) {
-      if (delta < 0) { this.done = false; this.render(); }
+      if (delta < 0) { this.done = false; this.revealed = false; this.render(); }
       return;
     }
     const next = this.index + delta;
     if (next < 0) { this.bounce(); return; }
+    this.revealed = false;
     if (next >= this.cards.length) { this.done = true; this.render(); return; }
     this.index = next;
     this.render();
@@ -1621,11 +1880,28 @@ const learn = {
 
   toggleNames() {
     this.namesVisible = !this.namesVisible;
-    const names = $("learnBody").querySelector(".learn-names");
-    if (names) names.hidden = !this.namesVisible;
+    this.revealed = false;
     const btn = $("learnToggleNames");
     btn.setAttribute("aria-pressed", String(this.namesVisible));
     btn.setAttribute("aria-label", t(this.namesVisible ? "learn.hideNames" : "learn.showNames"));
+    this.applyNamesMask();
+  },
+
+  // With names hidden, tapping the names area shows them for this card only.
+  applyNamesMask() {
+    const names = $("learnBody").querySelector(".learn-names");
+    if (!names) return;
+    const masked = !this.namesVisible && !this.revealed;
+    names.classList.toggle("masked", masked);
+    const mask = names.querySelector(".learn-names-mask");
+    if (masked && !mask) {
+      const m = document.createElement("div");
+      m.className = "learn-names-mask";
+      m.textContent = t("learn.tapToReveal");
+      names.appendChild(m);
+    } else if (!masked && mask) {
+      mask.remove();
+    }
   },
 
   // syncURL keeps the address bar on the bird being shown (or the plain
@@ -1635,7 +1911,7 @@ const learn = {
     if (this.quiet) return;
     const code = this.done ? "" : this.cards[this.index].speciesCode;
     const hash = code ? birdHash(this.areaKey, code) : areaHash(this.areaKey);
-    if (location.hash !== hash) history.replaceState(null, "", hash);
+    if (location.hash !== hash) history.replaceState({ learn: 1 }, "", hash);
     currentRoute = Object.assign({}, currentRoute, { speciesCode: code });
   },
 
@@ -1644,8 +1920,8 @@ const learn = {
     const body = $("learnBody");
     body.innerHTML = "";
 
-    $("learnCreditsLink").hidden = this.done;
-    $("learnRangeLink").hidden = this.done;
+    $("learnPrev").disabled = this.done ? false : this.index === 0;
+    $("learnNext").disabled = this.done;
     if (this.done) {
       $("learnProgress").textContent = "";
       const wrap = document.createElement("div");
@@ -1656,15 +1932,13 @@ const learn = {
       close.type = "button";
       close.className = "btn btn-primary";
       close.textContent = t("learn.close");
-      close.addEventListener("click", () => this.finish());
+      close.addEventListener("click", () => this.close());
       wrap.append(heading, close);
       body.appendChild(wrap);
       return;
     }
 
     const item = this.cards[this.index];
-    $("learnRangeLink").href = rangeHash(item.speciesCode, effectiveMonth());
-    $("learnCreditsLink").href = creditsHash(item.areaKey || this.areaKey, item.speciesCode);
     $("learnProgress").textContent = t("learn.progress", { i: this.index + 1, n: this.cards.length });
 
     const card = document.createElement("div");
@@ -1672,7 +1946,7 @@ const learn = {
 
     const slidesWrap = document.createElement("div");
     slidesWrap.className = "learn-slides";
-    const urls = item.imageMissing ? [] : (item.imageUrls && item.imageUrls.length ? item.imageUrls : (item.imageUrl ? [item.imageUrl] : []));
+    const urls = learnPhotoUrls(item);
     const slides = [];
     if (urls.length === 0) {
       const img = document.createElement("img");
@@ -1690,13 +1964,12 @@ const learn = {
         slides.push(img);
       });
     }
-    card.appendChild(slidesWrap);
 
-    // Photos within one bird are cycled only by the next-photo button on the
-    // image (never by swipe or timer), so the horizontal drag stays
-    // unambiguous: it always moves through the deck of birds. Only slides
-    // whose photo has actually loaded take part in the cycle, so the dots and
-    // the button appear once there is more than one real photo to show.
+    // Photos within one bird are cycled only by tapping the photo (never by
+    // swipe or timer), so the horizontal drag stays unambiguous: it always
+    // moves through the deck of birds. Only slides whose photo has actually
+    // loaded take part in the cycle, so the dots appear once there is more
+    // than one real photo to show.
     const dots = document.createElement("div");
     dots.className = "learn-dots";
     slides.forEach((_, i) => {
@@ -1706,20 +1979,13 @@ const learn = {
       dots.appendChild(dot);
     });
     slidesWrap.appendChild(dots);
-
-    const nextBtn = document.createElement("button");
-    nextBtn.type = "button";
-    nextBtn.className = "learn-next-photo";
-    nextBtn.hidden = true;
-    nextBtn.setAttribute("aria-label", t("learn.nextPhoto"));
-    nextBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 7V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/></svg>`;
+    card.appendChild(slidesWrap);
 
     let shown = 0;
     const isLoaded = (i) => slides[i].dataset.loaded === "1";
-    const refreshControls = () => {
+    const refreshDots = () => {
       const loaded = slides.filter((_, i) => isLoaded(i)).length;
       slides.forEach((_, i) => { dots.children[i].hidden = loaded < 2 || !isLoaded(i); });
-      nextBtn.hidden = loaded < 2;
     };
     const showSlide = (next) => {
       slides[shown].classList.remove("learn-image-active");
@@ -1728,80 +1994,97 @@ const learn = {
       dots.children[next].classList.add("active");
       shown = next;
     };
-    nextBtn.addEventListener("click", () => {
+    slidesWrap.addEventListener("click", () => {
+      if (card.dataset.dragged || slides.length < 2) return;
       let next = shown;
       do {
         next = (next + 1) % slides.length;
       } while (!isLoaded(next) && next !== shown);
       if (next !== shown) showSlide(next);
     });
-    slidesWrap.appendChild(nextBtn);
-
     slides.forEach((img, i) => {
       learnLoadSlide(img, urls[i], i === 0 ? LEARN_PRIMARY_RETRIES : LEARN_SECONDARY_RETRIES, {
-        onLoad: refreshControls,
+        onLoad: refreshDots,
         onGiveUp: () => { if (shown === i) showSlide(0); },
       });
     });
 
-    const shareBtn = document.createElement("button");
-    shareBtn.type = "button";
-    shareBtn.className = "learn-share";
-    shareBtn.setAttribute("aria-label", t("learn.share"));
-    shareBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h14"/><path d="M21 12v7"/></svg>`;
-    const toast = document.createElement("div");
-    toast.className = "learn-toast";
-    toast.hidden = true;
-    toast.setAttribute("role", "status");
-    shareBtn.addEventListener("click", async () => {
-      const copied = await shareBird(item);
-      if (!copied) return;
-      toast.textContent = t("share.linkCopied");
-      toast.hidden = false;
-      clearTimeout(toast.hideTimer);
-      toast.hideTimer = setTimeout(() => { toast.hidden = true; }, 2000);
-    });
-    const ebird = document.createElement("a");
-    ebird.className = "learn-ebird";
-    ebird.href = `https://ebird.org/species/${encodeURIComponent(item.speciesCode)}`;
-    ebird.target = "_blank";
-    ebird.rel = "noopener noreferrer";
-    ebird.setAttribute("aria-label", t("learn.ebird"));
-    ebird.innerHTML = `<span>eBird</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
-    slidesWrap.append(ebird, shareBtn, toast);
-
     const names = document.createElement("div");
     names.className = "learn-names";
-    names.hidden = !this.namesVisible;
     names.innerHTML =
       `<div class="learn-com">${escapeHtml(item.comName)}</div>` +
       (secondaryNameFor(item.speciesCode) ? `<div class="learn-sub">${escapeHtml(secondaryNameFor(item.speciesCode))}</div>` : "") +
       (item.sciName ? `<div class="learn-sci">${escapeHtml(item.sciName)}</div>` : "");
+    names.addEventListener("click", () => {
+      if (card.dataset.dragged || this.namesVisible || this.revealed) return;
+      this.revealed = true;
+      this.applyNamesMask();
+    });
     card.appendChild(names);
 
+    const actions = document.createElement("div");
+    actions.className = "learn-actions";
+    const ebird = learnAction("a", "eBird", {
+      href: `https://ebird.org/species/${encodeURIComponent(item.speciesCode)}`,
+      target: "_blank",
+      rel: "noopener noreferrer",
+    });
+    ebird.setAttribute("aria-label", t("learn.ebird"));
+    const share = learnAction("button", t("learn.share"));
+    share.addEventListener("click", () => shareBird(item));
+    actions.append(
+      learnAction("a", t("learn.range"), { href: rangeHash(item.speciesCode, effectiveMonth()) }),
+      ebird,
+      share,
+      learnAction("a", t("learn.credits"), { href: creditsHash(item.areaKey || this.areaKey, item.speciesCode) }),
+    );
+    card.appendChild(actions);
+
     body.appendChild(card);
+    this.applyNamesMask();
     this.wireDrag(card);
+    this.preloadNext();
+  },
+
+  // preloadNext warms the browser cache with the next card's first photo.
+  preloadNext() {
+    const next = this.cards[this.index + 1];
+    const url = next && learnPhotoUrls(next)[0];
+    if (url) new Image().src = url;
   },
 
   // wireDrag lets the card be dragged left/right with the pointer, snapping
   // back short of LEARN_DRAG_THRESHOLD or flying off-screen and advancing/
   // going back past it — dragging left advances (matching the common
   // swipe-left-for-next photo-gallery convention), dragging right goes back.
+  // Pointer capture starts only once the move is clearly horizontal, so a
+  // plain tap still reaches the photo, the names and the action row.
   wireDrag(card) {
-    let startX = 0, dx = 0, dragging = false;
+    let startX = 0, startY = 0, dx = 0, down = false, dragging = false;
 
     const onDown = (e) => {
-      if (e.target.closest(".learn-next-photo, .learn-share, .learn-ebird")) return;
-      dragging = true;
+      if (e.target.closest(".learn-actions")) return;
+      down = true;
+      dragging = false;
+      dx = 0;
       startX = e.clientX;
-      card.setPointerCapture(e.pointerId);
+      startY = e.clientY;
     };
     const onMove = (e) => {
-      if (!dragging) return;
+      if (!down) return;
+      if (!dragging) {
+        const mx = e.clientX - startX, my = e.clientY - startY;
+        if (Math.abs(mx) < LEARN_DRAG_START || Math.abs(mx) < Math.abs(my)) return;
+        dragging = true;
+        card.dataset.dragged = "1";
+        card.setPointerCapture(e.pointerId);
+      }
       dx = e.clientX - startX;
       card.style.transform = `translateX(${dx}px)`;
     };
     const onUp = () => {
+      if (!down) return;
+      down = false;
       if (!dragging) return;
       dragging = false;
       card.style.transition = "transform .2s ease";
@@ -1811,6 +2094,7 @@ const learn = {
         setTimeout(() => this.go(delta), 180);
       } else {
         card.style.transform = "";
+        setTimeout(() => { delete card.dataset.dragged; }, 0);
       }
       dx = 0;
     };
@@ -1866,29 +2150,19 @@ async function loadAndStartLearn(speciesCode) {
 
 // ---- Wiring ---------------------------------------------------------------
 
+function onAreaQueryChange() {
+  if (parseRoute().name === "area") history.replaceState(history.state, "", location.hash.split("?")[0] + routeQuery());
+  if (state.area) loadSpecies();
+}
+
 function wireEvents() {
+  wireSheet();
   wirePlaceSearch();
   wireSpeciesSearch();
-  wireSortMenu();
-  $("homeEditToggle").addEventListener("click", () => {
-    homeEditing = !homeEditing;
-    renderHomeFavorites();
-  });
-  $("useLocation").addEventListener("click", () => {
-    if (!navigator.geolocation) { setStatus(t("search.geoUnsupported")); return; }
-    setStatus(t("search.geoRequesting"));
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setStatus("");
-        leaveStage();
-        setCustomCentre(pos.coords.latitude, pos.coords.longitude, true);
-      },
-      (err) => {
-        setStatus(t("search.geoError", { message: err.message }));
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  });
+  buildRadiusChips();
+
+  $("homeNearMe").addEventListener("click", birdsNearMe);
+  $("useLocation").addEventListener("click", useMyLocation);
 
   $("customRadius").value = kmToSlider(DEFAULT_RADIUS_KM);
   showCustomRadius();
@@ -1903,87 +2177,16 @@ function wireEvents() {
     const key = stageTarget();
     if (key) navigate("#/area/" + encodeKey(key));
   });
-
   $("useCircle").addEventListener("click", useCircle);
+  $("stageSave").addEventListener("click", toggleStageSave);
 
-  $("stageSave").addEventListener("click", async () => {
-    const key = stageTarget();
-    if (!key) return;
-    if (!state.signedIn) {
-      window.location = "/login?next=" + encodeURIComponent("/" + location.hash);
-      return;
-    }
-    const btn = $("stageSave");
-    btn.disabled = true;
-    try {
-      if (state.favorites.some((f) => f.key === key)) {
-        await deleteFavorite(key);
-      } else {
-        const res = await fetch(`/api/places/${encodeKey(key)}`);
-        if (!res.ok) throw new Error(String(res.status));
-        await putFavorite(await res.json());
-        trackEvent("bookmark");
-        // A resized town keeps its name rather than becoming "Near <town>".
-        if (stage && stage.area.kind && stage.area.name && key !== stage.area.key && !stage.moved) {
-          await putFavoriteName(key, stage.area.name);
-        }
-      }
-    } catch (e) {
-      setStatus(t("search.bookmarkError"));
-    } finally {
-      renderStage();
-    }
-  });
-
-  $("shareAreaBtn").addEventListener("click", async () => {
-    if (!state.area) return;
-    const name = areaTitle(state.area);
-    const copied = await shareLink(name, t("area.shareText", { place: name }), location.origin + location.pathname + areaHash(state.area.key));
-    if (copied) setAreaStatus(t("share.linkCopied"));
-    trackEvent("share-area");
-  });
-
-  $("renameAreaBtn").addEventListener("click", async () => {
-    if (!state.area) return;
-    try {
-      if (await renameFavorite(state.area.key)) renderAreaHead();
-    } catch (e) {
-      setAreaStatus(t("area.bookmarkError"));
-    }
-  });
-
-  $("bookmarkBtn").addEventListener("click", async () => {
-    if (!state.area) return;
-    if (!state.signedIn) {
-      window.location = "/login?next=" + encodeURIComponent("/" + location.hash);
-      return;
-    }
-    const saved = state.favorites.some((f) => f.key === state.area.key);
-    const btn = $("bookmarkBtn");
-    btn.disabled = true;
-    try {
-      if (saved) await deleteFavorite(state.area.key);
-      else { await putFavorite(state.area); trackEvent("bookmark"); }
-      updateBookmarkButton();
-    } catch (e) {
-      setAreaStatus(t("area.bookmarkError"));
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
-  for (const radio of document.querySelectorAll('input[name="mode"]')) {
-    radio.addEventListener("change", () => {
-      if (parseRoute().name === "area") history.replaceState(null, "", location.hash.split("?")[0] + routeQuery());
-      if (state.area) loadSpecies();
-    });
-  }
-
+  $("bookmarkBtn").addEventListener("click", toggleAreaBookmark);
+  $("areaMenuBtn").addEventListener("click", openAreaMenu);
+  $("sortSelect").addEventListener("change", onAreaQueryChange);
   $("monthSelect").addEventListener("change", (e) => {
     state.monthIsCurrent = e.target.value === "now";
     state.month = state.monthIsCurrent ? currentMonth() : Number(e.target.value);
-    if (parseRoute().name === "area") history.replaceState(null, "", location.hash.split("?")[0] + routeQuery());
-    if (state.area) loadSpecies();
+    onAreaQueryChange();
   });
 
   $("learnStart").addEventListener("click", startLearn);
@@ -1995,7 +2198,7 @@ function wireEvents() {
     e.preventDefault();
     loadAndStartLearn(card.dataset.code);
   });
-  $("learnClose").addEventListener("click", () => learn.finish());
+  $("learnClose").addEventListener("click", () => learn.close());
   $("learnPrev").addEventListener("click", () => learn.go(-1));
   $("learnNext").addEventListener("click", () => learn.go(1));
   $("learnToggleNames").addEventListener("click", () => learn.toggleNames());
@@ -2004,6 +2207,23 @@ function wireEvents() {
   $("secondaryLang").addEventListener("change", onSecondaryLanguageChange);
   $("logoutBtn").addEventListener("click", onLogout);
   $("aboutContactForm").addEventListener("submit", onContactSubmit);
+
+  window.addEventListener("popstate", onPopState);
+}
+
+// Back pops, in order: the open sheet, then the Learn deck. The hashchange
+// that follows a deck's pop (the bird URL reverting to the area's) must not
+// re-render the area, or its scroll position would be lost.
+let suppressHashRender = false;
+
+function onPopState() {
+  if (sheetPushed) { finishSheet(); return; }
+  if (learn.active && learn.pushed) {
+    suppressHashRender = true;
+    setTimeout(() => { suppressHashRender = false; }, 0);
+    learn.finish();
+    window.scrollTo(0, learn.scrollY);
+  }
 }
 
 // ---- Boot -----------------------------------------------------------------
@@ -2019,19 +2239,16 @@ async function init() {
   const qLang = params.get("lang");
   if (VALID_LANGS.includes(qLang)) state.language = qLang;
   const qMode = params.get("mode");
-  if (BROWSE_MODES.includes(qMode)) {
-    const radio = document.querySelector(`input[name="mode"][value="${qMode}"]`);
-    if (radio) radio.checked = true;
-  }
+  if (BROWSE_MODES.includes(qMode)) $("sortSelect").value = qMode;
 
   applyI18n();
-  initMap();
   wireEvents();
 
   if (!location.hash) history.replaceState(null, "", "#/home");
 
   window.addEventListener("hashchange", () => { updateAccountChrome(); onHashChange(); });
   await renderRoute();
+  await completePendingSave();
 }
 
 init();
