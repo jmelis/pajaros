@@ -31,6 +31,38 @@ understanding, *why* it's built that way — but as present-tense
 justification, not a narrated history of decisions. This is a personal
 project; docs are for remembering how things work, not a decision log.
 
+## Copying data files to the server
+
+The bolt data files (`places.bolt`, `seasonal_cells.bolt`; gitignored, built
+locally under `server/data/`) are not in the image. They live on the k3s
+node, `new.zooloo.org` (the cluster's `zooloo2`), in `/srv/birdquiz.byteboa.org`
+(owned by `ubuntu`). That directory is the pods' hostPath, mounted at `/data`,
+which is where the server's default `DATA_DIR` (`./data`, with the container
+rooted at `/`) points, next to `cache/` and `users.db`.
+
+- **Access:** plain `ssh`/`scp` to `new.zooloo.org` as `ubuntu`, using the
+  default key (`~/.ssh/config` has the `Host new.zooloo.org` / `User ubuntu`
+  entry); no `-i` is needed. The same host holds the kubeconfig
+  (`scp new.zooloo.org:.kube/config`, see the deployer repo's `README.md`).
+- **Never overwrite a file in place.** Running pods have these files mmap'd;
+  `scp` onto the live name truncates the same inode under them. Copy to a
+  temporary name, then rename (a rename leaves old pods on the old inode):
+
+  ```bash
+  cd server/data
+  D=new.zooloo.org:/srv/birdquiz.byteboa.org
+  scp places.bolt $D/places.bolt.new && scp seasonal_cells.bolt $D/seasonal_cells.bolt.new
+  ssh new.zooloo.org 'cd /srv/birdquiz.byteboa.org && mv places.bolt.new places.bolt && mv seasonal_cells.bolt.new seasonal_cells.bolt'
+  ```
+- **Order:** copy the files first, then push the server build that needs them
+  (see "Pushing to main deploys to production"). A new pod refuses to start
+  against a missing or stale file, and the rolling update then stalls on the
+  old pods.
+- **Check the file before copying:** `places.bolt` must contain the
+  `place_by_cell` bucket (the server exits with `bucket "place_by_cell" not
+  found` otherwise). Rebuild it with the current `gensnapshot`, not an old
+  binary.
+
 ## The deployment config lives in `../docker-compose-deployer`
 
 The Kubernetes manifests for this app are in the sibling repo
