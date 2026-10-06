@@ -5,6 +5,7 @@
 /birdquiz-server
 /birdquiz-server-linux-amd64
 /server
+/gensnapshot
 
 # GBIF-derived species data and its OpenStreetMap-derived place-search sibling —
 # large (seasonal_cells.bolt: ~1.2 GB; places.bolt: tens to hundreds of MB),
