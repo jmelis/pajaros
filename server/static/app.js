@@ -1,3 +1,28 @@
+// isDeckBird: the route is a bird of the area the open deck is showing.
+function isDeckBird(route) {
+  return !learn.quiet && route.name === "area" && route.key === learn.areaKey && !!route.speciesCode;
+}
+
+async function onHashChange() {
+  if (suppressHashRender) return;
+  const next = parseRoute();
+  // A bird link for the deck that is already open (pasted, or followed from
+  // another page of the app) just moves the deck to that bird.
+  if (learn.active && isDeckBird(next)) {
+    const index = learn.cards.findIndex((c) => c.speciesCode === next.speciesCode);
+    if (index >= 0) {
+      currentRoute = next;
+      learn.index = index;
+      learn.done = false;
+      learn.revealed = false;
+      learn.render();
+      return;
+    }
+  }
+  if (learn.active && !isDeckBird(next)) learn.finish();
+  await renderRoute();
+}
+
 "use strict";
 
 // birdsnearby server app. A hash-routed single page: home, search, area,
@@ -151,9 +176,7 @@ function escapeHtml(s) {
   }[c]));
 }
 
-// Generic greyscale bird silhouette shown while a species' real photo is
-// still being fetched (or if it never becomes available).
-const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+const SILHOUETTE = `
   <rect width="100" height="100" fill="#e8e8e8"/>
   <g fill="#b5b5b5">
     <ellipse cx="45" cy="60" rx="28" ry="20"/>
@@ -162,34 +185,28 @@ const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10
     <polygon points="20,55 4,50 20,68"/>
     <ellipse cx="40" cy="50" rx="14" ry="9" transform="rotate(-20 40 50)"/>
   </g>
-  <circle cx="76" cy="38" r="2" fill="#e8e8e8"/>
+  <circle cx="76" cy="38" r="2" fill="#e8e8e8"/>`;
+
+// Greyscale bird silhouette shown when the server has confirmed no
+// freely-licensed photo exists for a species (sp.imageMissing).
+const MISSING_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${SILHOUETTE}</svg>`;
+const MISSING_URL = "data:image/svg+xml," + encodeURIComponent(MISSING_SVG);
+
+// The same silhouette with a small spinner, shown while a photo is still
+// being fetched.
+const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${SILHOUETTE}
+  <circle cx="50" cy="50" r="9" fill="none" stroke="#fff" stroke-opacity="0.85" stroke-width="3" stroke-linecap="round" stroke-dasharray="28 100">
+    <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1s" repeatCount="indefinite"/>
+  </circle>
 </svg>`;
 const PLACEHOLDER_URL = "data:image/svg+xml," + encodeURIComponent(PLACEHOLDER_SVG);
-
-// Shown instead of PLACEHOLDER_SVG once the server has confirmed no
-// freely-licensed photo exists for a species (sp.imageMissing) — same
-// silhouette, marked with a red X so it doesn't read as "still loading".
-const MISSING_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" fill="#e8e8e8"/>
-  <g fill="#cbcbcb">
-    <ellipse cx="45" cy="60" rx="28" ry="20"/>
-    <circle cx="72" cy="42" r="14"/>
-    <polygon points="84,42 96,38 84,48"/>
-    <polygon points="20,55 4,50 20,68"/>
-    <ellipse cx="40" cy="50" rx="14" ry="9" transform="rotate(-20 40 50)"/>
-  </g>
-  <circle cx="76" cy="38" r="2" fill="#e8e8e8"/>
-  <line x1="10" y1="10" x2="90" y2="90" stroke="#c33" stroke-width="9" stroke-linecap="round"/>
-  <line x1="90" y1="10" x2="10" y2="90" stroke="#c33" stroke-width="9" stroke-linecap="round"/>
-</svg>`;
-const MISSING_URL = "data:image/svg+xml," + encodeURIComponent(MISSING_SVG);
 
 // Images are fetched server-side in the background (see
 // /api/places/{key}/species), so a card's imageUrl often 404s at first.
 // Preload off-DOM and only swap the visible <img> once it actually loads,
 // retrying for a couple of minutes — long enough to cover a big area's
 // background-fetch queue — before
-// giving up and leaving the placeholder in place.
+// giving up and showing the no-photo silhouette.
 function preloadAndSwap(imgEl, url, attempt = 0) {
   const MAX_ATTEMPTS = 40;
   const RETRY_MS = 3000;
@@ -197,6 +214,7 @@ function preloadAndSwap(imgEl, url, attempt = 0) {
   probe.onload = () => { imgEl.src = url; };
   probe.onerror = () => {
     if (attempt < MAX_ATTEMPTS) setTimeout(() => preloadAndSwap(imgEl, url, attempt + 1), RETRY_MS);
+    else imgEl.src = MISSING_URL;
   };
   probe.src = url;
 }
@@ -342,10 +360,12 @@ function showToast(text, action) {
 
 // shareLink offers a link through the native share sheet where there is one,
 // otherwise copies it and says so. The share sheet is its own confirmation.
-async function shareLink(title, text, url) {
+// Only a title and the URL go in: apps that copy from the sheet append any
+// extra text to the URL, which breaks the link.
+async function shareLink(title, url) {
   if (navigator.share) {
     try {
-      await navigator.share({ title, text, url });
+      await navigator.share({ title, url });
       return;
     } catch (e) {
       if (e && e.name === "AbortError") return;
@@ -1123,6 +1143,8 @@ let rangeLayer = null;
 let rangeRequest = 0;
 let rangeMonth = 0;
 let rangeFitted = "";
+let rangePick = null; // the circle of the last tapped spot
+let rangePickKm = 25;
 const RANGE_COLOR = "#d7263d";
 
 function initRangeMap() {
@@ -1133,6 +1155,36 @@ function initRangeMap() {
     attribution: t("search.mapAttribution"),
   }).addTo(rangeMap);
   rangeLayer = L.layerGroup().addTo(rangeMap);
+  // Tapping the map drops a circle with a radius slider; the button opens the
+  // birds inside it, the same custom circle a point picked in Search opens.
+  rangeMap.on("click", (e) => {
+    const { lat, lng } = e.latlng.wrap();
+    if (rangePick) rangePick.remove();
+    const circle = rangePick = L.circle(e.latlng, { radius: rangePickKm * 1000, color: "#007aff", weight: 2, fillOpacity: 0.15, interactive: false }).addTo(rangeMap);
+    const box = document.createElement("div");
+    box.className = "range-popup";
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = "0";
+    slider.max = String(RADIUS_SLIDER_MAX);
+    slider.step = "1";
+    slider.value = String(kmToSlider(rangePickKm));
+    const go = document.createElement("button");
+    go.type = "button";
+    go.className = "btn btn-primary btn-sm";
+    const label = () => { go.textContent = `${t("range.birdsWithin")} ${rangePickKm} km`; };
+    label();
+    slider.addEventListener("input", () => {
+      rangePickKm = sliderToKm(Number(slider.value));
+      circle.setRadius(rangePickKm * 1000);
+      label();
+    });
+    go.addEventListener("click", () => navigate("#/area/" + encodeKey(customKey(lat, lng, rangePickKm))));
+    box.append(slider, go);
+    L.popup({ closeButton: false, autoPan: false })
+      .setLatLng(e.latlng).setContent(box).openOn(rangeMap)
+      .on("remove", () => { circle.remove(); if (rangePick === circle) rangePick = null; });
+  });
   watchMapSize(rangeMap, $("rangeMap"));
 }
 
@@ -1308,7 +1360,7 @@ function openAreaMenu() {
     body.appendChild(sheetItem(t("sheet.openMap"), () => closeSheet(() => navigate("#/search?from=" + encodeKey(key)))));
     body.appendChild(sheetItem(t("sheet.share"), () => closeSheet(() => {
       const name = areaTitle(area);
-      shareLink(name, t("area.shareText", { place: name }), location.origin + location.pathname + areaHash(key));
+      shareLink(name, location.origin + location.pathname + areaHash(key));
       trackEvent("share-area");
     })));
     if (state.favorites.some((f) => f.key !== key)) {
@@ -1725,8 +1777,7 @@ async function onLogout() {
 // ---- Learn ------------------------------------------------------------
 
 function shareBird(item) {
-  const place = item.areaName || (state.area ? areaTitle(state.area) : "");
-  return shareLink(item.comName, t("learn.shareText", { name: item.comName, place }), location.origin + location.pathname + birdHash(item.areaKey || learn.areaKey, item.speciesCode));
+  return shareLink(item.comName, location.origin + location.pathname + birdHash(item.areaKey || learn.areaKey, item.speciesCode));
 }
 
 // A Learn card's image slides: index 0 shares imageMissing's "the server
@@ -1775,6 +1826,7 @@ const learn = {
   revealed: false,
   pushed: false,
   startHash: "",
+  histLen: 0,
   scrollY: 0,
   keyHandler: null,
 
@@ -1793,6 +1845,7 @@ const learn = {
     this.scrollY = window.scrollY;
     this.startHash = location.hash;
     history.pushState({ learn: 1 }, "");
+    this.histLen = history.length;
     this.pushed = true;
     document.body.classList.add("learn-open");
     $("learnOverlay").hidden = false;
@@ -2005,7 +2058,7 @@ const learn = {
     slides.forEach((img, i) => {
       learnLoadSlide(img, urls[i], i === 0 ? LEARN_PRIMARY_RETRIES : LEARN_SECONDARY_RETRIES, {
         onLoad: refreshDots,
-        onGiveUp: () => { if (shown === i) showSlide(0); },
+        onGiveUp: () => { img.src = MISSING_URL; if (shown === i) showSlide(0); },
       });
     });
 
@@ -2212,15 +2265,18 @@ let suppressHashRender = false;
 function onPopState() {
   if (sheetPushed) { finishSheet(); return; }
   if (learn.active && learn.pushed) {
-    // A link in the deck (Range, Credits) also fires popstate, but it lands
-    // on a different route that hashchange has to render. Only a Back pop,
-    // which returns to the hash the deck started on, skips the re-render.
-    if (location.hash === learn.startHash) {
+    // Only Back, which returns to the hash the deck started on without adding
+    // an entry, skips the re-render. A link or pasted URL also fires popstate,
+    // but lands on a route that hashchange has to render; one for a bird of
+    // this same deck is left to hashchange to show in place.
+    if (location.hash === learn.startHash && history.length <= learn.histLen) {
       suppressHashRender = true;
       setTimeout(() => { suppressHashRender = false; }, 0);
       window.scrollTo(0, learn.scrollY);
+      learn.finish();
+    } else if (!isDeckBird(parseRoute())) {
+      learn.finish();
     }
-    learn.finish();
   }
 }
 

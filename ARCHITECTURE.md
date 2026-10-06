@@ -425,7 +425,7 @@ percent of the species' own maximum, so a species that peaks at 20% still
 shows its shape. Choosing a species frames the map on its range (the 2nd to
 98th percentile of cell latitudes and longitudes, so stray vagrant records are
 ignored; a range spanning most of the globe keeps the world view), while
-changing the month keeps the current view. Species search matches normalized names by prefix or word
+changing the month keeps the current view. Tapping the map opens a circle and a popup with the Search radius slider (1-500 km, remembered between taps) and a "Birds within N km" button, which opens that custom circle as an area. Species search matches normalized names by prefix or word
 start in the interface language, English and Latin. Learn's ⋯ menu links
 to a species' map ("Where else?") on the month the place is being browsed.
 
@@ -612,7 +612,8 @@ area with a notice). Opening the deck pushes one history entry and moving
 between cards only replaces it (`learn.syncURL()` uses `history.replaceState`),
 so the address bar always holds the current bird's link and Back (or ×)
 closes the deck over the area at the same scroll position. Closing restores
-the plain area URL. Tapping a bird in the area's species grid
+the plain area URL. Pasting or following a bird link for the area whose deck is
+already open moves the deck to that bird in place. Tapping a bird in the area's species grid
 opens Learn at that bird (the grid cards are real links to the same URL, so
 middle-click/copy-link still work). Share (top bar; Web Share API, falling back to copying the link) is an icon
 next to the names toggle. The ⋯ menu, a bottom sheet titled with the bird,

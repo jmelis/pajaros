@@ -429,6 +429,8 @@ body.map-screen .container {
 .dock-head .area-subtitle, .bar-head .area-subtitle { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .radius-block { display: flex; flex-direction: column; gap: 6px; }
 .radius-chips { display: flex; gap: 6px; }
+.range-popup { display: flex; flex-direction: column; gap: 6px; min-width: 200px; }
+.range-popup input[type=range] { width: 100%; }
 .radius-chip {
   flex: 1;
   min-width: 0;
