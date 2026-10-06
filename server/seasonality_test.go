@@ -78,33 +78,6 @@ func TestClassifySeasonsTooLittleData(t *testing.T) {
 	}
 }
 
-func TestSortBySeason(t *testing.T) {
-	cards := []SpeciesCard{
-		{SciName: "occ"}, {SciName: "none"}, {SciName: "wint"}, {SciName: "year"}, {SciName: "summ"},
-	}
-	seasons := map[string]SpeciesSeason{
-		"occ":  {Kind: seasonOccasional, Total: 2},
-		"wint": {Kind: seasonSeasonal, Peak: 1, Total: 50},
-		"year": {Kind: seasonYearRound, Total: 900},
-		"summ": {Kind: seasonSeasonal, Peak: 7, Total: 500},
-	}
-	labelSeasons(cards, seasons)
-	sortBySeason(cards, seasons)
-	var order []string
-	for _, c := range cards {
-		order = append(order, c.SciName)
-	}
-	want := []string{"year", "wint", "summ", "occ", "none"}
-	for i := range want {
-		if order[i] != want[i] {
-			t.Fatalf("order = %v, want %v", order, want)
-		}
-	}
-	if cards[3].Season != seasonOccasional || cards[4].Season != "" {
-		t.Errorf("seasons not set as expected: %+v", cards)
-	}
-}
-
 func TestSpeciesSeasonsFromStore(t *testing.T) {
 	s := newTestSpeciesStore(t)
 	got, err := s.Seasons("c3.500,4.500,5.0")

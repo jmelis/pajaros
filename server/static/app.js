@@ -9,7 +9,7 @@
 
 const $ = (id) => document.getElementById(id);
 const VALID_LANGS = ["ca", "cs", "da", "de", "en", "eo", "es", "fi", "fr", "hr", "it", "ja", "lt", "nb", "nl", "pl", "pt", "ru", "sk", "sv", "tr", "uk", "zh"];
-const BROWSE_MODES = ["popularity", "category", "alphabetical", "seasonality"];
+const BROWSE_MODES = ["popularity", "category", "alphabetical"];
 const DEFAULT_BROWSE_MODE = "popularity";
 const VIEW_NAMES = ["home", "search", "range", "area", "credits", "compare", "about", "settings"];
 const SPECIES_CODE_RE = /^[A-Za-z0-9_-]+$/;
@@ -138,13 +138,7 @@ function updateMonthOptions() {
 
 // The query suffix that limits /species to the selected month.
 function monthParam() {
-  return effectiveMonth() ? `&month=${effectiveMonth()}` : "";
-}
-
-// The Seasons view looks at the whole year, so the month selection doesn't
-// apply to it (nor to the Learn deck and links opened from it).
-function effectiveMonth() {
-  return currentBrowseMode() === "seasonality" ? 0 : state.month;
+  return state.month ? `&month=${state.month}` : "";
 }
 
 function noneInMonthText(areaName) {
@@ -1366,7 +1360,7 @@ async function ensureArea(key) {
 // Learn links open on the same view. The default order is left out.
 function routeQuery() {
   const q = [];
-  if (effectiveMonth()) q.push("month=" + effectiveMonth());
+  if (state.month) q.push("month=" + state.month);
   if (currentBrowseMode() !== DEFAULT_BROWSE_MODE) q.push("sort=" + currentBrowseMode());
   return q.length ? "?" + q.join("&") : "";
 }
@@ -1599,7 +1593,6 @@ async function loadSpecies() {
   const lang = state.language;
   const mode = currentBrowseMode();
   $("groups").innerHTML = "";
-  $("monthSelect").hidden = mode === "seasonality";
 
   // Fetch the secondary-language names first (cached after the first load) so
   // the cards below can render their subtitles immediately.
@@ -1607,10 +1600,9 @@ async function loadSpecies() {
 
   const loadingKey = { popularity: "browse.loadingPopularity", category: "browse.loadingCategory" }[mode] || "browse.loading";
   setAreaStatus(t(loadingKey, { name }));
-  const withMonth = mode === "seasonality" ? "" : monthParam();
   let species;
   try {
-    const res = await fetch(`/api/places/${encodeKey(area.key)}/species?lang=${lang}&mode=${mode}${withMonth}`);
+    const res = await fetch(`/api/places/${encodeKey(area.key)}/species?lang=${lang}&mode=${mode}${monthParam()}`);
     if (!res.ok) { setAreaStatus(t("browse.error", { status: res.status })); return; }
     species = await res.json();
   } catch (e) {
@@ -1620,12 +1612,7 @@ async function loadSpecies() {
   if (state.area !== area || currentBrowseMode() !== mode) return;
   state.species = species;
 
-  if (mode === "seasonality") {
-    // Species arrive grouped (year-round, seasonal, occasional). An area with
-    // too little data comes back without groups, as one plain list.
-    renderGroups(groupBy(species, (sp) => (sp.season ? t("browse.season." + sp.season) : "")));
-    setAreaStatus(tn("browse.loadedSeasonality", species.length, { name }));
-  } else if (mode === "category") {
+  if (mode === "category") {
     // Species arrive already grouped by family (eBird's taxonomic order).
     renderGroups(groupBy(species, (sp) => sp.family || sp.order || t("browse.otherFamily")));
     setAreaStatus(species.length === 0 && state.month ? noneInMonthText(name) : tn("browse.loadedCategory", species.length, { name }));
@@ -1770,15 +1757,6 @@ function learnPhotoUrls(item) {
   return item.imageUrl ? [item.imageUrl] : [];
 }
 
-function learnAction(tag, label, props) {
-  const el = document.createElement(tag);
-  el.className = "learn-act";
-  el.textContent = label;
-  if (tag === "button") el.type = "button";
-  Object.assign(el, props);
-  return el;
-}
-
 // learn drives the full-screen card deck: cards is the area's species in
 // popularity order (see startLearn), and index just moves through it — no
 // scoring, no server round-trip per card. namesVisible is a per-session
@@ -1796,6 +1774,7 @@ const learn = {
   namesVisible: true,
   revealed: false,
   pushed: false,
+  startHash: "",
   scrollY: 0,
   keyHandler: null,
 
@@ -1812,6 +1791,7 @@ const learn = {
     this.revealed = false;
     this.active = true;
     this.scrollY = window.scrollY;
+    this.startHash = location.hash;
     history.pushState({ learn: 1 }, "");
     this.pushed = true;
     document.body.classList.add("learn-open");
@@ -1846,6 +1826,26 @@ const learn = {
     if (this.keyHandler) document.removeEventListener("keydown", this.keyHandler);
     this.keyHandler = null;
     $("learnBody").innerHTML = "";
+  },
+
+  // The ⋯ button: the current bird's links. Each one leaves the deck, so they
+  // run after the sheet has closed.
+  openMenu() {
+    const item = this.cards[this.index];
+    if (this.done || !item) return;
+    const areaKey = item.areaKey || this.areaKey;
+    openSheet(item.comName, (body) => {
+      body.appendChild(sheetItem(t("learn.range"), () => closeSheet(() => navigate(rangeHash(item.speciesCode, state.month)))));
+      const ebird = document.createElement("a");
+      ebird.className = "sheet-item";
+      ebird.textContent = t("learn.ebird");
+      ebird.href = `https://ebird.org/species/${encodeURIComponent(item.speciesCode)}`;
+      ebird.target = "_blank";
+      ebird.rel = "noopener noreferrer";
+      ebird.addEventListener("click", () => closeSheet());
+      body.appendChild(ebird);
+      body.appendChild(sheetItem(t("learn.credits"), () => closeSheet(() => navigate(creditsHash(areaKey, item.speciesCode)))));
+    });
   },
 
   onKeyDown(e) {
@@ -2022,23 +2022,12 @@ const learn = {
     });
     card.appendChild(names);
 
-    const actions = document.createElement("div");
-    actions.className = "learn-actions";
-    const ebird = learnAction("a", "eBird", {
-      href: `https://ebird.org/species/${encodeURIComponent(item.speciesCode)}`,
-      target: "_blank",
-      rel: "noopener noreferrer",
-    });
-    ebird.setAttribute("aria-label", t("learn.ebird"));
-    const share = learnAction("button", t("learn.share"));
-    share.addEventListener("click", () => shareBird(item));
-    actions.append(
-      learnAction("a", t("learn.range"), { href: rangeHash(item.speciesCode, effectiveMonth()) }),
-      ebird,
-      share,
-      learnAction("a", t("learn.credits"), { href: creditsHash(item.areaKey || this.areaKey, item.speciesCode) }),
-    );
-    card.appendChild(actions);
+    if (item.seasonBars) {
+      const chart = document.createElement("div");
+      chart.className = "learn-chart";
+      chart.innerHTML = seasonChart(item.seasonBars, item.comName);
+      card.appendChild(chart);
+    }
 
     body.appendChild(card);
     this.applyNamesMask();
@@ -2130,7 +2119,7 @@ async function loadAndStartLearn(speciesCode) {
     return;
   }
   if (!species || species.length === 0) {
-    setAreaStatus(effectiveMonth() ? noneInMonthText(areaTitle(state.area)) : t("learn.none"));
+    setAreaStatus(state.month ? noneInMonthText(areaTitle(state.area)) : t("learn.none"));
     return;
   }
   let index = 0;
@@ -2202,6 +2191,10 @@ function wireEvents() {
   $("learnPrev").addEventListener("click", () => learn.go(-1));
   $("learnNext").addEventListener("click", () => learn.go(1));
   $("learnToggleNames").addEventListener("click", () => learn.toggleNames());
+  $("learnShare").addEventListener("click", () => {
+    if (learn.active && !learn.done) shareBird(learn.cards[learn.index]);
+  });
+  $("learnMenu").addEventListener("click", () => learn.openMenu());
 
   $("primaryLang").addEventListener("change", onPrimaryLanguageChange);
   $("secondaryLang").addEventListener("change", onSecondaryLanguageChange);
@@ -2219,10 +2212,15 @@ let suppressHashRender = false;
 function onPopState() {
   if (sheetPushed) { finishSheet(); return; }
   if (learn.active && learn.pushed) {
-    suppressHashRender = true;
-    setTimeout(() => { suppressHashRender = false; }, 0);
+    // A link in the deck (Range, Credits) also fires popstate, but it lands
+    // on a different route that hashchange has to render. Only a Back pop,
+    // which returns to the hash the deck started on, skips the re-render.
+    if (location.hash === learn.startHash) {
+      suppressHashRender = true;
+      setTimeout(() => { suppressHashRender = false; }, 0);
+      window.scrollTo(0, learn.scrollY);
+    }
     learn.finish();
-    window.scrollTo(0, learn.scrollY);
   }
 }
 

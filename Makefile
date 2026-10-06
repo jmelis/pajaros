@@ -1,4 +1,4 @@
-.PHONY: all build server server-open \
+.PHONY: all build server server-open stop \
         server-linux image image-push deploy deploy-manifest
 
 all: build
@@ -30,6 +30,11 @@ server:
 # regardless of any auth env vars already set, e.g. in .envrc.
 server-open:
 	cd server && HOST=0.0.0.0 GOOGLE_AUTH_ENABLED= APPLE_AUTH_ENABLED= go run .
+
+# Kills whatever is listening on port 8080 (the dev server's default).
+stop:
+	@pids=$$(lsof -ti tcp:8080 -sTCP:LISTEN); \
+	 if [ -n "$$pids" ]; then kill $$pids && echo "killed $$pids"; else echo "nothing on :8080"; fi
 
 # Pure Go (modernc.org/sqlite has no cgo), so this cross-compiles from the Mac
 # with no toolchain and lands straight in a distroless container.

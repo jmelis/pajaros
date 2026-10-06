@@ -131,7 +131,6 @@
           <option value="popularity" data-i18n="browse.popularity"></option>
           <option value="category" data-i18n="browse.category"></option>
           <option value="alphabetical" data-i18n="browse.alphabetical"></option>
-          <option value="seasonality" data-i18n="browse.seasonality"></option>
         </select>
       </div>
       <div id="groups"></div>
@@ -239,9 +238,17 @@
     <button id="learnClose" class="learn-icon-btn" type="button" data-i18n-aria="learn.back">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
     </button>
-    <button id="learnToggleNames" class="learn-icon-btn" type="button" data-i18n-aria="learn.hideNames" aria-pressed="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-    </button>
+    <div class="learn-top-actions">
+      <button id="learnToggleNames" class="learn-icon-btn" type="button" data-i18n-aria="learn.hideNames" aria-pressed="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <button id="learnShare" class="learn-icon-btn" type="button" data-i18n-aria="learn.share">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+      </button>
+      <button id="learnMenu" class="learn-icon-btn" type="button" aria-haspopup="dialog" data-i18n-aria="sheet.more">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+      </button>
+    </div>
   </div>
   <div id="learnBody" class="learn-body"></div>
   <div class="learn-nav">

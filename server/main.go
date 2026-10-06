@@ -131,12 +131,10 @@ type SpeciesCard struct {
 	// count in the area (see areaSpeciesSource.PopularityCounts). nil
 	// means unmatched/no data, not zero.
 	NearbyCount *int `json:"nearbyCount,omitempty"`
-	// Season and SeasonBars are set only in "seasonality" mode: one of
-	// yearround/seasonal/occasional, and 12 bar heights (0..100, January
-	// first) for the species' reporting rate by month. Absent when the
+	// SeasonBars are 12 bar heights (0..100, January first) for the
+	// species' reporting rate by month, set in every mode. Absent when the
 	// area has too little data.
-	Season     string `json:"season,omitempty"`
-	SeasonBars []int  `json:"seasonBars,omitempty"` // []uint8 would marshal as base64
+	SeasonBars []int `json:"seasonBars,omitempty"` // []uint8 would marshal as base64
 	// ImageMissing is true once a Wikimedia lookup has already confirmed no
 	// freely-licensed photo exists for this species — distinct from "not
 	// fetched yet", which is the common case and just leaves this false.
@@ -440,9 +438,6 @@ func (s *Server) handleAreaSpecies(w http.ResponseWriter, r *http.Request) {
 		mode = "category"
 	}
 
-	if mode == "seasonality" {
-		month = 0 // the seasonal view always looks at the whole year
-	}
 	codes, taxa, err := s.species.Species(key, lang, month)
 	if err != nil {
 		log.Printf("Species(%s, %s, month %d): %v", key, lang, month, err)
@@ -502,15 +497,11 @@ func (s *Server) handleAreaSpecies(w http.ResponseWriter, r *http.Request) {
 		sort.SliceStable(cards, func(i, j int) bool { return cards[i].ComName < cards[j].ComName })
 	}
 
-	// Every card carries its monthly bar chart, whatever the order; the
-	// seasonality order also groups and sorts by season.
+	// Every card carries its monthly bar chart, whatever the order.
 	if seasons, err := s.species.Seasonality(key); err != nil {
 		log.Printf("Seasonality(%s): %v — no season data", key, err)
 	} else {
 		labelSeasons(cards, seasons)
-		if mode == "seasonality" {
-			sortBySeason(cards, seasons)
-		}
 	}
 
 	areaSpeciesCount.WithLabelValues(mode).Observe(float64(len(cards)))
@@ -564,11 +555,10 @@ func writeJSON(w http.ResponseWriter, v any) {
 	}
 }
 
-// labelSeasons gives each card its season kind and monthly bars.
+// labelSeasons gives each card its monthly bars.
 func labelSeasons(cards []SpeciesCard, seasons map[string]SpeciesSeason) {
 	for i := range cards {
 		if sp, ok := seasons[cards[i].SciName]; ok {
-			cards[i].Season = sp.Kind
 			bars := make([]int, len(sp.Bars))
 			for m, v := range sp.Bars {
 				bars[m] = int(v)
@@ -576,34 +566,4 @@ func labelSeasons(cards []SpeciesCard, seasons map[string]SpeciesSeason) {
 			cards[i].SeasonBars = bars
 		}
 	}
-}
-
-// sortBySeason orders the cards by
-// group (year-round, seasonal, occasional): year-round and occasional ones
-// by how often they are reported, seasonal ones by the month they peak in so
-// the group reads like a calendar. Cards with no season data stay last, in
-// their incoming order.
-func sortBySeason(cards []SpeciesCard, seasons map[string]SpeciesSeason) {
-	rank := map[string]int{seasonYearRound: 0, seasonSeasonal: 1, seasonOccasional: 2}
-	key := func(c SpeciesCard) (group, peak, total int) {
-		sp, ok := seasons[c.SciName]
-		if !ok {
-			return len(rank), 0, 0
-		}
-		if sp.Kind == seasonSeasonal {
-			return rank[sp.Kind], sp.Peak, -sp.Total
-		}
-		return rank[sp.Kind], 0, -sp.Total
-	}
-	sort.SliceStable(cards, func(i, j int) bool {
-		gi, pi, ti := key(cards[i])
-		gj, pj, tj := key(cards[j])
-		if gi != gj {
-			return gi < gj
-		}
-		if pi != pj {
-			return pi < pj
-		}
-		return ti < tj
-	})
 }

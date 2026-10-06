@@ -90,7 +90,7 @@ GET  /healthz                                    liveness/readiness, ungated
 GET  /api/places                                 place-name search (q)
 GET  /api/places/{key}                            area info: name, kind, country, centre, radius, whether it has a polygon
 GET  /api/places/{key}/outline                     the area's polygon rings as [lat, lng] pairs, simplified for drawing (404 without a polygon)
-GET  /api/places/{key}/species                     species list (category/popularity/alphabetical/seasonality; optional month=1-12, ignored by seasonality) — Learn's card deck too
+GET  /api/places/{key}/species                     species list (category/popularity/alphabetical; optional month=1-12) — Learn's card deck too
 GET  /api/places/{key}/credits                     photo credits for the area's species, or one with ?species=<code> (author, license, source)
 GET  /api/species                                 species-name search (q, lang): common name in lang or English, or Latin; prefix and word-start matches
 GET  /api/species/{code}/range                     world frequency map of a species (lang, optional month=1-12): 1° cells as [lat, lng, percent]
@@ -135,7 +135,7 @@ Hash-based routing (`#/home`, `#/search`, `#/area/<key>`,
 "Area keys")
 so every view survives a reload and is linkable without any server-side
 routing. Area, bird and credits routes take optional `?month=1-12` and
-`?sort=<popularity|category|alphabetical|seasonality>` after the path (joined
+`?sort=<popularity|category|alphabetical>` after the path (joined
 with `&`); they set the month selector and sort menu (a link without them keeps
 the current selection) and the app keeps them in the hash as the controls
 change (the default sort is left out), so shared links open on the same view
@@ -169,8 +169,8 @@ places button stands in for the list when nothing is saved, and a "Birds near
 me" button opens the area around the visitor), **Search** (place-name search, geolocation, and a map for
 drawing a custom circle — see "Place search" below), **Area** (the place's name
 with its kind and country, a save star and the ⋯ menu; one sticky row with the
-month selector, a native sort select — popularity/category/alphabetical/seasons —
-and the Learn button; a two-column photo grid whose category and season
+month selector, a native sort select — popularity/category/alphabetical —
+and the Learn button; a two-column photo grid whose category
 sections have sticky headings with species counts; Learn's full-screen card
 deck, see "Learn mode and species images" below),
 **Atlas** (a species' frequency over the whole world — see "Species range
@@ -426,7 +426,7 @@ shows its shape. Choosing a species frames the map on its range (the 2nd to
 98th percentile of cell latitudes and longitudes, so stray vagrant records are
 ignored; a range spanning most of the globe keeps the world view), while
 changing the month keeps the current view. Species search matches normalized names by prefix or word
-start in the interface language, English and Latin. Learn's action row links
+start in the interface language, English and Latin. Learn's ⋯ menu links
 to a species' map ("Where else?") on the month the place is being browsed.
 
 ### Area keys
@@ -456,24 +456,20 @@ the `areaSpeciesSource` interface `main.go` calls against — an interface purel
 for testability, so tests can hand the server made-up species codes without
 touching real data. Both files are opened read-only and shared by all requests.
 
-**Seasons.** `GET .../species?mode=seasonality` groups an area's species
-into year-round, seasonal and occasional (`server/seasonality.go`), from the
-same twelve monthly counts; there is no extra stored data. Counts are
+**Seasons.** An area's species are classified as year-round, seasonal or
+occasional (`server/seasonality.go`) from the same twelve monthly counts;
+there is no extra stored data. Counts are
 checklist records, so busy months inflate everything. Each month's observer
 effort is approximated by the mean count of that month's three most-reported
 species, and a species' rate is its count over that effort. A month whose
 effort is under three records is "no data" (many areas have few checklists
-and whole months with none): it counts neither as present nor absent. Occasional: at
-most two records, or a best-month rate under 5%. Otherwise a month is
-"present" when the rate is at least 25% of the species' best month; present
-in at least 75% of the months that have data is year-round, fewer is
-seasonal. Each card carries its group and its twelve effort-adjusted monthly
+and whole months with none): it counts neither as present nor absent. Each
+card in `GET .../species` carries the species' twelve effort-adjusted monthly
 rates (`seasonBars`, 0-100 relative to the species' own best month, January
 first, -1 for a no-data month), which the frontend draws as a small inline
-bar chart on every species card; this is attached in every sort order, while
-`mode=seasonality` also groups and orders by season. The Seasons view ignores
-the month selector (the charts always cover the whole year), and an area with data in fewer than six months comes back
-unclassified, as a plain list.
+bar chart on every species card and on the Learn card; this is attached in
+every sort order and always covers the whole year, whatever the month
+selector says. An area with data in fewer than six months has no bars.
 
 ## Place search
 
@@ -600,7 +596,7 @@ and drag/arrow-key/button navigation client-side (`static/app.js`'s
 `learn` object) — there's no separate session endpoint or server-side state
 for it. It's started by the Learn button on the area view. The card fits the
 dynamic viewport with no scrolling (the page behind is locked) and has a top
-bar with only × and a names toggle (👁), and ‹, "i / n" and › at the bottom
+bar with × on the left and, on the right, a names toggle (👁), Share and a ⋯ menu, and ‹, "i / n" and › at the bottom
 within thumb reach. Horizontal drag moves between birds (pointer capture
 starts only once a move is clearly horizontal, so taps still reach the card);
 a bird's own photos are cycled only by tapping the photo (no timer, no swipe),
@@ -618,9 +614,11 @@ so the address bar always holds the current bird's link and Back (or ×)
 closes the deck over the area at the same scroll position. Closing restores
 the plain area URL. Tapping a bird in the area's species grid
 opens Learn at that bird (the grid cards are real links to the same URL, so
-middle-click/copy-link still work). One action row under the names holds
-"Where else?", an "eBird" link to the species' eBird page in a new tab, Share
-(Web Share API, falling back to copying the link) and "Photo credits".
+middle-click/copy-link still work). Share (top bar; Web Share API, falling back to copying the link) is an icon
+next to the names toggle. The ⋯ menu, a bottom sheet titled with the bird,
+holds "Where else?", an "eBird" link to the species' eBird page in a new tab
+and "Photo credits". The species' twelve-month bar chart (`seasonBars`) sits
+under the names.
 
 Each card shows up to `maxImagesPerSpecies` (4) images, all from Wikimedia
 (`server/wikimedia.go`) and cached to disk. Only two human-curated sources
@@ -709,8 +707,8 @@ pure local disk I/O, finishes in well under a second even for thousands of
 species, and logs to `migration.log`.
 
 **Photo credits.** Commons photos are CC BY / CC BY-SA, which require showing
-the author, license and source. The Learn overlay's action row has a "Photo credits"
-link, which follows the current card, to
+the author, license and source. The Learn overlay's ⋯ menu has a "Photo credits"
+entry, which follows the current card, to
 `#/area/<key>/bird/<speciesCode>/credits`, a text-only page (no images)
 listing that species' photos with each one's title, author, license link and
 Commons link. `handleAreaCredits` (`server/credits.go`) builds it from the

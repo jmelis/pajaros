@@ -728,6 +728,7 @@ body.learn-open { overflow: hidden; }
   padding: calc(8px + env(safe-area-inset-top)) max(var(--space-2), env(safe-area-inset-right)) 8px max(var(--space-2), env(safe-area-inset-left));
   flex-shrink: 0;
 }
+.learn-top-actions { display: flex; align-items: center; gap: var(--space-1); }
 .learn-icon-btn {
   width: var(--tap);
   height: var(--tap);
@@ -869,35 +870,14 @@ body.learn-open { overflow: hidden; }
 .learn-sub { font-weight: 600; color: var(--muted); }
 .learn-sci { font-style: italic; color: var(--muted); }
 
-.learn-actions {
+.learn-chart {
   flex-shrink: 0;
-  display: flex;
-  border-top: 0.5px solid var(--border);
+  padding: 0 var(--space-2) 12px;
   background: var(--surface);
 }
-.learn-act {
-  flex: 1;
-  min-width: 0;
-  min-height: var(--tap);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-  border: none;
-  border-right: 0.5px solid var(--border);
-  background: none;
-  color: var(--accent-dark);
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: 1.15;
-  text-align: center;
-  text-decoration: none;
-  cursor: pointer;
-}
-.learn-act:last-child { border-right: none; }
-.learn-act:active { background: var(--fill); }
-@media (prefers-color-scheme: dark) { .learn-act { color: var(--accent); } }
+.learn-chart .season-chart { display: block; width: 100%; max-width: 360px; height: auto; margin: 0 auto; fill: var(--accent); }
+.learn-chart .season-chart text { font-size: 8.5px; fill: var(--muted); }
+@media (prefers-color-scheme: dark) { .learn-chart .season-chart { fill: var(--accent-dark); } }
 
 @keyframes learn-bounce {
   0%, 100% { transform: translateX(0); }
